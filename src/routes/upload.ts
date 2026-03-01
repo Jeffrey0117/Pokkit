@@ -23,7 +23,8 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
       buffer,
     )
 
-    const url = `http://${request.hostname}/files/${entry.id}/${encodeURIComponent(entry.filename)}`
+    const host = request.headers.host ?? `${request.hostname}:${config.port}`
+    const url = `http://${host}/files/${entry.id}/${encodeURIComponent(entry.filename)}`
     return { url, id: entry.id }
   })
 }
