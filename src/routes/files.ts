@@ -1,0 +1,74 @@
+import type { FastifyInstance } from 'fastify'
+import type { Storage } from '../storage.js'
+import type { PokkitConfig } from '../config.js'
+
+export function filesRoute(app: FastifyInstance, storage: Storage, config: PokkitConfig) {
+  // GET /files — list all files (auth required)
+  app.get('/files', async (request, reply) => {
+    if (config.apiKey) {
+      const auth = request.headers.authorization
+      if (auth !== `Bearer ${config.apiKey}`) {
+        return reply.status(401).send({ error: 'Unauthorized' })
+      }
+    }
+    return storage.list()
+  })
+
+  // GET /files/:id/:filename — download file (no auth, for viewer streaming)
+  app.get<{ Params: { id: string; filename: string } }>(
+    '/files/:id/:filename',
+    async (request, reply) => {
+      const { id, filename } = request.params
+      const entry = storage.find(id)
+      if (!entry) {
+        return reply.status(404).send({ error: 'File not found' })
+      }
+
+      const stream = storage.getStream(id, filename)
+      if (!stream) {
+        return reply.status(404).send({ error: 'File not found on disk' })
+      }
+
+      return reply
+        .header('Content-Type', entry.mime)
+        .header('Content-Length', entry.size)
+        .send(stream)
+    },
+  )
+
+  // HEAD /files/:id/:filename — check existence
+  app.head<{ Params: { id: string; filename: string } }>(
+    '/files/:id/:filename',
+    async (request, reply) => {
+      const { id, filename } = request.params
+      const size = await storage.getSize(id, filename)
+      if (size === null) {
+        return reply.status(404).send()
+      }
+      const entry = storage.find(id)
+      return reply
+        .header('Content-Type', entry?.mime ?? 'application/octet-stream')
+        .header('Content-Length', size)
+        .send()
+    },
+  )
+
+  // DELETE /files/:id — remove file (auth required)
+  app.delete<{ Params: { id: string } }>(
+    '/files/:id',
+    async (request, reply) => {
+      if (config.apiKey) {
+        const auth = request.headers.authorization
+        if (auth !== `Bearer ${config.apiKey}`) {
+          return reply.status(401).send({ error: 'Unauthorized' })
+        }
+      }
+
+      const removed = await storage.remove(request.params.id)
+      if (!removed) {
+        return reply.status(404).send({ error: 'File not found' })
+      }
+      return { ok: true }
+    },
+  )
+}

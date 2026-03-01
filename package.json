@@ -1,0 +1,27 @@
+{
+  "name": "pokkit",
+  "version": "1.0.0",
+  "description": "Self-hosted file storage server for MemoryGuy",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts"
+  },
+  "keywords": [
+    "file-storage",
+    "self-hosted",
+    "memoryguy"
+  ],
+  "author": "Jeffrey0117",
+  "license": "MIT",
+  "dependencies": {
+    "@fastify/cors": "^11.2.0",
+    "@fastify/multipart": "^9.4.0",
+    "fastify": "^5.7.4"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
