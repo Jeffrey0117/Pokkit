@@ -23,9 +23,15 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
       buffer,
     )
 
-    const host = request.headers.host ?? `${request.hostname}:${config.port}`
-    const proto = (request.headers['x-forwarded-proto'] as string) ?? 'http'
-    const url = `${proto}://${host}/files/${entry.id}/${encodeURIComponent(entry.filename)}`
+    const filePath = `/files/${entry.id}/${encodeURIComponent(entry.filename)}`
+    let url: string
+    if (config.publicUrl) {
+      url = `${config.publicUrl}${filePath}`
+    } else {
+      const host = request.headers.host ?? `${request.hostname}:${config.port}`
+      const proto = (request.headers['x-forwarded-proto'] as string) ?? 'http'
+      url = `${proto}://${host}${filePath}`
+    }
     return { url, id: entry.id }
   })
 }

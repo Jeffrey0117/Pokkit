@@ -6,6 +6,7 @@ export interface PokkitConfig {
   dataDir: string
   apiKey: string
   maxFileSize: number
+  publicUrl: string
 }
 
 function parseArgs(args: string[]): Partial<PokkitConfig> {
@@ -18,6 +19,7 @@ function parseArgs(args: string[]): Partial<PokkitConfig> {
     if (arg === '--data-dir' && next) { result.dataDir = next; i++ }
     if (arg === '--api-key' && next) { result.apiKey = next; i++ }
     if (arg === '--max-file-size' && next) { result.maxFileSize = Number(next); i++ }
+    if (arg === '--public-url' && next) { result.publicUrl = next; i++ }
   }
   return result
 }
@@ -30,5 +32,6 @@ export function loadConfig(): PokkitConfig {
     dataDir: resolve(cliArgs.dataDir ?? process.env.POKKIT_DATA_DIR ?? './data'),
     apiKey: cliArgs.apiKey ?? process.env.POKKIT_API_KEY ?? '',
     maxFileSize: cliArgs.maxFileSize ?? (Number(process.env.POKKIT_MAX_FILE_SIZE) || 500 * 1024 * 1024),
+    publicUrl: (cliArgs.publicUrl ?? process.env.POKKIT_PUBLIC_URL ?? '').replace(/\/$/, ''),
   }
 }
