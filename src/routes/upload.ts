@@ -24,7 +24,8 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
     )
 
     const host = request.headers.host ?? `${request.hostname}:${config.port}`
-    const url = `http://${host}/files/${entry.id}/${encodeURIComponent(entry.filename)}`
+    const proto = (request.headers['x-forwarded-proto'] as string) ?? 'http'
+    const url = `${proto}://${host}/files/${entry.id}/${encodeURIComponent(entry.filename)}`
     return { url, id: entry.id }
   })
 }

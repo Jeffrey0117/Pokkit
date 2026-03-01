@@ -25,7 +25,7 @@ function parseArgs(args: string[]): Partial<PokkitConfig> {
 export function loadConfig(): PokkitConfig {
   const cliArgs = parseArgs(process.argv.slice(2))
   return {
-    port: cliArgs.port ?? (Number(process.env.POKKIT_PORT) || 8877),
+    port: cliArgs.port ?? (Number(process.env.PORT) || Number(process.env.POKKIT_PORT) || 8877),
     host: cliArgs.host ?? process.env.POKKIT_HOST ?? '0.0.0.0',
     dataDir: resolve(cliArgs.dataDir ?? process.env.POKKIT_DATA_DIR ?? './data'),
     apiKey: cliArgs.apiKey ?? process.env.POKKIT_API_KEY ?? '',
