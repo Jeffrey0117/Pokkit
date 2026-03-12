@@ -1,3 +1,4 @@
+import { createReadStream } from 'node:fs'
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import type { Storage, FileEntry } from '../storage.js'
 import type { PokkitConfig } from '../config.js'
@@ -157,18 +158,58 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
 </html>`
 }
 
-async function serveRawFile(
+async function serveFile(
+  request: FastifyRequest,
   reply: FastifyReply,
   entry: FileEntry,
   storage: Storage,
+  opts?: { incrementDownloads?: boolean },
 ) {
-  storage.incrementDownloads(entry.id)
-  const stream = storage.getStream(entry.id)
-  if (!stream) return reply.status(404).send({ error: 'File not found on disk' })
+  const filePath = storage.getPath(entry.id)
+  if (!filePath) return reply.status(404).send({ error: 'File not found on disk' })
 
+  if (opts?.incrementDownloads) {
+    storage.incrementDownloads(entry.id)
+  }
+
+  const total = entry.size
+  const rangeHeader = request.headers.range
+
+  if (rangeHeader) {
+    const match = /bytes=(\d*)-(\d*)/.exec(rangeHeader)
+    if (!match) {
+      return reply.status(416)
+        .header('Content-Range', `bytes */${total}`)
+        .send({ error: 'Invalid range' })
+    }
+
+    const start = match[1] ? parseInt(match[1], 10) : 0
+    const end = match[2] ? parseInt(match[2], 10) : total - 1
+
+    if (start >= total || end >= total || start > end) {
+      return reply.status(416)
+        .header('Content-Range', `bytes */${total}`)
+        .send({ error: 'Range not satisfiable' })
+    }
+
+    const chunkSize = end - start + 1
+    const stream = createReadStream(filePath, { start, end })
+
+    return reply
+      .status(206)
+      .header('Content-Type', entry.mime)
+      .header('Content-Length', chunkSize)
+      .header('Content-Range', `bytes ${start}-${end}/${total}`)
+      .header('Accept-Ranges', 'bytes')
+      .send(stream)
+  }
+
+  // No range — full file
+  const stream = createReadStream(filePath)
   return reply
     .header('Content-Type', entry.mime)
-    .header('Content-Length', entry.size)
+    .header('Content-Length', total)
+    .header('Accept-Ranges', 'bytes')
     .header('Content-Disposition', `inline; filename="${encodeURIComponent(entry.filename)}"`)
     .send(stream)
 }
@@ -209,15 +250,7 @@ export function filesRoute(app: FastifyInstance, storage: Storage, config: Pokki
         }
       }
 
-      const stream = storage.getStream(id)
-      if (!stream) {
-        return reply.status(404).send({ error: 'File not found on disk' })
-      }
-
-      return reply
-        .header('Content-Type', entry.mime)
-        .header('Content-Length', entry.size)
-        .send(stream)
+      return serveFile(request, reply, entry, storage)
     },
   )
 
@@ -250,7 +283,7 @@ export function filesRoute(app: FastifyInstance, storage: Storage, config: Pokki
           }
         }
 
-        return serveRawFile(reply, entry, storage)
+        return serveFile(request, reply, entry, storage, { incrementDownloads: true })
       }
 
       // HTML download page (browsers)

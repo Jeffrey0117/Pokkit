@@ -99,6 +99,10 @@ export class Storage {
     return this.store.getStream(id)
   }
 
+  getPath(id: string): string | null {
+    return this.store.getPath(id)
+  }
+
   async getSize(id: string, _filename?: string): Promise<number | null> {
     const entry = this.store.find(id)
     return entry ? entry.size : null
