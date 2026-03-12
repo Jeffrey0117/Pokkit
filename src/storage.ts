@@ -5,6 +5,7 @@ import type { Readable } from 'node:stream'
 
 const require = createRequire(import.meta.url)
 const PokkitStore = require('../core/index.js')
+const bcrypt = require('bcryptjs')
 
 export interface FileEntry {
   id: string
@@ -17,6 +18,14 @@ export interface FileEntry {
   is_directory: boolean
   uploaded_at: number
   metadata: object | null
+  password_hash: string | null
+  expires_at: number | null
+  download_count: number
+}
+
+export interface SaveOptions {
+  password?: string
+  expiresIn?: string
 }
 
 export interface StorageStats {
@@ -49,8 +58,41 @@ export class Storage {
     }
   }
 
-  async save(filename: string, mime: string, buffer: Buffer): Promise<FileEntry> {
-    return this.store.save(filename, mime, buffer, { bucket: 'default' })
+  async save(filename: string, mime: string, buffer: Buffer, opts?: SaveOptions): Promise<FileEntry> {
+    const storeOpts: Record<string, unknown> = { bucket: 'default' }
+
+    if (opts?.password) {
+      storeOpts.password_hash = bcrypt.hashSync(opts.password, 10)
+    }
+
+    if (opts?.expiresIn && opts.expiresIn !== 'forever') {
+      const durations: Record<string, number> = {
+        '1h': 60 * 60 * 1000,
+        '1d': 24 * 60 * 60 * 1000,
+        '7d': 7 * 24 * 60 * 60 * 1000,
+        '30d': 30 * 24 * 60 * 60 * 1000,
+      }
+      const ms = durations[opts.expiresIn]
+      if (ms) {
+        storeOpts.expires_at = Date.now() + ms
+      }
+    }
+
+    return this.store.save(filename, mime, buffer, storeOpts)
+  }
+
+  verifyPassword(entry: FileEntry, password: string): boolean {
+    if (!entry.password_hash) return true
+    return bcrypt.compareSync(password, entry.password_hash)
+  }
+
+  isExpired(entry: FileEntry): boolean {
+    if (!entry.expires_at) return false
+    return Date.now() > entry.expires_at
+  }
+
+  incrementDownloads(id: string): void {
+    this.store.incrementDownloads(id)
   }
 
   getStream(id: string, _filename?: string): Readable | null {

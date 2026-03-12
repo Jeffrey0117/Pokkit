@@ -9,6 +9,8 @@
   var $stats = document.getElementById('stats');
   var $dropzone = document.getElementById('dropzone');
   var $fileInput = document.getElementById('fileInput');
+  var $passwordInput = document.getElementById('passwordInput');
+  var $expirySelect = document.getElementById('expirySelect');
   var $queueSection = document.getElementById('queueSection');
   var $queueList = document.getElementById('queueList');
   var $fileList = document.getElementById('fileList');
@@ -180,6 +182,12 @@
     var fd = new FormData();
     fd.append('file', file);
 
+    // Append optional password and expiry
+    var pw = $passwordInput.value.trim();
+    if (pw) fd.append('password', pw);
+    var exp = $expirySelect.value;
+    if (exp && exp !== 'forever') fd.append('expiresIn', exp);
+
     xhr.upload.addEventListener('progress', function (e) {
       if (e.lengthComputable) {
         var p = Math.round((e.loaded / e.total) * 100);
@@ -196,14 +204,13 @@
 
         try {
           var data = JSON.parse(xhr.responseText);
-
-          // Show result URL block after dropzone
           showResult(data);
-
-          // Add to file list
           addFileRow(data);
           $emptyState.style.display = 'none';
         } catch (_) { /* */ }
+
+        // Clear password after successful upload
+        $passwordInput.value = '';
       } else {
         bar.classList.add('error');
         bar.style.width = '100%';
@@ -244,7 +251,6 @@
 
   // ── Result Block ────────────────────────────────────────
   function showResult(data) {
-    // Remove previous result
     var old = document.querySelector('.result-row');
     if (old) old.remove();
 
@@ -256,7 +262,6 @@
     var block = document.createElement('div');
     block.className = 'result-row';
 
-    // URL row
     var urlRow = document.createElement('div');
     urlRow.className = 'url-row';
 
@@ -285,22 +290,32 @@
     urlRow.appendChild(urlBox);
     block.appendChild(urlRow);
 
-    // Meta
     var meta = document.createElement('div');
     meta.style.cssText = 'font-size:11px;color:#999;margin-top:8px';
-    meta.textContent = data.filename + ' \u00b7 ' + formatBytes(data.size) + ' \u00b7 ' + (data.mime || 'unknown');
+    var metaText = data.filename + ' \u00b7 ' + formatBytes(data.size) + ' \u00b7 ' + (data.mime || 'unknown');
+    if (data.has_password) metaText += ' \u00b7 password protected';
+    if (data.expires_at) metaText += ' \u00b7 expires ' + formatDate(data.expires_at);
+    meta.textContent = metaText;
     block.appendChild(meta);
 
-    // Insert after dropzone
     $dropzone.parentNode.insertBefore(block, $dropzone.nextSibling);
   }
 
   // ── File List ───────────────────────────────────────────
   function loadFiles() {
+    var key = getKey();
+    if (!key) {
+      // No admin key — don't load file list (upload still works)
+      $fileList.innerHTML = '';
+      $emptyState.style.display = '';
+      $emptyState.querySelector('.empty-state-text').textContent = 'Enter admin key to manage files';
+      $fileList.appendChild($emptyState);
+      return;
+    }
+
     var xhr = new XMLHttpRequest();
     xhr.open('GET', '/files');
-    var key = getKey();
-    if (key) xhr.setRequestHeader('Authorization', 'Bearer ' + key);
+    xhr.setRequestHeader('Authorization', 'Bearer ' + key);
 
     xhr.addEventListener('load', function () {
       if (xhr.status === 200) {
@@ -310,7 +325,7 @@
       } else if (xhr.status === 401) {
         $fileList.innerHTML = '';
         $emptyState.style.display = '';
-        $emptyState.querySelector('.empty-state-text').textContent = 'Enter API key to view files';
+        $emptyState.querySelector('.empty-state-text').textContent = 'Invalid admin key';
         $fileList.appendChild($emptyState);
       }
     });
@@ -319,7 +334,6 @@
   }
 
   function renderFiles(files) {
-    // Keep emptyState reference
     $fileList.innerHTML = '';
 
     if (files.length === 0) {
@@ -354,11 +368,10 @@
     row.className = 'file-row';
     row.dataset.id = entry.id;
 
-    // Thumbnail or icon
     if (entry.mime && entry.mime.startsWith('image/')) {
       var img = document.createElement('img');
       img.className = 'file-thumb';
-      img.src = url;
+      img.src = '/files/' + entry.id + '/' + encodeURIComponent(entry.filename);
       img.alt = entry.filename;
       img.loading = 'lazy';
       row.appendChild(img);
@@ -369,7 +382,6 @@
       row.appendChild(icon);
     }
 
-    // Info
     var info = document.createElement('div');
     info.className = 'file-info';
 
@@ -391,11 +403,18 @@
 
     metaDiv.appendChild(sizeSpan);
     metaDiv.appendChild(dateSpan);
+
+    if (entry.has_password || entry.password_hash) {
+      var lockSpan = document.createElement('span');
+      lockSpan.textContent = 'locked';
+      lockSpan.style.color = '#e65100';
+      metaDiv.appendChild(lockSpan);
+    }
+
     info.appendChild(nameDiv);
     info.appendChild(metaDiv);
     row.appendChild(info);
 
-    // Actions
     var actions = document.createElement('div');
     actions.className = 'file-actions';
 
@@ -413,7 +432,6 @@
     actions.appendChild(delBtn);
     row.appendChild(actions);
 
-    // Insert at top
     if ($fileList.firstChild && $fileList.firstChild !== $emptyState) {
       $fileList.insertBefore(row, $fileList.firstChild);
     } else {

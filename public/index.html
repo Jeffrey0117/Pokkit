@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pokkit</title>
+  <title>Pokkit — File Hosting</title>
+  <meta name="description" content="Upload any file, get a short link. Password protection, expiry, no signup needed.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;900&display=swap" rel="stylesheet">
@@ -19,8 +20,9 @@
           type="password"
           id="apiKeyInput"
           class="key-input"
-          placeholder="API Key"
+          placeholder="Admin Key"
           autocomplete="off"
+          title="Optional — for managing files"
         >
       </div>
     </nav>
@@ -35,9 +37,26 @@
           </svg>
         </div>
         <p class="drop-text">Drop files here to upload</p>
-        <p class="drop-hint">or click to browse &middot; any file type &middot; up to 500 MB</p>
+        <p class="drop-hint">or click to browse &middot; any file type &middot; no signup needed</p>
       </div>
       <input type="file" id="fileInput" multiple hidden>
+    </section>
+
+    <section class="upload-options" id="uploadOptions">
+      <div class="option-row">
+        <label class="option-label" for="passwordInput">Password</label>
+        <input type="password" id="passwordInput" class="option-input" placeholder="Optional" autocomplete="off">
+      </div>
+      <div class="option-row">
+        <label class="option-label" for="expirySelect">Expires</label>
+        <select id="expirySelect" class="option-select">
+          <option value="forever">Never</option>
+          <option value="1h">1 hour</option>
+          <option value="1d">1 day</option>
+          <option value="7d">7 days</option>
+          <option value="30d">30 days</option>
+        </select>
+      </div>
     </section>
 
     <section class="queue-section" id="queueSection" hidden>

@@ -31,6 +31,9 @@ const { createAtomicWriteStream } = require('./streams');
  * @property {boolean} is_directory
  * @property {number} uploaded_at
  * @property {object|null} metadata
+ * @property {string|null} password_hash
+ * @property {number|null} expires_at
+ * @property {number} download_count
  */
 
 class PokkitStore {
@@ -76,7 +79,7 @@ class PokkitStore {
    * @param {string} filename
    * @param {string} mime
    * @param {Buffer} buffer
-   * @param {{ bucket?: string, tags?: string[], hash?: string, id?: string, metadata?: object }} [opts]
+   * @param {{ bucket?: string, tags?: string[], hash?: string, id?: string, metadata?: object, password_hash?: string, expires_at?: number }} [opts]
    * @returns {FileEntry}
    */
   save(filename, mime, buffer, opts = {}) {
@@ -107,6 +110,9 @@ class PokkitStore {
       is_directory: false,
       uploaded_at: Date.now(),
       metadata: opts.metadata || null,
+      password_hash: opts.password_hash || null,
+      expires_at: opts.expires_at || null,
+      download_count: 0,
     };
 
     db.insertFile(this._db, entry);
@@ -415,6 +421,14 @@ class PokkitStore {
   // ══════════════════════════════════════════
   //  Tags
   // ══════════════════════════════════════════
+
+  /**
+   * Increment download count
+   * @param {string} id
+   */
+  incrementDownloads(id) {
+    db.incrementDownloads(this._db, id);
+  }
 
   addTag(id, tag) { db.addTag(this._db, id, tag); }
   removeTag(id, tag) { db.removeTag(this._db, id, tag); }

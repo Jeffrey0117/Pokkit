@@ -48,6 +48,18 @@ function openDb(dbPath) {
     CREATE INDEX IF NOT EXISTS idx_file_tags_tag ON file_tags(tag);
   `);
 
+  // ── Migrations ──
+  const cols = _db.prepare("PRAGMA table_info(files)").all().map(c => c.name);
+  if (!cols.includes('password_hash')) {
+    _db.exec('ALTER TABLE files ADD COLUMN password_hash TEXT');
+  }
+  if (!cols.includes('expires_at')) {
+    _db.exec('ALTER TABLE files ADD COLUMN expires_at INTEGER');
+  }
+  if (!cols.includes('download_count')) {
+    _db.exec('ALTER TABLE files ADD COLUMN download_count INTEGER DEFAULT 0');
+  }
+
   return _db;
 }
 
@@ -70,8 +82,8 @@ function closeDb() {
  */
 function insertFile(db, entry) {
   const stmt = db.prepare(`
-    INSERT INTO files (id, bucket, filename, stored_name, mime, size, hash, is_directory, uploaded_at, metadata)
-    VALUES (@id, @bucket, @filename, @stored_name, @mime, @size, @hash, @is_directory, @uploaded_at, @metadata)
+    INSERT INTO files (id, bucket, filename, stored_name, mime, size, hash, is_directory, uploaded_at, metadata, password_hash, expires_at, download_count)
+    VALUES (@id, @bucket, @filename, @stored_name, @mime, @size, @hash, @is_directory, @uploaded_at, @metadata, @password_hash, @expires_at, @download_count)
   `);
   stmt.run({
     id: entry.id,
@@ -84,7 +96,19 @@ function insertFile(db, entry) {
     is_directory: entry.is_directory ? 1 : 0,
     uploaded_at: entry.uploaded_at,
     metadata: entry.metadata ? JSON.stringify(entry.metadata) : null,
+    password_hash: entry.password_hash || null,
+    expires_at: entry.expires_at || null,
+    download_count: entry.download_count || 0,
   });
+}
+
+/**
+ * Increment download count for a file
+ * @param {import('better-sqlite3').Database} db
+ * @param {string} id
+ */
+function incrementDownloads(db, id) {
+  db.prepare('UPDATE files SET download_count = download_count + 1 WHERE id = ?').run(id);
 }
 
 /**
@@ -274,4 +298,5 @@ module.exports = {
   getTags,
   setTags,
   getStats,
+  incrementDownloads,
 };
