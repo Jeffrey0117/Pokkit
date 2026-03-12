@@ -400,6 +400,87 @@ body {
   border-color: #333;
 }
 
+/* ── Hero ──────────────────────────────────────────────── */
+
+.hero {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.hero-title {
+  font-size: 32px;
+  font-weight: 900;
+  color: #000;
+  margin-bottom: 8px;
+  letter-spacing: -1px;
+}
+
+.hero-subtitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #999;
+  line-height: 1.5;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+/* ── Features ─────────────────────────────────────────── */
+
+.features {
+  margin-top: 32px;
+  margin-bottom: 8px;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.feature-card {
+  padding: 20px 16px;
+  background: #fff;
+  border: 2px solid #eee;
+  border-radius: 10px;
+  transition: border-color 0.15s;
+}
+
+.feature-card:hover {
+  border-color: #000;
+}
+
+.feature-icon {
+  color: #999;
+  margin-bottom: 10px;
+}
+
+.feature-card:hover .feature-icon {
+  color: #000;
+}
+
+.feature-title {
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.feature-desc {
+  font-size: 11px;
+  font-weight: 500;
+  color: #999;
+  line-height: 1.5;
+}
+
+/* ── Landing Footer ───────────────────────────────────── */
+
+.landing-footer {
+  text-align: center;
+  padding: 20px 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ccc;
+}
+
 /* ── Toast ─────────────────────────────────────────────── */
 
 .toast {
@@ -528,6 +609,19 @@ body {
 
   .file-name {
     font-size: 13px;
+  }
+
+  .hero-title {
+    font-size: 24px;
+  }
+
+  .feature-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .feature-card {
+    padding: 14px 16px;
   }
 
   .result-row {

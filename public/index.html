@@ -3,11 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pokkit — File Hosting</title>
-  <meta name="description" content="Upload any file, get a short link. Password protection, expiry, no signup needed.">
+  <title>Pokkit — Free Anonymous File Sharing | Upload & Share Instantly</title>
+  <meta name="description" content="Free anonymous file sharing. Upload any file, get a short link. Password protection, auto-expiry, no signup. Share files that self-destruct.">
+  <meta name="keywords" content="file sharing, anonymous upload, free file hosting, password protected files, self-destructing files, temporary file share, send large files">
+  <meta property="og:title" content="Pokkit — Free Anonymous File Sharing">
+  <meta property="og:description" content="Upload any file, get a short link. Password protection, auto-expiry, no signup needed. Files can self-destruct.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Pokkit">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Pokkit — Free Anonymous File Sharing">
+  <meta name="twitter:description" content="Upload any file, get a short link. Password protection & auto-expiry. No signup.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -26,6 +34,11 @@
         >
       </div>
     </nav>
+
+    <section class="hero">
+      <h1 class="hero-title">Drop. Share. Done.</h1>
+      <p class="hero-subtitle">Free file sharing with password protection and auto-expiry. No signup, no limits, no tracking.</p>
+    </section>
 
     <section class="editor" id="dropzone" tabindex="0" role="button" aria-label="Upload files">
       <div class="drop-area">
@@ -52,7 +65,7 @@
         <select id="expirySelect" class="option-select">
           <option value="forever">Never</option>
           <option value="1h">1 hour</option>
-          <option value="1d">1 day</option>
+          <option value="1d" selected>1 day</option>
           <option value="7d">7 days</option>
           <option value="30d">30 days</option>
         </select>
@@ -61,6 +74,32 @@
 
     <section class="queue-section" id="queueSection" hidden>
       <div class="queue-list" id="queueList"></div>
+    </section>
+
+    <section class="features">
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <h3 class="feature-title">Password Protected</h3>
+          <p class="feature-desc">Lock files with a password. Only people you share the password with can download.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <h3 class="feature-title">Auto-Expiry</h3>
+          <p class="feature-desc">Files self-destruct after your chosen time. 1 hour, 1 day, 7 days, or 30 days.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+          </div>
+          <h3 class="feature-title">No Signup</h3>
+          <p class="feature-desc">Upload instantly. No account, no email, no personal data collected. Just files.</p>
+        </div>
+      </div>
     </section>
 
     <section class="files-section" id="filesSection">
@@ -74,6 +113,10 @@
         </div>
       </div>
     </section>
+
+    <footer class="landing-footer">
+      <p>Pokkit &mdash; free anonymous file sharing. No tracking, no ads on upload page.</p>
+    </footer>
   </main>
 
   <div class="toast" id="toast"></div>

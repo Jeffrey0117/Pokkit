@@ -199,6 +199,26 @@ body {
   font-weight: 600;
 }
 
+/* ── Countdown Bar ────────────────────────────────────── */
+
+.countdown-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #fffde7;
+  border: 2px solid #fff9c4;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #f57f17;
+}
+
+.countdown-bar svg {
+  flex-shrink: 0;
+}
+
 /* ── Ad Space ──────────────────────────────────────────── */
 
 .ad-space {
@@ -213,14 +233,18 @@ body {
   padding: 24px 0;
 }
 
-.footer a {
-  color: #999;
-  font-size: 12px;
+.footer-brand {
+  color: #bbb;
+  font-size: 11px;
   font-weight: 600;
+}
+
+.footer-brand a {
+  color: #999;
   text-decoration: none;
 }
 
-.footer a:hover {
+.footer-brand a:hover {
   color: #000;
 }
 

@@ -65,6 +65,36 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
       </form>`
     : `<a href="${rawUrl}" class="btn btn-primary btn-large">Download</a>`
 
+  const countdownScript = entry.expires_at && !isExpired
+    ? `<script>
+(function(){
+  var exp = ${entry.expires_at};
+  var el = document.getElementById('countdown');
+  if (!el) return;
+  function tick() {
+    var d = exp - Date.now();
+    if (d <= 0) { el.textContent = 'Expired'; location.reload(); return; }
+    var s = Math.floor(d/1000), m = Math.floor(s/60), h = Math.floor(m/60), dy = Math.floor(h/24);
+    s %= 60; m %= 60; h %= 24;
+    var t = '';
+    if (dy > 0) t += dy + 'd ';
+    if (h > 0) t += h + 'h ';
+    t += m + 'm ' + s + 's';
+    el.textContent = t;
+    setTimeout(tick, 1000);
+  }
+  tick();
+})();
+</script>`
+    : ''
+
+  const countdownBlock = entry.expires_at && !isExpired
+    ? `<div class="countdown-bar">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>Expires in <strong id="countdown">${timeRemaining(entry.expires_at)}</strong></span>
+      </div>`
+    : ''
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -72,9 +102,11 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(entry.filename)} — Pokkit</title>
   <meta property="og:title" content="${escapeHtml(entry.filename)}">
-  <meta property="og:description" content="${formatBytes(entry.size)} ${escapeHtml(entry.mime)}">
+  <meta property="og:description" content="${formatBytes(entry.size)} · ${escapeHtml(entry.mime)}${entry.expires_at && !isExpired ? ' · Limited time' : ''}">
   <meta property="og:type" content="${isImage ? 'image' : 'website'}">
+  <meta property="og:site_name" content="Pokkit">
   ${isImage ? `<meta property="og:image" content="${baseUrl}${previewUrl}">` : ''}
+  <meta name="twitter:card" content="${isImage ? 'summary_large_image' : 'summary'}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800;900&display=swap" rel="stylesheet">
@@ -85,6 +117,7 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
     <nav class="nav">
       <a href="/" class="nav-logo">Pokkit</a>
     </nav>
+    ${countdownBlock}
     <main class="download-card">
       ${previewBlock}
       <div class="file-details">
@@ -93,7 +126,6 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
           <span class="meta-badge">${formatBytes(entry.size)}</span>
           <span class="meta-badge">${escapeHtml(entry.mime)}</span>
           <span class="meta-badge">${formatDate(entry.uploaded_at)}</span>
-          ${expiryInfo}
           ${entry.download_count > 0 ? `<span class="meta-badge">${entry.download_count} downloads</span>` : ''}
           ${hasPassword ? '<span class="meta-badge locked">Password protected</span>' : ''}
         </div>
@@ -101,12 +133,26 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
       <div class="action-area">
         ${actionBlock}
       </div>
-      <div class="ad-space" id="ad-top"></div>
+      <div class="ad-space" id="ad-top">
+        <!-- AdSense: replace data-ad-client and data-ad-slot with your values -->
+        <!--
+        <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-XXXXX" data-ad-slot="XXXXX" data-ad-format="auto" data-full-width-responsive="true"></ins>
+        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+        -->
+      </div>
     </main>
+    <div class="ad-space" id="ad-bottom">
+      <!-- AdSense bottom slot -->
+      <!--
+      <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-XXXXX" data-ad-slot="XXXXX" data-ad-format="auto" data-full-width-responsive="true"></ins>
+      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+      -->
+    </div>
     <footer class="footer">
-      <a href="/">Upload your files</a>
+      <span class="footer-brand">Powered by <a href="/">Pokkit</a> &mdash; free file hosting</span>
     </footer>
   </div>
+  ${countdownScript}
 </body>
 </html>`
 }
