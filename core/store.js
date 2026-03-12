@@ -2,7 +2,12 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { randomUUID } = require('node:crypto');
+const { randomBytes } = require('node:crypto');
+
+/** Generate a short URL-safe ID (8 chars, ~48 bits of entropy) */
+function shortId() {
+  return randomBytes(6).toString('base64url');
+}
 const db = require('./db');
 const { hashBuffer, hashFile } = require('./hash');
 const { createAtomicWriteStream } = require('./streams');
@@ -78,7 +83,7 @@ class PokkitStore {
     const bucket = opts.bucket || 'default';
     this._validateBucket(bucket);
 
-    const id = opts.id || randomUUID();
+    const id = opts.id || shortId();
     const hash = opts.hash || hashBuffer(buffer);
     const storedName = this._resolveStoredName(bucket, id, filename);
     const destPath = this._resolveFilePath(bucket, storedName);
@@ -124,7 +129,7 @@ class PokkitStore {
     const bucket = opts.bucket || 'default';
     this._validateBucket(bucket);
 
-    const id = opts.id || randomUUID();
+    const id = opts.id || shortId();
     const storedName = this._resolveStoredName(bucket, id, filename);
     const destPath = this._resolveFilePath(bucket, storedName);
 
@@ -169,7 +174,7 @@ class PokkitStore {
   adopt(bucket, filename, mime, opts = {}) {
     this._validateBucket(bucket);
 
-    const id = opts.id || randomUUID();
+    const id = opts.id || shortId();
     const mode = this.buckets[bucket].mode;
 
     // For flat mode, stored_name = filename (file is at data/{bucket}/{filename})

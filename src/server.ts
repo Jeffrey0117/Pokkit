@@ -1,6 +1,8 @@
+import { join } from 'node:path'
 import Fastify from 'fastify'
 import multipart from '@fastify/multipart'
 import cors from '@fastify/cors'
+import staticPlugin from '@fastify/static'
 import type { PokkitConfig } from './config.js'
 import { Storage } from './storage.js'
 import { uploadRoute } from './routes/upload.js'
@@ -16,9 +18,17 @@ export async function createServer(config: PokkitConfig) {
   const storage = new Storage(config.dataDir)
   await storage.init()
 
+  // API routes first (take priority over static)
+  app.get('/api/health', async () => ({ ok: true }))
   uploadRoute(app, storage, config)
   filesRoute(app, storage, config)
   statusRoute(app, storage, config)
+
+  // Static frontend (fallback)
+  await app.register(staticPlugin, {
+    root: join(import.meta.dirname, '..', 'public'),
+    prefix: '/',
+  })
 
   return app
 }

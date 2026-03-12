@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pokkit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="container">
+    <nav class="nav">
+      <a href="/" class="nav-logo">Pokkit</a>
+      <div class="nav-right">
+        <span class="stats" id="stats"></span>
+        <input
+          type="password"
+          id="apiKeyInput"
+          class="key-input"
+          placeholder="API Key"
+          autocomplete="off"
+        >
+      </div>
+    </nav>
+
+    <section class="editor" id="dropzone" tabindex="0" role="button" aria-label="Upload files">
+      <div class="drop-area">
+        <div class="drop-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </div>
+        <p class="drop-text">Drop files here to upload</p>
+        <p class="drop-hint">or click to browse &middot; any file type &middot; up to 500 MB</p>
+      </div>
+      <input type="file" id="fileInput" multiple hidden>
+    </section>
+
+    <section class="queue-section" id="queueSection" hidden>
+      <div class="queue-list" id="queueList"></div>
+    </section>
+
+    <section class="files-section" id="filesSection">
+      <div class="section-header">
+        <h2 class="section-title">Files</h2>
+      </div>
+      <div id="fileList">
+        <div class="empty-state" id="emptyState">
+          <div class="empty-state-icon">~</div>
+          <div class="empty-state-text">No files yet</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
