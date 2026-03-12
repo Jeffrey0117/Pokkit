@@ -1,7 +1,15 @@
-import { createReadStream } from 'node:fs'
+import { createReadStream, readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { join } from 'node:path'
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import type { Storage, FileEntry } from '../storage.js'
 import type { PokkitConfig } from '../config.js'
+
+// Cache-bust: compute hash at startup so download.css changes are picked up on restart
+const cssHash = createHash('md5')
+  .update(readFileSync(join(import.meta.dirname, '../../public/download.css')))
+  .digest('hex')
+  .substring(0, 8)
 
 function escapeHtml(text: string): string {
   const map: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }
@@ -111,7 +119,7 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/download.css">
+  <link rel="stylesheet" href="/download.css?v=${cssHash}">
 </head>
 <body>
   <div class="container">
