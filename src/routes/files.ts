@@ -135,24 +135,17 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
         ${actionBlock}
       </div>
       <div class="ad-space" id="ad-top">
-        <!-- AdSense: replace data-ad-client and data-ad-slot with your values -->
-        <!--
-        <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-XXXXX" data-ad-slot="XXXXX" data-ad-format="auto" data-full-width-responsive="true"></ins>
-        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-        -->
+        <div data-adman-id="ad_xIof6RgB"></div>
       </div>
     </main>
     <div class="ad-space" id="ad-bottom">
-      <!-- AdSense bottom slot -->
-      <!--
-      <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-XXXXX" data-ad-slot="XXXXX" data-ad-format="auto" data-full-width-responsive="true"></ins>
-      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-      -->
+      <div data-adman-id="ad_cT4SnybN"></div>
     </div>
     <footer class="footer">
       <span class="footer-brand">Powered by <a href="/">Pokkit</a> &mdash; free file hosting</span>
     </footer>
   </div>
+  <script src="https://adman.isnowfriend.com/embed/adman.js" data-base-url="https://adman.isnowfriend.com" defer></script>
   ${countdownScript}
 </body>
 </html>`
