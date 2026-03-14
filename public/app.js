@@ -719,11 +719,11 @@
   function openLightbox(index) {
     lightboxIndex = index;
     showLightboxPhoto();
-    $lightbox.hidden = false;
+    $lightbox.classList.add('active');
   }
 
   function closeLightbox() {
-    $lightbox.hidden = true;
+    $lightbox.classList.remove('active');
     lightboxIndex = -1;
   }
 
@@ -756,7 +756,7 @@
   });
 
   document.addEventListener('keydown', function (e) {
-    if ($lightbox.hidden) return;
+    if (!$lightbox.classList.contains('active')) return;
     if (e.key === 'Escape') closeLightbox();
     if (e.key === 'ArrowLeft' && lightboxIndex > 0) { lightboxIndex--; showLightboxPhoto(); }
     if (e.key === 'ArrowRight' && lightboxIndex < galleryPhotos.length - 1) { lightboxIndex++; showLightboxPhoto(); }
