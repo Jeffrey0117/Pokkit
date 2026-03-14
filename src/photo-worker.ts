@@ -7,7 +7,7 @@ import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
-const WORKER_PATH = join(__dirname, 'workers', 'photo-processor.js')
+const WORKER_PATH = join(__dirname, 'workers', 'photo-processor.cjs')
 
 let worker: Worker | null = null
 let dataDir: string = ''
