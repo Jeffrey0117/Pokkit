@@ -1,15 +1,12 @@
 import type { FastifyInstance } from 'fastify'
 import type { Storage } from '../storage.js'
 import type { PokkitConfig } from '../config.js'
+import { requireAuth } from '../auth.js'
 
 export function statusRoute(app: FastifyInstance, storage: Storage, config: PokkitConfig) {
   app.get('/status', async (request, reply) => {
-    if (config.apiKey) {
-      const auth = request.headers.authorization
-      if (auth !== `Bearer ${config.apiKey}`) {
-        return reply.status(401).send({ error: 'Unauthorized' })
-      }
-    }
+    const user = requireAuth(request, reply, config)
+    if (!user) return
     return storage.stats()
   })
 }

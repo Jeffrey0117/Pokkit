@@ -2,20 +2,15 @@ import { createReadStream } from 'node:fs'
 import type { FastifyInstance } from 'fastify'
 import type { Storage } from '../storage.js'
 import type { PokkitConfig } from '../config.js'
-
-function requireAuth(request: { headers: { authorization?: string } }, config: PokkitConfig): boolean {
-  if (!config.apiKey) return true
-  return request.headers.authorization === `Bearer ${config.apiKey}`
-}
+import { requireAuth } from '../auth.js'
 
 export function photosRoute(app: FastifyInstance, storage: Storage, config: PokkitConfig) {
   // ── Albums ──
 
   // POST /api/albums — create album
   app.post<{ Body: { name: string } }>('/api/albums', async (request, reply) => {
-    if (!requireAuth(request, config)) {
-      return reply.status(401).send({ error: 'Unauthorized' })
-    }
+    const user = requireAuth(request, reply, config)
+    if (!user) return
     const { name } = request.body || {}
     if (!name || typeof name !== 'string') {
       return reply.status(400).send({ error: 'name is required' })
@@ -26,9 +21,8 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
 
   // GET /api/albums — list albums
   app.get('/api/albums', async (request, reply) => {
-    if (!requireAuth(request, config)) {
-      return reply.status(401).send({ error: 'Unauthorized' })
-    }
+    const user = requireAuth(request, reply, config)
+    if (!user) return
     return storage.listAlbums()
   })
 
@@ -70,9 +64,8 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
 
   // DELETE /api/albums/:id — delete album (photos kept)
   app.delete<{ Params: { id: string } }>('/api/albums/:id', async (request, reply) => {
-    if (!requireAuth(request, config)) {
-      return reply.status(401).send({ error: 'Unauthorized' })
-    }
+    const user = requireAuth(request, reply, config)
+    if (!user) return
     const ok = storage.deleteAlbum(request.params.id)
     if (!ok) {
       return reply.status(404).send({ error: 'Album not found' })
@@ -112,9 +105,8 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
 
   // GET /api/photos/:id/status — processing status
   app.get<{ Params: { id: string } }>('/api/photos/:id/status', async (request, reply) => {
-    if (!requireAuth(request, config)) {
-      return reply.status(401).send({ error: 'Unauthorized' })
-    }
+    const user = requireAuth(request, reply, config)
+    if (!user) return
     const status = storage.getPhotoStatus(request.params.id)
     if (!status) {
       return reply.status(404).send({ error: 'Photo not found' })

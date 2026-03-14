@@ -48,25 +48,10 @@ body {
   color: #999;
 }
 
-.key-input {
-  width: 140px;
-  padding: 6px 10px;
-  border: 2px solid #ddd;
-  border-radius: 6px;
-  font-family: inherit;
-  font-size: 12px;
-  background: #fff;
-  color: #222;
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.key-input:focus {
-  border-color: #000;
-}
-
-.key-input::placeholder {
-  color: #ccc;
+.user-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
 }
 
 /* ── Drop Zone ─────────────────────────────────────────── */

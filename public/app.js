@@ -1,12 +1,13 @@
 (function () {
   'use strict';
 
-  var STORAGE_KEY = 'pokkit_api_key';
   var MAX_CONCURRENT = 10;
 
   // ── DOM ─────────────────────────────────────────────────
-  var $apiKey = document.getElementById('apiKeyInput');
   var $stats = document.getElementById('stats');
+  var $userName = document.getElementById('userName');
+  var $loginBtn = document.getElementById('loginBtn');
+  var $logoutBtn = document.getElementById('logoutBtn');
   var $dropzone = document.getElementById('dropzone');
   var $fileInput = document.getElementById('fileInput');
   var $passwordInput = document.getElementById('passwordInput');
@@ -43,23 +44,65 @@
   var galleryPhotos = [];
   var lightboxIndex = -1;
   var processingPolls = {};
+  var currentUser = null;
 
-  // ── Init ────────────────────────────────────────────────
-  $apiKey.value = localStorage.getItem(STORAGE_KEY) || '';
-  $apiKey.addEventListener('input', function () {
-    localStorage.setItem(STORAGE_KEY, $apiKey.value);
-    loadFiles();
-    loadStats();
-  });
-
-  loadFiles();
-  loadStats();
-
-  // ── Helpers ─────────────────────────────────────────────
-  function getKey() {
-    return $apiKey.value.trim();
+  // ── Auth (LetMeUse) ───────────────────────────────────
+  function getToken() {
+    if (typeof letmeuse !== 'undefined') {
+      return letmeuse.getToken();
+    }
+    return null;
   }
 
+  function setAuthHeader(xhr) {
+    var token = getToken();
+    if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+  }
+
+  function updateAuthUI() {
+    if (currentUser) {
+      $userName.textContent = currentUser.name || currentUser.email || '';
+      $loginBtn.hidden = true;
+      $logoutBtn.hidden = false;
+      $dropzone.style.display = '';
+      document.getElementById('uploadOptions').style.display = '';
+    } else {
+      $userName.textContent = '';
+      $loginBtn.hidden = false;
+      $logoutBtn.hidden = true;
+      $dropzone.style.display = 'none';
+      document.getElementById('uploadOptions').style.display = 'none';
+    }
+  }
+
+  $loginBtn.addEventListener('click', function () {
+    if (typeof letmeuse !== 'undefined') {
+      letmeuse.login();
+    } else {
+      toast('Login service loading...');
+    }
+  });
+
+  $logoutBtn.addEventListener('click', function () {
+    if (typeof letmeuse !== 'undefined') {
+      letmeuse.logout();
+    }
+    currentUser = null;
+    updateAuthUI();
+    toast('Logged out');
+  });
+
+  function waitForLetMeUse() {
+    return new Promise(function (resolve) {
+      if (typeof letmeuse !== 'undefined') { resolve(); return; }
+      var check = setInterval(function () {
+        if (typeof letmeuse !== 'undefined') { clearInterval(check); resolve(); }
+      }, 100);
+      setTimeout(function () { clearInterval(check); resolve(); }, 5000);
+    });
+  }
+
+  // ── Helpers ─────────────────────────────────────────────
   function formatBytes(bytes) {
     if (bytes === 0) return '0 B';
     var units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -123,11 +166,15 @@
   }
 
   // ── Drop Zone Events ───────────────────────────────────
-  $dropzone.addEventListener('click', function () { $fileInput.click(); });
+  $dropzone.addEventListener('click', function () {
+    if (!currentUser) { toast('Please login first', true); return; }
+    $fileInput.click();
+  });
 
   $dropzone.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
+      if (!currentUser) { toast('Please login first', true); return; }
       $fileInput.click();
     }
   });
@@ -151,6 +198,7 @@
   $dropzone.addEventListener('drop', function (e) {
     e.preventDefault();
     $dropzone.classList.remove('dragover');
+    if (!currentUser) { toast('Please login first', true); return; }
     if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
   });
 
@@ -284,8 +332,7 @@
     });
 
     xhr.open('POST', '/upload');
-    var key = getKey();
-    if (key) xhr.setRequestHeader('Authorization', 'Bearer ' + key);
+    setAuthHeader(xhr);
     xhr.send(fd);
   }
 
@@ -343,19 +390,17 @@
 
   // ── File List ───────────────────────────────────────────
   function loadFiles() {
-    var key = getKey();
-    if (!key) {
-      // No admin key — don't load file list (upload still works)
+    if (!currentUser) {
       $fileList.innerHTML = '';
       $emptyState.style.display = '';
-      $emptyState.querySelector('.empty-state-text').textContent = 'Enter admin key to manage files';
+      $emptyState.querySelector('.empty-state-text').textContent = 'Login to manage files';
       $fileList.appendChild($emptyState);
       return;
     }
 
     var xhr = new XMLHttpRequest();
     xhr.open('GET', '/files');
-    xhr.setRequestHeader('Authorization', 'Bearer ' + key);
+    setAuthHeader(xhr);
 
     xhr.addEventListener('load', function () {
       if (xhr.status === 200) {
@@ -365,7 +410,7 @@
       } else if (xhr.status === 401) {
         $fileList.innerHTML = '';
         $emptyState.style.display = '';
-        $emptyState.querySelector('.empty-state-text').textContent = 'Invalid admin key';
+        $emptyState.querySelector('.empty-state-text').textContent = 'Session expired, please login again';
         $fileList.appendChild($emptyState);
       }
     });
@@ -458,17 +503,17 @@
     var actions = document.createElement('div');
     actions.className = 'file-actions';
 
-    var copyBtn = document.createElement('button');
-    copyBtn.className = 'btn';
-    copyBtn.textContent = 'Copy';
-    copyBtn.addEventListener('click', function () { copyUrl(fullUrl); });
+    var cpBtn = document.createElement('button');
+    cpBtn.className = 'btn';
+    cpBtn.textContent = 'Copy';
+    cpBtn.addEventListener('click', function () { copyUrl(fullUrl); });
 
     var delBtn = document.createElement('button');
     delBtn.className = 'btn btn-danger';
     delBtn.textContent = 'Del';
     delBtn.addEventListener('click', function () { deleteFile(entry.id, row); });
 
-    actions.appendChild(copyBtn);
+    actions.appendChild(cpBtn);
     actions.appendChild(delBtn);
     row.appendChild(actions);
 
@@ -484,8 +529,7 @@
 
     var xhr = new XMLHttpRequest();
     xhr.open('DELETE', '/files/' + id);
-    var key = getKey();
-    if (key) xhr.setRequestHeader('Authorization', 'Bearer ' + key);
+    setAuthHeader(xhr);
 
     xhr.addEventListener('load', function () {
       if (xhr.status === 200) {
@@ -516,8 +560,7 @@
   function loadStats() {
     var xhr = new XMLHttpRequest();
     xhr.open('GET', '/status');
-    var key = getKey();
-    if (key) xhr.setRequestHeader('Authorization', 'Bearer ' + key);
+    setAuthHeader(xhr);
 
     xhr.addEventListener('load', function () {
       if (xhr.status === 200) {
@@ -537,28 +580,28 @@
   $viewTabs.addEventListener('click', function (e) {
     var tab = e.target.closest('.tab');
     if (!tab) return;
-    var name = tab.dataset.tab;
-    switchTab(name);
+    var tabName = tab.dataset.tab;
+    switchTab(tabName);
   });
 
-  function switchTab(name) {
-    currentTab = name;
+  function switchTab(tabName) {
+    currentTab = tabName;
     var tabs = $viewTabs.querySelectorAll('.tab');
     for (var i = 0; i < tabs.length; i++) {
-      tabs[i].classList.toggle('active', tabs[i].dataset.tab === name);
+      tabs[i].classList.toggle('active', tabs[i].dataset.tab === tabName);
     }
-    $filesSection.hidden = name !== 'files';
-    $albumsSection.hidden = name !== 'albums';
+    $filesSection.hidden = tabName !== 'files';
+    $albumsSection.hidden = tabName !== 'albums';
     $gallerySection.hidden = true;
     currentAlbumId = null;
-    if (name === 'albums') loadAlbums();
+    if (tabName === 'albums') loadAlbums();
   }
 
   // ── Albums ─────────────────────────────────────────────
   $newAlbumBtn.addEventListener('click', function () {
-    var name = prompt('Album name:');
-    if (!name || !name.trim()) return;
-    apiRequest('POST', '/api/albums', { name: name.trim() }, function () {
+    var albumName = prompt('Album name:');
+    if (!albumName || !albumName.trim()) return;
+    apiRequest('POST', '/api/albums', { name: albumName.trim() }, function () {
       loadAlbums();
     });
   });
@@ -644,7 +687,7 @@
   function renderPhotoGrid() {
     $photoGrid.innerHTML = '';
     if (galleryPhotos.length === 0) {
-      $photoGrid.innerHTML = '<div class="empty-state"><div class="empty-state-icon">~</div><div class="empty-state-text">No photos yet — drop images to upload</div></div>';
+      $photoGrid.innerHTML = '<div class="empty-state"><div class="empty-state-icon">~</div><div class="empty-state-text">No photos yet \u2014 drop images to upload</div></div>';
       return;
     }
     for (var i = 0; i < galleryPhotos.length; i++) {
@@ -690,7 +733,6 @@
         if (data.status === 'ready') {
           clearInterval(processingPolls[id]);
           delete processingPolls[id];
-          // Update the cell in the grid
           var cell = $photoGrid.querySelector('[data-id="' + id + '"]');
           if (cell) {
             cell.innerHTML = '';
@@ -699,7 +741,6 @@
             img.loading = 'lazy';
             cell.appendChild(img);
           }
-          // Update galleryPhotos status
           for (var i = 0; i < galleryPhotos.length; i++) {
             if (galleryPhotos[i].id === id) {
               galleryPhotos[i].status = 'ready';
@@ -731,24 +772,18 @@
     if (lightboxIndex < 0 || lightboxIndex >= galleryPhotos.length) return;
     var photo = galleryPhotos[lightboxIndex];
     $lightboxImg.src = '/photos/' + photo.id + '/photo.webp';
-    var info = photo.filename;
-    if (photo.width && photo.height) info += ' \u00b7 ' + photo.width + '\u00d7' + photo.height;
-    if (photo.taken_at) info += ' \u00b7 ' + formatDate(photo.taken_at);
-    $lightboxInfo.textContent = info;
+    var photoInfo = photo.filename;
+    if (photo.width && photo.height) photoInfo += ' \u00b7 ' + photo.width + '\u00d7' + photo.height;
+    if (photo.taken_at) photoInfo += ' \u00b7 ' + formatDate(photo.taken_at);
+    $lightboxInfo.textContent = photoInfo;
   }
 
   $lightboxClose.addEventListener('click', closeLightbox);
   $lightboxPrev.addEventListener('click', function () {
-    if (lightboxIndex > 0) {
-      lightboxIndex--;
-      showLightboxPhoto();
-    }
+    if (lightboxIndex > 0) { lightboxIndex--; showLightboxPhoto(); }
   });
   $lightboxNext.addEventListener('click', function () {
-    if (lightboxIndex < galleryPhotos.length - 1) {
-      lightboxIndex++;
-      showLightboxPhoto();
-    }
+    if (lightboxIndex < galleryPhotos.length - 1) { lightboxIndex++; showLightboxPhoto(); }
   });
 
   $lightbox.addEventListener('click', function (e) {
@@ -766,8 +801,7 @@
   function apiRequest(method, url, body, callback) {
     var xhr = new XMLHttpRequest();
     xhr.open(method, url);
-    var key = getKey();
-    if (key) xhr.setRequestHeader('Authorization', 'Bearer ' + key);
+    setAuthHeader(xhr);
     if (body) xhr.setRequestHeader('Content-Type', 'application/json');
 
     xhr.addEventListener('load', function () {
@@ -788,4 +822,35 @@
     xhr.addEventListener('error', function () { toast('Network error', true); });
     xhr.send(body ? JSON.stringify(body) : null);
   }
+
+  // ── Init ──────────────────────────────────────────────
+  updateAuthUI();
+  loadStats();
+
+  waitForLetMeUse().then(function () {
+    if (typeof letmeuse !== 'undefined' && letmeuse.ready) {
+      // SDK already ready — read current user
+      currentUser = letmeuse.user || null;
+      updateAuthUI();
+      loadFiles();
+      loadStats();
+      letmeuse.onAuthChange(function (user) {
+        currentUser = user || null;
+        updateAuthUI();
+        loadFiles();
+        loadStats();
+      });
+    } else if (typeof letmeuse !== 'undefined') {
+      // SDK loaded but not ready yet — wait for auth change
+      letmeuse.onAuthChange(function (user) {
+        currentUser = user || null;
+        updateAuthUI();
+        loadFiles();
+        loadStats();
+      });
+    } else {
+      // SDK failed to load — show guest mode
+      loadFiles();
+    }
+  });
 })();

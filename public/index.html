@@ -17,6 +17,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css?v=96b57e51">
+  <script src="https://letmeuse.isnowfriend.com/letmeuse.js"
+    data-app-id="app_5qXx5Wtv"
+    data-theme="light"
+    data-accent="#000000"
+    data-locale="zh"
+    data-mode="modal">
+  </script>
 </head>
 <body>
   <main class="container">
@@ -24,14 +31,9 @@
       <a href="/" class="nav-logo">Pokkit</a>
       <div class="nav-right">
         <span class="stats" id="stats"></span>
-        <input
-          type="password"
-          id="apiKeyInput"
-          class="key-input"
-          placeholder="Admin Key"
-          autocomplete="off"
-          title="Optional — for managing files"
-        >
+        <span class="user-name" id="userName"></span>
+        <button class="btn" id="loginBtn" hidden>Login</button>
+        <button class="btn" id="logoutBtn" hidden>Logout</button>
       </div>
     </nav>
 

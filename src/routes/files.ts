@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import type { Storage, FileEntry } from '../storage.js'
 import type { PokkitConfig } from '../config.js'
+import { requireAuth } from '../auth.js'
 
 // Cache-bust: compute hash at startup so download.css changes are picked up on restart
 const cssHash = createHash('md5')
@@ -218,12 +219,8 @@ async function serveFile(
 export function filesRoute(app: FastifyInstance, storage: Storage, config: PokkitConfig) {
   // GET /files — list all files (auth required)
   app.get('/files', async (request, reply) => {
-    if (config.apiKey) {
-      const auth = request.headers.authorization
-      if (auth !== `Bearer ${config.apiKey}`) {
-        return reply.status(401).send({ error: 'Unauthorized' })
-      }
-    }
+    const user = requireAuth(request, reply, config)
+    if (!user) return
     return storage.list()
   })
 
@@ -352,12 +349,8 @@ export function filesRoute(app: FastifyInstance, storage: Storage, config: Pokki
   app.delete<{ Params: { id: string } }>(
     '/files/:id',
     async (request, reply) => {
-      if (config.apiKey) {
-        const auth = request.headers.authorization
-        if (auth !== `Bearer ${config.apiKey}`) {
-          return reply.status(401).send({ error: 'Unauthorized' })
-        }
-      }
+      const user = requireAuth(request, reply, config)
+      if (!user) return
 
       const removed = await storage.remove(request.params.id)
       if (!removed) {
