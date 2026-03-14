@@ -11,6 +11,8 @@ import { Storage } from './storage.js'
 import { uploadRoute } from './routes/upload.js'
 import { filesRoute } from './routes/files.js'
 import { statusRoute } from './routes/status.js'
+import { photosRoute } from './routes/photos.js'
+import { initPhotoWorker, shutdownWorker } from './photo-worker.js'
 
 export async function createServer(config: PokkitConfig) {
   const app = Fastify({ logger: true })
@@ -24,11 +26,21 @@ export async function createServer(config: PokkitConfig) {
   const storage = new Storage(config.dataDir)
   await storage.init()
 
+  // Init photo processing worker
+  initPhotoWorker(config.dataDir)
+
   // API routes first (take priority over static)
   app.get('/api/health', async () => ({ ok: true }))
   uploadRoute(app, storage, config)
   filesRoute(app, storage, config)
   statusRoute(app, storage, config)
+  photosRoute(app, storage, config)
+
+  // Graceful shutdown: terminate photo worker
+  app.addHook('onClose', async () => {
+    await shutdownWorker()
+    storage.close()
+  })
 
   // Static frontend (fallback)
   await app.register(staticPlugin, {

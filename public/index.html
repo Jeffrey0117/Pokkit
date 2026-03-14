@@ -102,6 +102,11 @@
       </div>
     </section>
 
+    <section class="view-tabs" id="viewTabs">
+      <button class="tab active" data-tab="files">Files</button>
+      <button class="tab" data-tab="albums">Albums</button>
+    </section>
+
     <section class="files-section" id="filesSection">
       <div class="section-header">
         <h2 class="section-title">Files</h2>
@@ -113,6 +118,30 @@
         </div>
       </div>
     </section>
+
+    <section class="albums-section" id="albumsSection" hidden>
+      <div class="section-header">
+        <h2 class="section-title">Albums</h2>
+        <button class="btn btn-primary" id="newAlbumBtn">+ New Album</button>
+      </div>
+      <div class="album-grid" id="albumGrid"></div>
+    </section>
+
+    <section class="gallery-section" id="gallerySection" hidden>
+      <div class="section-header">
+        <button class="btn" id="backToAlbums">&larr; Albums</button>
+        <h2 class="section-title" id="galleryTitle"></h2>
+      </div>
+      <div class="photo-grid" id="photoGrid"></div>
+    </section>
+
+    <div class="lightbox" id="lightbox" hidden>
+      <button class="lightbox-close" id="lightboxClose">&times;</button>
+      <button class="lightbox-nav lightbox-prev" id="lightboxPrev">&lsaquo;</button>
+      <button class="lightbox-nav lightbox-next" id="lightboxNext">&rsaquo;</button>
+      <img class="lightbox-img" id="lightboxImg" alt="">
+      <div class="lightbox-info" id="lightboxInfo"></div>
+    </div>
 
     <footer class="landing-footer">
       <p>Pokkit &mdash; free anonymous file sharing. No tracking, no ads on upload page.</p>

@@ -23,6 +23,27 @@ export interface FileEntry {
   download_count: number
 }
 
+export interface PhotoEntry extends FileEntry {
+  album_id: string | null
+  taken_at: number | null
+  width: number | null
+  height: number | null
+  thumb_stored_name: string | null
+  status: string
+  deduplicated?: boolean
+  rawPath?: string
+}
+
+export interface Album {
+  id: string
+  name: string
+  cover_file_id: string | null
+  created_at: number
+  updated_at: number
+  photo_count?: number
+  total_size?: number
+}
+
 export interface SaveOptions {
   password?: string
   expiresIn?: string
@@ -128,6 +149,59 @@ export class Storage {
       totalBytes: s.totalBytes,
       dataDir: this.dataDir,
     }
+  }
+
+  // ── Photo Operations ──
+
+  isImage(mime: string): boolean {
+    const imageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'image/avif']
+    return imageTypes.includes(mime.toLowerCase())
+  }
+
+  savePhoto(filename: string, mime: string, buffer: Buffer, opts?: { album_id?: string }): PhotoEntry {
+    return this.store.saveRawPhoto(filename, mime, buffer, {
+      bucket: 'default',
+      album_id: opts?.album_id,
+    })
+  }
+
+  getPhotoStatus(id: string): string | null {
+    const entry = this.store.find(id)
+    return entry?.status ?? null
+  }
+
+  getThumbPath(id: string): string | null {
+    return this.store.getThumbPath(id)
+  }
+
+  // ── Album Operations ──
+
+  createAlbum(name: string): Album {
+    return this.store.createAlbum(name)
+  }
+
+  getAlbum(id: string): Album | null {
+    return this.store.getAlbum(id)
+  }
+
+  listAlbums(): Album[] {
+    return this.store.listAlbums()
+  }
+
+  updateAlbum(id: string, updates: { name?: string; cover_file_id?: string }): boolean {
+    return this.store.updateAlbum(id, updates)
+  }
+
+  deleteAlbum(id: string): boolean {
+    return this.store.deleteAlbum(id)
+  }
+
+  listPhotosByAlbum(albumId: string, opts?: { limit?: number; offset?: number }): PhotoEntry[] {
+    return this.store.listPhotosByAlbum(albumId, opts)
+  }
+
+  moveToAlbum(fileId: string, albumId: string | null): boolean {
+    return this.store.moveToAlbum(fileId, albumId)
   }
 
   close(): void {

@@ -59,6 +59,38 @@ function openDb(dbPath) {
   if (!cols.includes('download_count')) {
     _db.exec('ALTER TABLE files ADD COLUMN download_count INTEGER DEFAULT 0');
   }
+  if (!cols.includes('album_id')) {
+    _db.exec('ALTER TABLE files ADD COLUMN album_id TEXT');
+    _db.exec('CREATE INDEX IF NOT EXISTS idx_files_album ON files(album_id)');
+  }
+  if (!cols.includes('taken_at')) {
+    _db.exec('ALTER TABLE files ADD COLUMN taken_at INTEGER');
+  }
+  if (!cols.includes('width')) {
+    _db.exec('ALTER TABLE files ADD COLUMN width INTEGER');
+  }
+  if (!cols.includes('height')) {
+    _db.exec('ALTER TABLE files ADD COLUMN height INTEGER');
+  }
+  if (!cols.includes('thumb_stored_name')) {
+    _db.exec('ALTER TABLE files ADD COLUMN thumb_stored_name TEXT');
+  }
+  if (!cols.includes('status')) {
+    _db.exec("ALTER TABLE files ADD COLUMN status TEXT DEFAULT 'ready'");
+    _db.exec('CREATE INDEX IF NOT EXISTS idx_files_status ON files(status)');
+  }
+
+  // Albums table
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS albums (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      cover_file_id TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_albums_created ON albums(created_at);
+  `);
 
   return _db;
 }
@@ -82,8 +114,8 @@ function closeDb() {
  */
 function insertFile(db, entry) {
   const stmt = db.prepare(`
-    INSERT INTO files (id, bucket, filename, stored_name, mime, size, hash, is_directory, uploaded_at, metadata, password_hash, expires_at, download_count)
-    VALUES (@id, @bucket, @filename, @stored_name, @mime, @size, @hash, @is_directory, @uploaded_at, @metadata, @password_hash, @expires_at, @download_count)
+    INSERT INTO files (id, bucket, filename, stored_name, mime, size, hash, is_directory, uploaded_at, metadata, password_hash, expires_at, download_count, album_id, taken_at, width, height, thumb_stored_name, status)
+    VALUES (@id, @bucket, @filename, @stored_name, @mime, @size, @hash, @is_directory, @uploaded_at, @metadata, @password_hash, @expires_at, @download_count, @album_id, @taken_at, @width, @height, @thumb_stored_name, @status)
   `);
   stmt.run({
     id: entry.id,
@@ -99,6 +131,12 @@ function insertFile(db, entry) {
     password_hash: entry.password_hash || null,
     expires_at: entry.expires_at || null,
     download_count: entry.download_count || 0,
+    album_id: entry.album_id || null,
+    taken_at: entry.taken_at || null,
+    width: entry.width || null,
+    height: entry.height || null,
+    thumb_stored_name: entry.thumb_stored_name || null,
+    status: entry.status || 'ready',
   });
 }
 
@@ -273,6 +311,102 @@ function getStats(db, bucket) {
   return { totalFiles: overall.count, totalBytes: overall.bytes, buckets };
 }
 
+// ── Albums ──
+
+function insertAlbum(db, album) {
+  db.prepare(`
+    INSERT INTO albums (id, name, cover_file_id, created_at, updated_at)
+    VALUES (@id, @name, @cover_file_id, @created_at, @updated_at)
+  `).run({
+    id: album.id,
+    name: album.name,
+    cover_file_id: album.cover_file_id || null,
+    created_at: album.created_at,
+    updated_at: album.updated_at,
+  });
+}
+
+function findAlbum(db, id) {
+  return db.prepare('SELECT * FROM albums WHERE id = ?').get(id) || null;
+}
+
+function listAlbums(db) {
+  return db.prepare(`
+    SELECT a.*,
+      COUNT(f.id) as photo_count,
+      COALESCE(SUM(f.size), 0) as total_size
+    FROM albums a
+    LEFT JOIN files f ON f.album_id = a.id AND f.status = 'ready'
+    GROUP BY a.id
+    ORDER BY a.created_at DESC
+  `).all();
+}
+
+function updateAlbum(db, id, updates) {
+  const fields = [];
+  const values = {};
+  if (updates.name !== undefined) {
+    fields.push('name = @name');
+    values.name = updates.name;
+  }
+  if (updates.cover_file_id !== undefined) {
+    fields.push('cover_file_id = @cover_file_id');
+    values.cover_file_id = updates.cover_file_id;
+  }
+  if (fields.length === 0) return false;
+  fields.push('updated_at = @updated_at');
+  values.updated_at = Date.now();
+  values.id = id;
+  const result = db.prepare(`UPDATE albums SET ${fields.join(', ')} WHERE id = @id`).run(values);
+  return result.changes > 0;
+}
+
+function deleteAlbum(db, id) {
+  // Set album_id to null on photos (keep photos)
+  db.prepare('UPDATE files SET album_id = NULL WHERE album_id = ?').run(id);
+  const result = db.prepare('DELETE FROM albums WHERE id = ?').run(id);
+  return result.changes > 0;
+}
+
+// ── Photo Queries ──
+
+function listPhotosByAlbum(db, albumId, opts = {}) {
+  const { limit = 200, offset = 0 } = opts;
+  return db.prepare(`
+    SELECT * FROM files
+    WHERE album_id = ? AND status = 'ready'
+    ORDER BY COALESCE(taken_at, uploaded_at) ASC
+    LIMIT ? OFFSET ?
+  `).all(albumId, limit, offset).map(deserializeRow);
+}
+
+function updateFilePhoto(db, id, updates) {
+  const fields = [];
+  const values = { id };
+  for (const key of ['status', 'width', 'height', 'taken_at', 'thumb_stored_name', 'stored_name', 'mime', 'size', 'album_id']) {
+    if (updates[key] !== undefined) {
+      fields.push(`${key} = @${key}`);
+      values[key] = updates[key];
+    }
+  }
+  if (updates.metadata !== undefined) {
+    fields.push('metadata = @metadata');
+    values.metadata = updates.metadata ? JSON.stringify(updates.metadata) : null;
+  }
+  if (fields.length === 0) return false;
+  const result = db.prepare(`UPDATE files SET ${fields.join(', ')} WHERE id = @id`).run(values);
+  return result.changes > 0;
+}
+
+function countByAlbum(db, albumId) {
+  const row = db.prepare("SELECT COUNT(*) as count FROM files WHERE album_id = ? AND status = 'ready'").get(albumId);
+  return row.count;
+}
+
+function listStuckProcessing(db) {
+  return db.prepare("SELECT * FROM files WHERE status = 'processing'").all().map(deserializeRow);
+}
+
 // ── Helpers ──
 
 function deserializeRow(row) {
@@ -299,4 +433,13 @@ module.exports = {
   setTags,
   getStats,
   incrementDownloads,
+  insertAlbum,
+  findAlbum,
+  listAlbums,
+  updateAlbum,
+  deleteAlbum,
+  listPhotosByAlbum,
+  updateFilePhoto,
+  countByAlbum,
+  listStuckProcessing,
 };

@@ -2,7 +2,7 @@
   'use strict';
 
   var STORAGE_KEY = 'pokkit_api_key';
-  var MAX_CONCURRENT = 3;
+  var MAX_CONCURRENT = 10;
 
   // ── DOM ─────────────────────────────────────────────────
   var $apiKey = document.getElementById('apiKeyInput');
@@ -17,10 +17,32 @@
   var $emptyState = document.getElementById('emptyState');
   var $toast = document.getElementById('toast');
 
+  // ── Albums/Gallery DOM ──────────────────────────────────
+  var $viewTabs = document.getElementById('viewTabs');
+  var $filesSection = document.getElementById('filesSection');
+  var $albumsSection = document.getElementById('albumsSection');
+  var $albumGrid = document.getElementById('albumGrid');
+  var $newAlbumBtn = document.getElementById('newAlbumBtn');
+  var $gallerySection = document.getElementById('gallerySection');
+  var $galleryTitle = document.getElementById('galleryTitle');
+  var $photoGrid = document.getElementById('photoGrid');
+  var $backToAlbums = document.getElementById('backToAlbums');
+  var $lightbox = document.getElementById('lightbox');
+  var $lightboxImg = document.getElementById('lightboxImg');
+  var $lightboxInfo = document.getElementById('lightboxInfo');
+  var $lightboxClose = document.getElementById('lightboxClose');
+  var $lightboxPrev = document.getElementById('lightboxPrev');
+  var $lightboxNext = document.getElementById('lightboxNext');
+
   // ── State ───────────────────────────────────────────────
   var uploading = 0;
   var pending = [];
   var toastTimer = null;
+  var currentTab = 'files';
+  var currentAlbumId = null;
+  var galleryPhotos = [];
+  var lightboxIndex = -1;
+  var processingPolls = {};
 
   // ── Init ────────────────────────────────────────────────
   $apiKey.value = localStorage.getItem(STORAGE_KEY) || '';
@@ -187,6 +209,8 @@
     if (pw) fd.append('password', pw);
     var exp = $expirySelect.value;
     if (exp && exp !== 'forever') fd.append('expiresIn', exp);
+    // Append album_id when uploading inside an album
+    if (currentAlbumId) fd.append('album_id', currentAlbumId);
 
     xhr.upload.addEventListener('progress', function (e) {
       if (e.lengthComputable) {
@@ -204,9 +228,25 @@
 
         try {
           var data = JSON.parse(xhr.responseText);
-          showResult(data);
-          addFileRow(data);
-          $emptyState.style.display = 'none';
+          if (data.status) {
+            // Photo upload response
+            if (data.deduplicated) {
+              toast('Already backed up');
+            } else if (data.status === 'processing') {
+              pollPhotoStatus(data.id);
+            }
+            // Refresh gallery if we're in album view
+            if (currentAlbumId && !$gallerySection.hidden) {
+              apiRequest('GET', '/api/albums/' + currentAlbumId, null, function (albumData) {
+                galleryPhotos = albumData.photos || [];
+                renderPhotoGrid();
+              });
+            }
+          } else {
+            showResult(data);
+            addFileRow(data);
+            $emptyState.style.display = 'none';
+          }
         } catch (_) { /* */ }
 
         // Clear password after successful upload
@@ -491,5 +531,261 @@
     });
 
     xhr.send();
+  }
+
+  // ── Tab Switching ──────────────────────────────────────
+  $viewTabs.addEventListener('click', function (e) {
+    var tab = e.target.closest('.tab');
+    if (!tab) return;
+    var name = tab.dataset.tab;
+    switchTab(name);
+  });
+
+  function switchTab(name) {
+    currentTab = name;
+    var tabs = $viewTabs.querySelectorAll('.tab');
+    for (var i = 0; i < tabs.length; i++) {
+      tabs[i].classList.toggle('active', tabs[i].dataset.tab === name);
+    }
+    $filesSection.hidden = name !== 'files';
+    $albumsSection.hidden = name !== 'albums';
+    $gallerySection.hidden = true;
+    currentAlbumId = null;
+    if (name === 'albums') loadAlbums();
+  }
+
+  // ── Albums ─────────────────────────────────────────────
+  $newAlbumBtn.addEventListener('click', function () {
+    var name = prompt('Album name:');
+    if (!name || !name.trim()) return;
+    apiRequest('POST', '/api/albums', { name: name.trim() }, function () {
+      loadAlbums();
+    });
+  });
+
+  function loadAlbums() {
+    apiRequest('GET', '/api/albums', null, function (albums) {
+      renderAlbums(albums);
+    });
+  }
+
+  function renderAlbums(albums) {
+    $albumGrid.innerHTML = '';
+    if (!albums || albums.length === 0) {
+      $albumGrid.innerHTML = '<div class="empty-state"><div class="empty-state-icon">~</div><div class="empty-state-text">No albums yet</div></div>';
+      return;
+    }
+    for (var i = 0; i < albums.length; i++) {
+      addAlbumCard(albums[i]);
+    }
+  }
+
+  function addAlbumCard(album) {
+    var card = document.createElement('div');
+    card.className = 'album-card';
+
+    var cover = document.createElement('div');
+    cover.className = 'album-cover';
+    if (album.cover_file_id) {
+      var img = document.createElement('img');
+      img.src = '/photos/' + album.cover_file_id + '/thumb.webp';
+      img.alt = album.name;
+      img.loading = 'lazy';
+      cover.appendChild(img);
+    } else {
+      var empty = document.createElement('div');
+      empty.className = 'album-cover-empty';
+      empty.textContent = album.name.charAt(0).toUpperCase();
+      cover.appendChild(empty);
+    }
+
+    var info = document.createElement('div');
+    info.className = 'album-info';
+    var nameDiv = document.createElement('div');
+    nameDiv.className = 'album-name';
+    nameDiv.textContent = album.name;
+    var meta = document.createElement('div');
+    meta.className = 'album-meta';
+    meta.textContent = (album.photo_count || 0) + ' photos';
+    info.appendChild(nameDiv);
+    info.appendChild(meta);
+
+    card.appendChild(cover);
+    card.appendChild(info);
+
+    card.addEventListener('click', function () {
+      openAlbum(album.id, album.name);
+    });
+
+    $albumGrid.appendChild(card);
+  }
+
+  // ── Gallery (photos inside album) ─────────────────────
+  function openAlbum(albumId, albumName) {
+    currentAlbumId = albumId;
+    $albumsSection.hidden = true;
+    $gallerySection.hidden = false;
+    $galleryTitle.textContent = albumName;
+    $photoGrid.innerHTML = '';
+
+    apiRequest('GET', '/api/albums/' + albumId, null, function (data) {
+      galleryPhotos = data.photos || [];
+      renderPhotoGrid();
+    });
+  }
+
+  $backToAlbums.addEventListener('click', function () {
+    $gallerySection.hidden = true;
+    $albumsSection.hidden = false;
+    currentAlbumId = null;
+    loadAlbums();
+  });
+
+  function renderPhotoGrid() {
+    $photoGrid.innerHTML = '';
+    if (galleryPhotos.length === 0) {
+      $photoGrid.innerHTML = '<div class="empty-state"><div class="empty-state-icon">~</div><div class="empty-state-text">No photos yet — drop images to upload</div></div>';
+      return;
+    }
+    for (var i = 0; i < galleryPhotos.length; i++) {
+      addPhotoCell(galleryPhotos[i], i);
+    }
+  }
+
+  function addPhotoCell(photo, index) {
+    var cell = document.createElement('div');
+    cell.className = 'photo-cell';
+    cell.dataset.id = photo.id;
+
+    if (photo.status === 'ready') {
+      var img = document.createElement('img');
+      img.src = '/photos/' + photo.id + '/thumb.webp';
+      img.alt = photo.filename;
+      img.loading = 'lazy';
+      cell.appendChild(img);
+    } else {
+      var overlay = document.createElement('div');
+      overlay.className = 'processing-overlay';
+      var spinner = document.createElement('div');
+      spinner.className = 'processing-spinner';
+      overlay.appendChild(spinner);
+      cell.appendChild(overlay);
+      pollPhotoStatus(photo.id);
+    }
+
+    cell.addEventListener('click', function () {
+      if (photo.status === 'ready') {
+        openLightbox(index);
+      }
+    });
+
+    $photoGrid.appendChild(cell);
+  }
+
+  // ── Processing Poll ───────────────────────────────────
+  function pollPhotoStatus(id) {
+    if (processingPolls[id]) return;
+    processingPolls[id] = setInterval(function () {
+      apiRequest('GET', '/api/photos/' + id + '/status', null, function (data) {
+        if (data.status === 'ready') {
+          clearInterval(processingPolls[id]);
+          delete processingPolls[id];
+          // Update the cell in the grid
+          var cell = $photoGrid.querySelector('[data-id="' + id + '"]');
+          if (cell) {
+            cell.innerHTML = '';
+            var img = document.createElement('img');
+            img.src = '/photos/' + id + '/thumb.webp';
+            img.loading = 'lazy';
+            cell.appendChild(img);
+          }
+          // Update galleryPhotos status
+          for (var i = 0; i < galleryPhotos.length; i++) {
+            if (galleryPhotos[i].id === id) {
+              galleryPhotos[i].status = 'ready';
+              break;
+            }
+          }
+        } else if (data.status === 'failed') {
+          clearInterval(processingPolls[id]);
+          delete processingPolls[id];
+          toast('Photo processing failed: ' + id, true);
+        }
+      });
+    }, 2000);
+  }
+
+  // ── Lightbox ──────────────────────────────────────────
+  function openLightbox(index) {
+    lightboxIndex = index;
+    showLightboxPhoto();
+    $lightbox.hidden = false;
+  }
+
+  function closeLightbox() {
+    $lightbox.hidden = true;
+    lightboxIndex = -1;
+  }
+
+  function showLightboxPhoto() {
+    if (lightboxIndex < 0 || lightboxIndex >= galleryPhotos.length) return;
+    var photo = galleryPhotos[lightboxIndex];
+    $lightboxImg.src = '/photos/' + photo.id + '/photo.webp';
+    var info = photo.filename;
+    if (photo.width && photo.height) info += ' \u00b7 ' + photo.width + '\u00d7' + photo.height;
+    if (photo.taken_at) info += ' \u00b7 ' + formatDate(photo.taken_at);
+    $lightboxInfo.textContent = info;
+  }
+
+  $lightboxClose.addEventListener('click', closeLightbox);
+  $lightboxPrev.addEventListener('click', function () {
+    if (lightboxIndex > 0) {
+      lightboxIndex--;
+      showLightboxPhoto();
+    }
+  });
+  $lightboxNext.addEventListener('click', function () {
+    if (lightboxIndex < galleryPhotos.length - 1) {
+      lightboxIndex++;
+      showLightboxPhoto();
+    }
+  });
+
+  $lightbox.addEventListener('click', function (e) {
+    if (e.target === $lightbox) closeLightbox();
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if ($lightbox.hidden) return;
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowLeft' && lightboxIndex > 0) { lightboxIndex--; showLightboxPhoto(); }
+    if (e.key === 'ArrowRight' && lightboxIndex < galleryPhotos.length - 1) { lightboxIndex++; showLightboxPhoto(); }
+  });
+
+  // ── API Helper ────────────────────────────────────────
+  function apiRequest(method, url, body, callback) {
+    var xhr = new XMLHttpRequest();
+    xhr.open(method, url);
+    var key = getKey();
+    if (key) xhr.setRequestHeader('Authorization', 'Bearer ' + key);
+    if (body) xhr.setRequestHeader('Content-Type', 'application/json');
+
+    xhr.addEventListener('load', function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          var data = JSON.parse(xhr.responseText);
+          if (callback) callback(data);
+        } catch (_) {
+          if (callback) callback(null);
+        }
+      } else {
+        var err = 'Request failed';
+        try { err = JSON.parse(xhr.responseText).error || err; } catch (_) { /* */ }
+        toast(err, true);
+      }
+    });
+
+    xhr.addEventListener('error', function () { toast('Network error', true); });
+    xhr.send(body ? JSON.stringify(body) : null);
   }
 })();

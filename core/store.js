@@ -496,6 +496,161 @@ class PokkitStore {
     return total;
   }
 
+  // ══════════════════════════════════════════
+  //  Photo Operations
+  // ══════════════════════════════════════════
+
+  /**
+   * Save raw photo buffer for deferred processing.
+   * Returns immediately with status='processing' (or deduped entry).
+   */
+  saveRawPhoto(filename, mime, buffer, opts = {}) {
+    const bucket = opts.bucket || 'default';
+    this._validateBucket(bucket);
+
+    const hash = hashBuffer(buffer);
+
+    // Dedup: check if identical photo already exists
+    const existing = db.findByHash(this._db, hash, bucket);
+    const ready = existing.find(e => e.status === 'ready');
+    if (ready) {
+      return { ...ready, deduplicated: true };
+    }
+
+    const id = shortId();
+    const ext = path.extname(filename) || '.jpg';
+    const rawName = `_raw${ext}`;
+    const storedName = `${id}/${rawName}`;
+    const destPath = this._resolveFilePath(bucket, storedName);
+
+    const dir = path.dirname(destPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(destPath, buffer);
+
+    const entry = {
+      id,
+      bucket,
+      filename,
+      stored_name: storedName,
+      mime,
+      size: buffer.length,
+      hash,
+      is_directory: false,
+      uploaded_at: Date.now(),
+      metadata: null,
+      password_hash: opts.password_hash || null,
+      expires_at: opts.expires_at || null,
+      download_count: 0,
+      album_id: opts.album_id || null,
+      status: 'processing',
+    };
+
+    db.insertFile(this._db, entry);
+
+    const rawPath = destPath;
+    return { ...entry, is_directory: false, deduplicated: false, rawPath };
+  }
+
+  /**
+   * Finalize photo after worker processing.
+   * Writes compressed + thumb, deletes raw, updates DB.
+   */
+  finalizePhoto(id, { webpBuffer, thumbBuffer, width, height, takenAt }) {
+    const entry = db.findFile(this._db, id);
+    if (!entry) return false;
+
+    const bucket = entry.bucket;
+    const photoName = `${id}/photo.webp`;
+    const thumbName = `${id}/thumb.webp`;
+
+    const photoPath = this._resolveFilePath(bucket, photoName);
+    const thumbPath = this._resolveFilePath(bucket, thumbName);
+
+    fs.writeFileSync(photoPath, webpBuffer);
+    fs.writeFileSync(thumbPath, thumbBuffer);
+
+    // Delete raw temp file
+    const rawPath = this._resolveFilePath(bucket, entry.stored_name);
+    try { if (fs.existsSync(rawPath)) fs.unlinkSync(rawPath); } catch {}
+
+    db.updateFilePhoto(this._db, id, {
+      status: 'ready',
+      stored_name: photoName,
+      thumb_stored_name: thumbName,
+      mime: 'image/webp',
+      size: webpBuffer.length,
+      width,
+      height,
+      taken_at: takenAt,
+    });
+
+    return true;
+  }
+
+  /**
+   * Mark photo processing as failed
+   */
+  failPhoto(id, error) {
+    db.updateFilePhoto(this._db, id, {
+      status: 'failed',
+      metadata: { error: String(error) },
+    });
+  }
+
+  /**
+   * Get absolute path for a thumbnail
+   */
+  getThumbPath(id) {
+    const entry = db.findFile(this._db, id);
+    if (!entry || !entry.thumb_stored_name) return null;
+    return this._resolveFilePath(entry.bucket, entry.thumb_stored_name);
+  }
+
+  /**
+   * Find photos stuck in 'processing' state (for crash recovery)
+   */
+  listStuckProcessing() {
+    return db.listStuckProcessing(this._db);
+  }
+
+  // ══════════════════════════════════════════
+  //  Album Operations
+  // ══════════════════════════════════════════
+
+  createAlbum(name) {
+    const id = shortId();
+    const now = Date.now();
+    const album = { id, name, created_at: now, updated_at: now };
+    db.insertAlbum(this._db, album);
+    return album;
+  }
+
+  getAlbum(id) {
+    return db.findAlbum(this._db, id);
+  }
+
+  listAlbums() {
+    return db.listAlbums(this._db);
+  }
+
+  updateAlbum(id, updates) {
+    return db.updateAlbum(this._db, id, updates);
+  }
+
+  deleteAlbum(id) {
+    return db.deleteAlbum(this._db, id);
+  }
+
+  listPhotosByAlbum(albumId, opts) {
+    return db.listPhotosByAlbum(this._db, albumId, opts);
+  }
+
+  moveToAlbum(fileId, albumId) {
+    return db.updateFilePhoto(this._db, fileId, { album_id: albumId });
+  }
+
   /**
    * Close the database connection
    */
