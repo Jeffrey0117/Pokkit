@@ -7,6 +7,13 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
   app.post('/upload', {
     config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
   }, async (request, reply) => {
+    if (config.apiKey) {
+      const auth = request.headers.authorization
+      if (auth !== `Bearer ${config.apiKey}`) {
+        return reply.status(401).send({ error: 'Unauthorized' })
+      }
+    }
+
     const file = await request.file()
     if (!file) {
       return reply.status(400).send({ error: 'No file provided. Use multipart field "file".' })
