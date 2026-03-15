@@ -30,9 +30,8 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   app.get<{ Params: { id: string }; Querystring: { limit?: string; offset?: string } }>(
     '/api/albums/:id',
     async (request, reply) => {
-      if (!requireAuth(request, config)) {
-        return reply.status(401).send({ error: 'Unauthorized' })
-      }
+      const user = requireAuth(request, reply, config)
+      if (!user) return
       const album = storage.getAlbum(request.params.id)
       if (!album) {
         return reply.status(404).send({ error: 'Album not found' })
@@ -48,9 +47,8 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   app.put<{ Params: { id: string }; Body: { name?: string; cover_file_id?: string } }>(
     '/api/albums/:id',
     async (request, reply) => {
-      if (!requireAuth(request, config)) {
-        return reply.status(401).send({ error: 'Unauthorized' })
-      }
+      const user = requireAuth(request, reply, config)
+      if (!user) return
       const updates: { name?: string; cover_file_id?: string } = {}
       if (request.body?.name) updates.name = request.body.name.trim()
       if (request.body?.cover_file_id) updates.cover_file_id = request.body.cover_file_id
@@ -118,9 +116,8 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   app.put<{ Params: { id: string }; Body: { album_id: string | null } }>(
     '/api/photos/:id/album',
     async (request, reply) => {
-      if (!requireAuth(request, config)) {
-        return reply.status(401).send({ error: 'Unauthorized' })
-      }
+      const user = requireAuth(request, reply, config)
+      if (!user) return
       const entry = storage.find(request.params.id)
       if (!entry) {
         return reply.status(404).send({ error: 'Photo not found' })
