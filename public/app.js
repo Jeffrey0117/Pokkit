@@ -1264,20 +1264,29 @@
   // Don't show login/logout until SDK resolves — both buttons start hidden in HTML
 
   waitForLetMeUse().then(function () {
-    if (typeof letmeuse === 'undefined' || !letmeuse.ready) {
-      // SDK failed to load — show guest mode
+    if (typeof letmeuse === 'undefined') {
+      // SDK completely failed to load — guest mode
       updateAuthUI();
       loadFiles();
       return;
     }
 
-    // SDK is ready — read current user immediately (session restored from localStorage)
-    currentUser = letmeuse.user || null;
-    updateAuthUI();
-    loadFiles();
-    loadStats();
+    // Read user immediately if SDK is already ready
+    if (letmeuse.ready && letmeuse.user) {
+      currentUser = letmeuse.user;
+      updateAuthUI();
+      loadFiles();
+      loadStats();
+    } else {
+      // SDK not ready yet — show guest state for now
+      updateAuthUI();
+      loadFiles();
+    }
 
-    // Listen for future login/logout
+    // ALWAYS register onAuthChange — this catches:
+    // 1. Session restoration when SDK finishes init (ready was false, now true)
+    // 2. Future login/logout actions
+    // Without this, timeout-triggered guest mode never recovers.
     letmeuse.onAuthChange(function (user) {
       currentUser = user || null;
       updateAuthUI();
