@@ -281,15 +281,14 @@
 
     var xhr = new XMLHttpRequest();
     var fd = new FormData();
-    fd.append('file', file);
 
-    // Append optional password and expiry
+    // Fields MUST come before file — @fastify/multipart stops parsing after file
     var pw = $passwordInput.value.trim();
     if (pw) fd.append('password', pw);
     var exp = $expirySelect.value;
     if (exp && exp !== 'forever') fd.append('expiresIn', exp);
-    // Append album_id when uploading inside an album
     if (currentAlbumId) fd.append('album_id', currentAlbumId);
+    fd.append('file', file);
 
     xhr.upload.addEventListener('progress', function (e) {
       if (e.lengthComputable) {
