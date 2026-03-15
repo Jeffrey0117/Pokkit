@@ -35,6 +35,11 @@
   var $lightboxClose = document.getElementById('lightboxClose');
   var $lightboxPrev = document.getElementById('lightboxPrev');
   var $lightboxNext = document.getElementById('lightboxNext');
+  var $lightboxDelete = document.getElementById('lightboxDelete');
+  var $lightboxCover = document.getElementById('lightboxCover');
+  var $galleryCount = document.getElementById('galleryCount');
+  var $galleryRename = document.getElementById('galleryRename');
+  var $galleryDelete = document.getElementById('galleryDelete');
 
   // ── State ───────────────────────────────────────────────
   var uploading = 0;
@@ -42,6 +47,7 @@
   var toastTimer = null;
   var currentTab = 'files';
   var currentAlbumId = null;
+  var currentAlbumName = '';
   var galleryPhotos = [];
   var lightboxIndex = -1;
   var processingPolls = {};
@@ -317,6 +323,7 @@
             if (currentAlbumId && !$gallerySection.hidden) {
               apiRequest('GET', '/api/albums/' + currentAlbumId, null, function (albumData) {
                 galleryPhotos = albumData.photos || [];
+                $galleryCount.textContent = galleryPhotos.length + ' photos';
                 renderPhotoGrid();
               });
             }
@@ -624,6 +631,7 @@
     $albumsSection.hidden = tabName !== 'albums';
     $gallerySection.hidden = true;
     currentAlbumId = null;
+    currentAlbumName = '';
     if (tabName === 'albums') loadAlbums();
   }
 
@@ -672,6 +680,41 @@
       cover.appendChild(empty);
     }
 
+    // ⋮ menu button
+    var menuBtn = document.createElement('button');
+    menuBtn.className = 'album-card-menu-btn';
+    menuBtn.textContent = '\u22EE';
+    menuBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      closeAllDropdowns();
+      dropdown.classList.toggle('open');
+    });
+
+    // Dropdown menu
+    var dropdown = document.createElement('div');
+    dropdown.className = 'dropdown-menu';
+
+    var renameItem = document.createElement('button');
+    renameItem.className = 'dropdown-item';
+    renameItem.textContent = 'Rename';
+    renameItem.addEventListener('click', function (e) {
+      e.stopPropagation();
+      closeAllDropdowns();
+      renameAlbum(album.id, album.name);
+    });
+
+    var deleteItem = document.createElement('button');
+    deleteItem.className = 'dropdown-item dropdown-item-danger';
+    deleteItem.textContent = 'Delete';
+    deleteItem.addEventListener('click', function (e) {
+      e.stopPropagation();
+      closeAllDropdowns();
+      deleteAlbum(album.id, album.name);
+    });
+
+    dropdown.appendChild(renameItem);
+    dropdown.appendChild(deleteItem);
+
     var info = document.createElement('div');
     info.className = 'album-info';
     var nameDiv = document.createElement('div');
@@ -684,6 +727,8 @@
     info.appendChild(meta);
 
     card.appendChild(cover);
+    card.appendChild(menuBtn);
+    card.appendChild(dropdown);
     card.appendChild(info);
 
     card.addEventListener('click', function () {
@@ -693,16 +738,55 @@
     $albumGrid.appendChild(card);
   }
 
+  // ── Album Actions ──────────────────────────────────────
+
+  function closeAllDropdowns() {
+    var menus = document.querySelectorAll('.dropdown-menu.open');
+    for (var i = 0; i < menus.length; i++) menus[i].classList.remove('open');
+  }
+
+  document.addEventListener('click', closeAllDropdowns);
+
+  function renameAlbum(id, currentName) {
+    var newName = prompt('Rename album:', currentName);
+    if (!newName || !newName.trim() || newName.trim() === currentName) return;
+    apiRequest('PUT', '/api/albums/' + id, { name: newName.trim() }, function () {
+      toast('Renamed');
+      if (currentAlbumId === id) {
+        currentAlbumName = newName.trim();
+        $galleryTitle.textContent = currentAlbumName;
+      }
+      loadAlbums();
+    });
+  }
+
+  function deleteAlbum(id, name) {
+    if (!confirm('Delete album "' + name + '"? Photos will be kept.')) return;
+    apiRequest('DELETE', '/api/albums/' + id, null, function () {
+      toast('Album deleted');
+      if (currentAlbumId === id) {
+        currentAlbumId = null;
+        currentAlbumName = '';
+        $gallerySection.hidden = true;
+        $albumsSection.hidden = false;
+      }
+      loadAlbums();
+    });
+  }
+
   // ── Gallery (photos inside album) ─────────────────────
   function openAlbum(albumId, albumName) {
     currentAlbumId = albumId;
+    currentAlbumName = albumName;
     $albumsSection.hidden = true;
     $gallerySection.hidden = false;
     $galleryTitle.textContent = albumName;
+    $galleryCount.textContent = '';
     $photoGrid.innerHTML = '';
 
     apiRequest('GET', '/api/albums/' + albumId, null, function (data) {
       galleryPhotos = data.photos || [];
+      $galleryCount.textContent = galleryPhotos.length + ' photos';
       renderPhotoGrid();
     });
   }
@@ -711,7 +795,16 @@
     $gallerySection.hidden = true;
     $albumsSection.hidden = false;
     currentAlbumId = null;
+    currentAlbumName = '';
     loadAlbums();
+  });
+
+  $galleryRename.addEventListener('click', function () {
+    if (currentAlbumId) renameAlbum(currentAlbumId, currentAlbumName);
+  });
+
+  $galleryDelete.addEventListener('click', function () {
+    if (currentAlbumId) deleteAlbum(currentAlbumId, currentAlbumName);
   });
 
   function renderPhotoGrid() {
@@ -736,6 +829,32 @@
       img.alt = photo.filename;
       img.loading = 'lazy';
       cell.appendChild(img);
+
+      // Hover action buttons
+      var actions = document.createElement('div');
+      actions.className = 'photo-actions';
+
+      var coverBtn = document.createElement('button');
+      coverBtn.className = 'photo-action-btn';
+      coverBtn.innerHTML = '&#9733;';
+      coverBtn.title = 'Set as cover';
+      coverBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        setAlbumCover(photo.id);
+      });
+
+      var delBtn = document.createElement('button');
+      delBtn.className = 'photo-action-btn danger';
+      delBtn.innerHTML = '&#10005;';
+      delBtn.title = 'Delete';
+      delBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        deletePhoto(photo.id);
+      });
+
+      actions.appendChild(coverBtn);
+      actions.appendChild(delBtn);
+      cell.appendChild(actions);
     } else {
       var overlay = document.createElement('div');
       overlay.className = 'processing-overlay';
@@ -753,6 +872,25 @@
     });
 
     $photoGrid.appendChild(cell);
+  }
+
+  // ── Photo Actions ──────────────────────────────────────
+
+  function deletePhoto(id) {
+    if (!confirm('Delete this photo?')) return;
+    apiRequest('DELETE', '/files/' + id, null, function () {
+      toast('Deleted');
+      galleryPhotos = galleryPhotos.filter(function (p) { return p.id !== id; });
+      $galleryCount.textContent = galleryPhotos.length + ' photos';
+      renderPhotoGrid();
+    });
+  }
+
+  function setAlbumCover(photoId) {
+    if (!currentAlbumId) return;
+    apiRequest('PUT', '/api/albums/' + currentAlbumId, { cover_file_id: photoId }, function () {
+      toast('Cover set');
+    });
   }
 
   // ── Processing Poll ───────────────────────────────────
@@ -814,6 +952,32 @@
   });
   $lightboxNext.addEventListener('click', function () {
     if (lightboxIndex < galleryPhotos.length - 1) { lightboxIndex++; showLightboxPhoto(); }
+  });
+
+  $lightboxDelete.addEventListener('click', function () {
+    if (lightboxIndex < 0 || lightboxIndex >= galleryPhotos.length) return;
+    var photo = galleryPhotos[lightboxIndex];
+    if (!confirm('Delete this photo?')) return;
+    apiRequest('DELETE', '/files/' + photo.id, null, function () {
+      toast('Deleted');
+      galleryPhotos.splice(lightboxIndex, 1);
+      $galleryCount.textContent = galleryPhotos.length + ' photos';
+      if (galleryPhotos.length === 0) {
+        closeLightbox();
+      } else if (lightboxIndex >= galleryPhotos.length) {
+        lightboxIndex = galleryPhotos.length - 1;
+        showLightboxPhoto();
+      } else {
+        showLightboxPhoto();
+      }
+      renderPhotoGrid();
+    });
+  });
+
+  $lightboxCover.addEventListener('click', function () {
+    if (lightboxIndex < 0 || lightboxIndex >= galleryPhotos.length) return;
+    var photo = galleryPhotos[lightboxIndex];
+    setAlbumCover(photo.id);
   });
 
   $lightbox.addEventListener('click', function (e) {

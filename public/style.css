@@ -645,6 +645,88 @@ body {
   color: #999;
 }
 
+/* ── Album Card Actions ──────────────────────────────── */
+
+.album-card {
+  position: relative;
+}
+
+.album-card-menu-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 900;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+  z-index: 10;
+  line-height: 1;
+  letter-spacing: 1px;
+}
+
+.album-card:hover .album-card-menu-btn {
+  opacity: 1;
+}
+
+.album-card-menu-btn:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 40px;
+  right: 8px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  z-index: 20;
+  min-width: 140px;
+  overflow: hidden;
+  display: none;
+}
+
+.dropdown-menu.open {
+  display: block;
+}
+
+.dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  color: #333;
+  transition: background 0.1s;
+}
+
+.dropdown-item:hover {
+  background: #f5f5f0;
+}
+
+.dropdown-item-danger {
+  color: #d32f2f;
+}
+
+.dropdown-item-danger:hover {
+  background: #fef2f2;
+}
+
 /* ── Gallery Section (photo grid inside album) ────────── */
 
 .gallery-section {
@@ -656,6 +738,19 @@ body {
   align-items: center;
   gap: 12px;
   margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.gallery-count {
+  font-size: 12px;
+  color: #999;
+  font-weight: 600;
+}
+
+.gallery-header-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
 }
 
 .gallery-dropzone {
@@ -710,6 +805,45 @@ body {
 
 .photo-cell:hover img {
   transform: scale(1.05);
+}
+
+.photo-actions {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 5;
+}
+
+.photo-cell:hover .photo-actions {
+  opacity: 1;
+}
+
+.photo-action-btn {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  line-height: 1;
+}
+
+.photo-action-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.photo-action-btn.danger:hover {
+  background: rgba(211, 47, 47, 0.9);
 }
 
 .processing-overlay {
@@ -802,16 +936,52 @@ body {
   right: 8px;
 }
 
-.lightbox-info {
+.lightbox-bottom {
   position: absolute;
   bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.lightbox-info {
   color: rgba(255, 255, 255, 0.7);
   font-family: inherit;
   font-size: 12px;
   font-weight: 600;
   text-align: center;
+}
+
+.lightbox-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.lightbox-action-btn {
+  padding: 6px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.lightbox-action-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.lightbox-action-danger:hover {
+  background: rgba(211, 47, 47, 0.7);
+  border-color: rgba(211, 47, 47, 0.7);
+  color: #fff;
 }
 
 /* ── Responsive ────────────────────────────────────────── */

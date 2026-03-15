@@ -133,6 +133,11 @@
       <div class="section-header">
         <button class="btn" id="backToAlbums">&larr; Albums</button>
         <h2 class="section-title" id="galleryTitle"></h2>
+        <span class="gallery-count" id="galleryCount"></span>
+        <div class="gallery-header-actions">
+          <button class="btn" id="galleryRename">Rename</button>
+          <button class="btn btn-danger" id="galleryDelete">Delete Album</button>
+        </div>
       </div>
       <div class="gallery-dropzone" id="galleryDropzone" tabindex="0" role="button" aria-label="Upload photos">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -150,7 +155,13 @@
       <button class="lightbox-nav lightbox-prev" id="lightboxPrev">&lsaquo;</button>
       <button class="lightbox-nav lightbox-next" id="lightboxNext">&rsaquo;</button>
       <img class="lightbox-img" id="lightboxImg" alt="">
-      <div class="lightbox-info" id="lightboxInfo"></div>
+      <div class="lightbox-bottom">
+        <div class="lightbox-info" id="lightboxInfo"></div>
+        <div class="lightbox-actions">
+          <button class="lightbox-action-btn" id="lightboxCover" title="Set as cover">&#9733; Cover</button>
+          <button class="lightbox-action-btn lightbox-action-danger" id="lightboxDelete" title="Delete photo">&#10005; Delete</button>
+        </div>
+      </div>
     </div>
 
     <footer class="landing-footer">
