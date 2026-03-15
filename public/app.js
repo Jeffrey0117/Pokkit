@@ -376,7 +376,13 @@
             // Refresh gallery if we're in album view
             if (currentAlbumId && !$gallerySection.hidden) {
               apiRequest('GET', '/api/albums/' + currentAlbumId, null, function (albumData) {
-                galleryPhotos = albumData.photos || [];
+                var photos = albumData.photos || [];
+                var seen = {};
+                galleryPhotos = photos.filter(function (p) {
+                  if (seen[p.id]) return false;
+                  seen[p.id] = true;
+                  return true;
+                });
                 $galleryCount.textContent = galleryPhotos.length + ' photos';
                 renderPhotoGrid();
               });
@@ -850,7 +856,14 @@
     $photoGrid.innerHTML = '';
 
     apiRequest('GET', '/api/albums/' + albumId, null, function (data) {
-      galleryPhotos = data.photos || [];
+      var photos = data.photos || [];
+      // Deduplicate by ID
+      var seen = {};
+      galleryPhotos = photos.filter(function (p) {
+        if (seen[p.id]) return false;
+        seen[p.id] = true;
+        return true;
+      });
       $galleryCount.textContent = galleryPhotos.length + ' photos';
       renderPhotoGrid();
     });
@@ -1122,6 +1135,13 @@
 
   function enterSwipeMode() {
     var readyPhotos = galleryPhotos.filter(function (p) { return p.status === 'ready'; });
+    // Deduplicate by ID (safety net)
+    var seen = {};
+    readyPhotos = readyPhotos.filter(function (p) {
+      if (seen[p.id]) return false;
+      seen[p.id] = true;
+      return true;
+    });
     var reviewed = getReviewedIds(currentAlbumId);
     swipePhotos = readyPhotos.filter(function (p) { return reviewed.indexOf(p.id) === -1; });
 
@@ -1176,7 +1196,12 @@
       (new Image()).src = '/photos/' + swipePhotos[swipeIndex + 1].id + '/photo.webp';
     }
 
+    var revealed = false;
     function reveal() {
+      if (revealed) return;
+      revealed = true;
+      $swipeImg.onload = null;
+      $swipeImg.onerror = null;
       $swipeCard.style.opacity = '1';
       void $swipeCard.offsetHeight;
       $swipeCard.style.transition = '';
@@ -1184,15 +1209,10 @@
     }
 
     var newSrc = '/photos/' + photo.id + '/photo.webp';
-    $swipeImg.onload = function () { $swipeImg.onload = null; reveal(); };
-    $swipeImg.onerror = function () { $swipeImg.onerror = null; reveal(); };
+    $swipeImg.onload = reveal;
+    $swipeImg.onerror = reveal;
     $swipeImg.src = newSrc;
-    // Cached images: onload may not fire, check .complete
-    if ($swipeImg.complete) {
-      $swipeImg.onload = null;
-      $swipeImg.onerror = null;
-      reveal();
-    }
+    if ($swipeImg.complete) reveal();
   }
 
   function doSwipeAction(direction) {
