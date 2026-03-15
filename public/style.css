@@ -846,6 +846,197 @@ body {
   background: rgba(211, 47, 47, 0.9);
 }
 
+/* ── Multi-Select ────────────────────────────── */
+
+.photo-checkbox {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 6;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: #fff;
+  pointer-events: none;
+}
+
+.select-mode .photo-checkbox {
+  display: flex;
+}
+
+.photo-cell.selected .photo-checkbox {
+  background: #000;
+  border-color: #000;
+}
+
+.photo-cell.selected .photo-checkbox::after {
+  content: '\2713';
+}
+
+.photo-cell.selected {
+  outline: 3px solid #000;
+  outline-offset: -3px;
+}
+
+.select-mode .photo-cell:hover img {
+  transform: none;
+}
+
+.album-badge {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  z-index: 4;
+  max-width: 80%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Selection Bar ───────────────────────────── */
+
+.selection-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #000;
+  color: #fff;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 14px 24px;
+  z-index: 100;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.selection-bar.active {
+  display: flex;
+}
+
+.selection-count {
+  font-weight: 700;
+}
+
+.selection-bar .btn {
+  background: #333;
+  color: #fff;
+  border-color: #555;
+}
+
+.selection-bar .btn:hover {
+  background: #444;
+}
+
+.selection-bar .btn-primary {
+  background: #fff;
+  color: #000;
+  border-color: #fff;
+}
+
+.selection-bar .btn-primary:hover {
+  background: #ddd;
+}
+
+/* ── Album Picker Modal ──────────────────────── */
+
+.album-picker {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+}
+
+.album-picker.active {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.album-picker-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.album-picker-modal {
+  position: relative;
+  background: #fff;
+  border: 2px solid #000;
+  border-radius: 8px;
+  width: 320px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.album-picker-title {
+  padding: 16px 20px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  font-size: 15px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.album-picker-list {
+  overflow-y: auto;
+  max-height: 50vh;
+}
+
+.album-picker-item {
+  padding: 12px 20px;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  transition: background 0.1s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.album-picker-item:hover {
+  background: #f0f0ec;
+}
+
+.album-picker-item-count {
+  color: #888;
+  font-size: 11px;
+  margin-left: auto;
+}
+
+.album-picker-new {
+  padding: 14px 20px;
+  border: none;
+  border-top: 1px solid #e0e0e0;
+  background: none;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.album-picker-new:hover {
+  background: #f0f0ec;
+}
+
 .processing-overlay {
   position: absolute;
   inset: 0;

@@ -41,6 +41,22 @@
   var $galleryRename = document.getElementById('galleryRename');
   var $galleryDelete = document.getElementById('galleryDelete');
   var $galleryCleanup = document.getElementById('galleryCleanup');
+  var $gallerySelect = document.getElementById('gallerySelect');
+
+  // ── Photos (All) DOM ──────────────────────────────────
+  var $photosSection = document.getElementById('photosSection');
+  var $allPhotoGrid = document.getElementById('allPhotoGrid');
+  var $allPhotosSelect = document.getElementById('allPhotosSelect');
+
+  // ── Selection DOM ─────────────────────────────────────
+  var $selectionBar = document.getElementById('selectionBar');
+  var $selectionCount = document.getElementById('selectionCount');
+  var $selectionMove = document.getElementById('selectionMove');
+  var $selectionCancel = document.getElementById('selectionCancel');
+  var $albumPicker = document.getElementById('albumPicker');
+  var $albumPickerOverlay = document.getElementById('albumPickerOverlay');
+  var $albumPickerList = document.getElementById('albumPickerList');
+  var $albumPickerNew = document.getElementById('albumPickerNew');
 
   // ── Swipe Mode DOM ──────────────────────────────────────
   var $swipeMode = document.getElementById('swipeMode');
@@ -72,6 +88,10 @@
   var lightboxIndex = -1;
   var processingPolls = {};
   var currentUser = null;
+  var selectMode = false;
+  var selectedIds = [];
+  var allPhotos = [];
+  var allPhotosAlbumMap = {};
 
   // ── Auth (LetMeUse) ───────────────────────────────────
   var STORAGE_TOKEN_KEY = 'pokkit_token';
@@ -693,6 +713,7 @@
   });
 
   function switchTab(tabName) {
+    exitSelectMode();
     currentTab = tabName;
     var tabs = $viewTabs.querySelectorAll('.tab');
     for (var i = 0; i < tabs.length; i++) {
@@ -700,10 +721,12 @@
     }
     $filesSection.hidden = tabName !== 'files';
     $albumsSection.hidden = tabName !== 'albums';
+    $photosSection.hidden = tabName !== 'photos';
     $gallerySection.hidden = true;
     currentAlbumId = null;
     currentAlbumName = '';
     if (tabName === 'albums') loadAlbums();
+    if (tabName === 'photos') loadAllPhotos();
   }
 
   // ── Albums ─────────────────────────────────────────────
@@ -901,6 +924,11 @@
     cell.className = 'photo-cell';
     cell.dataset.id = photo.id;
 
+    // Checkbox for multi-select
+    var checkbox = document.createElement('div');
+    checkbox.className = 'photo-checkbox';
+    cell.appendChild(checkbox);
+
     if (photo.status === 'ready') {
       var img = document.createElement('img');
       img.src = '/photos/' + photo.id + '/thumb.webp';
@@ -918,6 +946,7 @@
       coverBtn.title = 'Set as cover';
       coverBtn.addEventListener('click', function (e) {
         e.stopPropagation();
+        if (selectMode) return;
         setAlbumCover(photo.id);
       });
 
@@ -927,6 +956,7 @@
       delBtn.title = 'Delete';
       delBtn.addEventListener('click', function (e) {
         e.stopPropagation();
+        if (selectMode) return;
         deletePhoto(photo.id);
       });
 
@@ -944,6 +974,10 @@
     }
 
     cell.addEventListener('click', function () {
+      if (selectMode) {
+        togglePhotoSelection(photo.id, cell);
+        return;
+      }
       if (photo.status === 'ready') {
         openLightbox(index);
       }
@@ -1068,6 +1102,192 @@
     if (e.key === 'ArrowLeft' && lightboxIndex > 0) { lightboxIndex--; showLightboxPhoto(); }
     if (e.key === 'ArrowRight' && lightboxIndex < galleryPhotos.length - 1) { lightboxIndex++; showLightboxPhoto(); }
   });
+
+  // ── Multi-Select Mode ─────────────────────────────────
+
+  function enterSelectMode() {
+    selectMode = true;
+    selectedIds = [];
+    updateSelectionUI();
+    var grid = currentTab === 'photos' ? $allPhotoGrid : $photoGrid;
+    grid.classList.add('select-mode');
+    $selectionBar.classList.add('active');
+    if ($gallerySelect) $gallerySelect.textContent = 'Cancel';
+    if ($allPhotosSelect) $allPhotosSelect.textContent = 'Cancel';
+  }
+
+  function exitSelectMode() {
+    selectMode = false;
+    selectedIds = [];
+    $selectionBar.classList.remove('active');
+    $photoGrid.classList.remove('select-mode');
+    $allPhotoGrid.classList.remove('select-mode');
+    if ($gallerySelect) $gallerySelect.textContent = 'Select';
+    if ($allPhotosSelect) $allPhotosSelect.textContent = 'Select';
+    // Remove selected class from all cells
+    var cells = document.querySelectorAll('.photo-cell.selected');
+    for (var i = 0; i < cells.length; i++) cells[i].classList.remove('selected');
+  }
+
+  function togglePhotoSelection(id, cell) {
+    var idx = selectedIds.indexOf(id);
+    if (idx === -1) {
+      selectedIds.push(id);
+      cell.classList.add('selected');
+    } else {
+      selectedIds.splice(idx, 1);
+      cell.classList.remove('selected');
+    }
+    updateSelectionUI();
+  }
+
+  function updateSelectionUI() {
+    $selectionCount.textContent = selectedIds.length + ' selected';
+  }
+
+  $gallerySelect.addEventListener('click', function () {
+    if (selectMode) { exitSelectMode(); } else { enterSelectMode(); }
+  });
+
+  $allPhotosSelect.addEventListener('click', function () {
+    if (selectMode) { exitSelectMode(); } else { enterSelectMode(); }
+  });
+
+  $selectionCancel.addEventListener('click', exitSelectMode);
+
+  // Long press to enter select mode
+  var longPressTimer = null;
+  function setupLongPress(grid) {
+    grid.addEventListener('pointerdown', function (e) {
+      var cell = e.target.closest('.photo-cell');
+      if (!cell || selectMode) return;
+      longPressTimer = setTimeout(function () {
+        enterSelectMode();
+        togglePhotoSelection(cell.dataset.id, cell);
+      }, 600);
+    });
+    grid.addEventListener('pointerup', function () { clearTimeout(longPressTimer); });
+    grid.addEventListener('pointerleave', function () { clearTimeout(longPressTimer); });
+    grid.addEventListener('pointermove', function () { clearTimeout(longPressTimer); });
+  }
+  setupLongPress($photoGrid);
+  setupLongPress($allPhotoGrid);
+
+  // ── Album Picker ─────────────────────────────────────
+
+  $selectionMove.addEventListener('click', openAlbumPicker);
+  $albumPickerOverlay.addEventListener('click', closeAlbumPicker);
+  $albumPickerNew.addEventListener('click', function () {
+    var name = prompt('New album name:');
+    if (!name || !name.trim()) return;
+    apiRequest('POST', '/api/albums', { name: name.trim() }, function (album) {
+      bulkMovePhotos(album.id);
+    });
+  });
+
+  function openAlbumPicker() {
+    if (selectedIds.length === 0) return;
+    apiRequest('GET', '/api/albums', null, function (albums) {
+      $albumPickerList.innerHTML = '';
+      for (var i = 0; i < albums.length; i++) {
+        (function (album) {
+          var item = document.createElement('div');
+          item.className = 'album-picker-item';
+          item.innerHTML = '<span>' + album.name + '</span><span class="album-picker-item-count">' + (album.photo_count || 0) + '</span>';
+          item.addEventListener('click', function () {
+            bulkMovePhotos(album.id);
+          });
+          $albumPickerList.appendChild(item);
+        })(albums[i]);
+      }
+      $albumPicker.classList.add('active');
+    });
+  }
+
+  function closeAlbumPicker() {
+    $albumPicker.classList.remove('active');
+  }
+
+  function bulkMovePhotos(albumId) {
+    closeAlbumPicker();
+    apiRequest('PUT', '/api/photos/bulk-move', { photo_ids: selectedIds, album_id: albumId }, function (data) {
+      toast('Moved ' + (data.moved || selectedIds.length) + ' photos');
+      exitSelectMode();
+      // Refresh current view
+      if (currentTab === 'photos') {
+        loadAllPhotos();
+      } else if (currentAlbumId) {
+        openAlbum(currentAlbumId, currentAlbumName);
+      }
+    });
+  }
+
+  // ── All Photos Tab ───────────────────────────────────
+
+  function loadAllPhotos() {
+    apiRequest('GET', '/api/photos?limit=500', null, function (photos) {
+      allPhotos = photos || [];
+      // Also load album list to show album names as badges
+      apiRequest('GET', '/api/albums', null, function (albums) {
+        allPhotosAlbumMap = {};
+        for (var i = 0; i < albums.length; i++) {
+          allPhotosAlbumMap[albums[i].id] = albums[i].name;
+        }
+        renderAllPhotoGrid();
+      });
+    });
+  }
+
+  function renderAllPhotoGrid() {
+    $allPhotoGrid.innerHTML = '';
+    if (allPhotos.length === 0) {
+      $allPhotoGrid.innerHTML = '<div class="empty-state"><div class="empty-state-icon">~</div><div class="empty-state-text">No photos yet</div></div>';
+      return;
+    }
+    for (var i = 0; i < allPhotos.length; i++) {
+      addAllPhotoCell(allPhotos[i], i);
+    }
+  }
+
+  function addAllPhotoCell(photo, index) {
+    var cell = document.createElement('div');
+    cell.className = 'photo-cell';
+    cell.dataset.id = photo.id;
+
+    var checkbox = document.createElement('div');
+    checkbox.className = 'photo-checkbox';
+    cell.appendChild(checkbox);
+
+    if (photo.status === 'ready') {
+      var img = document.createElement('img');
+      img.src = '/photos/' + photo.id + '/thumb.webp';
+      img.loading = 'lazy';
+      cell.appendChild(img);
+
+      // Album badge
+      if (photo.album_id && allPhotosAlbumMap[photo.album_id]) {
+        var badge = document.createElement('div');
+        badge.className = 'album-badge';
+        badge.textContent = allPhotosAlbumMap[photo.album_id];
+        cell.appendChild(badge);
+      }
+    } else {
+      var overlay = document.createElement('div');
+      overlay.className = 'processing-overlay';
+      var spinner = document.createElement('div');
+      spinner.className = 'processing-spinner';
+      overlay.appendChild(spinner);
+      cell.appendChild(overlay);
+    }
+
+    cell.addEventListener('click', function () {
+      if (selectMode) {
+        togglePhotoSelection(photo.id, cell);
+      }
+    });
+
+    $allPhotoGrid.appendChild(cell);
+  }
 
   // ── API Helper ────────────────────────────────────────
   var lastAuthToast = 0;

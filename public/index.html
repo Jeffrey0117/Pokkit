@@ -107,6 +107,7 @@
     <section class="view-tabs" id="viewTabs">
       <button class="tab active" data-tab="files">Files</button>
       <button class="tab" data-tab="albums">Albums</button>
+      <button class="tab" data-tab="photos">Photos</button>
     </section>
 
     <section class="files-section" id="filesSection">
@@ -129,12 +130,21 @@
       <div class="album-grid" id="albumGrid"></div>
     </section>
 
+    <section class="photos-section" id="photosSection" hidden>
+      <div class="section-header">
+        <h2 class="section-title">All Photos</h2>
+        <button class="btn" id="allPhotosSelect">Select</button>
+      </div>
+      <div class="photo-grid" id="allPhotoGrid"></div>
+    </section>
+
     <section class="gallery-section" id="gallerySection" hidden>
       <div class="section-header">
         <button class="btn" id="backToAlbums">&larr; Albums</button>
         <h2 class="section-title" id="galleryTitle"></h2>
         <span class="gallery-count" id="galleryCount"></span>
         <div class="gallery-header-actions">
+          <button class="btn" id="gallerySelect">Select</button>
           <button class="btn" id="galleryCleanup">Cleanup</button>
           <button class="btn" id="galleryRename">Rename</button>
           <button class="btn btn-danger" id="galleryDelete">Delete Album</button>
@@ -193,6 +203,21 @@
         <div class="swipe-summary-title">Review Complete</div>
         <div class="swipe-summary-stats" id="swipeSummaryStats"></div>
         <button class="btn btn-primary" id="swipeSummaryDone">Done</button>
+      </div>
+    </div>
+
+    <div class="selection-bar" id="selectionBar">
+      <span class="selection-count" id="selectionCount">0 selected</span>
+      <button class="btn btn-primary" id="selectionMove">Move to...</button>
+      <button class="btn" id="selectionCancel">Cancel</button>
+    </div>
+
+    <div class="album-picker" id="albumPicker">
+      <div class="album-picker-overlay" id="albumPickerOverlay"></div>
+      <div class="album-picker-modal">
+        <div class="album-picker-title">Move to Album</div>
+        <div class="album-picker-list" id="albumPickerList"></div>
+        <button class="album-picker-new" id="albumPickerNew">+ Create New Album</button>
       </div>
     </div>
 

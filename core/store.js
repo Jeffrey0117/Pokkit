@@ -651,6 +651,14 @@ class PokkitStore {
     return db.updateFilePhoto(this._db, fileId, { album_id: albumId });
   }
 
+  bulkMoveToAlbum(photoIds, albumId) {
+    return db.bulkMoveToAlbum(this._db, photoIds, albumId);
+  }
+
+  listAllPhotos(opts) {
+    return db.listAllPhotos(this._db, opts);
+  }
+
   /**
    * Close the database connection
    */

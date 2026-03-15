@@ -112,6 +112,40 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
     return { id: request.params.id, status }
   })
 
+  // GET /api/photos — list all photos (across all albums)
+  app.get<{ Querystring: { limit?: string; offset?: string } }>(
+    '/api/photos',
+    async (request, reply) => {
+      const user = requireAuth(request, reply, config)
+      if (!user) return
+      const limit = Math.min(parseInt(request.query.limit || '200', 10) || 200, 1000)
+      const offset = parseInt(request.query.offset || '0', 10) || 0
+      return storage.listAllPhotos({ limit, offset })
+    },
+  )
+
+  // PUT /api/photos/bulk-move — move multiple photos to an album
+  app.put<{ Body: { photo_ids: string[]; album_id: string } }>(
+    '/api/photos/bulk-move',
+    async (request, reply) => {
+      const user = requireAuth(request, reply, config)
+      if (!user) return
+      const { photo_ids, album_id } = request.body || {}
+      if (!Array.isArray(photo_ids) || photo_ids.length === 0) {
+        return reply.status(400).send({ error: 'photo_ids array is required' })
+      }
+      if (!album_id || typeof album_id !== 'string') {
+        return reply.status(400).send({ error: 'album_id is required' })
+      }
+      const album = storage.getAlbum(album_id)
+      if (!album) {
+        return reply.status(404).send({ error: 'Album not found' })
+      }
+      const result = storage.bulkMoveToAlbum(photo_ids, album_id)
+      return { ok: true, moved: result.changes }
+    },
+  )
+
   // PUT /api/photos/:id/album — move photo to album
   app.put<{ Params: { id: string }; Body: { album_id: string | null } }>(
     '/api/photos/:id/album',

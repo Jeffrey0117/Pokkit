@@ -204,6 +204,14 @@ export class Storage {
     return this.store.moveToAlbum(fileId, albumId)
   }
 
+  bulkMoveToAlbum(photoIds: string[], albumId: string): { changes: number } {
+    return this.store.bulkMoveToAlbum(photoIds, albumId)
+  }
+
+  listAllPhotos(opts?: { limit?: number; offset?: number }) {
+    return this.store.listAllPhotos(opts)
+  }
+
   close(): void {
     this.store.close()
   }

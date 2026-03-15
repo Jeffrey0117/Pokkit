@@ -417,6 +417,23 @@ function deserializeRow(row) {
   };
 }
 
+function bulkMoveToAlbum(db, photoIds, albumId) {
+  const placeholders = photoIds.map(() => '?').join(',');
+  return db.prepare(
+    `UPDATE files SET album_id = ? WHERE id IN (${placeholders})`
+  ).run(albumId, ...photoIds);
+}
+
+function listAllPhotos(db, opts = {}) {
+  const { limit = 200, offset = 0 } = opts;
+  return db.prepare(`
+    SELECT * FROM files
+    WHERE status IN ('ready', 'processing') AND mime LIKE 'image/%'
+    ORDER BY COALESCE(taken_at, uploaded_at) DESC
+    LIMIT ? OFFSET ?
+  `).all(limit, offset).map(deserializeRow);
+}
+
 module.exports = {
   openDb,
   closeDb,
@@ -442,4 +459,6 @@ module.exports = {
   updateFilePhoto,
   countByAlbum,
   listStuckProcessing,
+  bulkMoveToAlbum,
+  listAllPhotos,
 };
