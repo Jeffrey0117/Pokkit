@@ -1043,21 +1043,7 @@ body {
 }
 
 .swipe-card-next {
-  position: absolute;
-  width: calc(100% - 64px);
-  height: calc(100% - 16px);
-  max-width: 380px;
-  border-radius: 16px;
-  overflow: hidden;
-  background: #333;
-  transform: scale(0.92);
-  opacity: 0.4;
-}
-
-.swipe-card-next img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  display: none;
 }
 
 .swipe-card {
