@@ -74,11 +74,35 @@
   var currentUser = null;
 
   // ── Auth (LetMeUse) ───────────────────────────────────
+  var STORAGE_TOKEN_KEY = 'pokkit_token';
+  var STORAGE_USER_KEY = 'pokkit_user';
+
   function getToken() {
+    // Prefer SDK token (freshest), fallback to our cached copy
     if (typeof letmeuse !== 'undefined') {
-      return letmeuse.getToken();
+      var sdkToken = letmeuse.getToken();
+      if (sdkToken) {
+        localStorage.setItem(STORAGE_TOKEN_KEY, sdkToken);
+        return sdkToken;
+      }
     }
-    return null;
+    return localStorage.getItem(STORAGE_TOKEN_KEY);
+  }
+
+  function saveAuthLocally(user) {
+    if (user) {
+      localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(user));
+    } else {
+      localStorage.removeItem(STORAGE_USER_KEY);
+      localStorage.removeItem(STORAGE_TOKEN_KEY);
+    }
+  }
+
+  function loadCachedUser() {
+    try {
+      var data = localStorage.getItem(STORAGE_USER_KEY);
+      return data ? JSON.parse(data) : null;
+    } catch (_) { return null; }
   }
 
   function setAuthHeader(xhr) {
@@ -115,6 +139,7 @@
       letmeuse.logout();
     }
     currentUser = null;
+    saveAuthLocally(null);
     updateAuthUI();
     toast('Logged out');
   });
@@ -1259,47 +1284,48 @@
   });
 
   // ── Init ──────────────────────────────────────────────
-  // Don't show login/logout until SDK resolves — both buttons start hidden in HTML
 
   function applyUser(user) {
     currentUser = user || null;
+    saveAuthLocally(currentUser);
     updateAuthUI();
     loadFiles();
     if (currentUser) loadStats();
   }
 
+  // Step 1: Instantly restore from our own localStorage cache
+  // This gives ZERO-delay login state on Ctrl+R
+  var cached = loadCachedUser();
+  if (cached) {
+    currentUser = cached;
+    updateAuthUI();
+    loadFiles();
+    loadStats();
+  } else {
+    updateAuthUI();
+    loadFiles();
+  }
+
+  // Step 2: When SDK loads, sync with it (source of truth for login/logout)
   waitForLetMeUse().then(function () {
-    if (typeof letmeuse === 'undefined') {
-      applyUser(null);
-      return;
-    }
+    if (typeof letmeuse === 'undefined') return;
 
-    // 1) If SDK already ready, read user directly
-    if (letmeuse.ready) {
-      applyUser(letmeuse.user);
-    } else {
-      applyUser(null);
-    }
-
-    // 2) Register onAuthChange for explicit login/logout
     letmeuse.onAuthChange(function (user) {
       applyUser(user);
     });
 
-    // 3) Poll for session restoration — SDK's onAuthChange may NOT fire
-    //    when it restores a session from localStorage on page load.
-    //    Poll every 200ms for up to 10 seconds.
-    if (!currentUser) {
-      var authPoll = setInterval(function () {
-        if (typeof letmeuse === 'undefined') { clearInterval(authPoll); return; }
-        if (letmeuse.ready) {
-          clearInterval(authPoll);
-          if (letmeuse.user && !currentUser) {
-            applyUser(letmeuse.user);
-          }
+    // Also poll in case onAuthChange doesn't fire on session restore
+    var authPoll = setInterval(function () {
+      if (letmeuse.ready) {
+        clearInterval(authPoll);
+        if (letmeuse.user && !currentUser) {
+          applyUser(letmeuse.user);
+        } else if (!letmeuse.user && currentUser) {
+          // SDK says no user but we have cached — token expired
+          applyUser(null);
         }
-      }, 200);
-      setTimeout(function () { clearInterval(authPoll); }, 10000);
-    }
+      }
+    }, 200);
+    setTimeout(function () { clearInterval(authPoll); }, 10000);
   });
 })();
