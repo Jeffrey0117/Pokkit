@@ -1159,24 +1159,40 @@
   function showSwipeCard() {
     if (swipeIndex >= swipePhotos.length) { showSwipeSummary(); return; }
 
-    // Kill all transitions instantly
+    // Reset card position, keep HIDDEN until new image loads
     $swipeCard.classList.remove('animating');
     $swipeCard.style.transition = 'none';
     $swipeCard.style.transform = 'translateX(0) rotate(0deg)';
-    $swipeCard.style.opacity = '1';
+    $swipeCard.style.opacity = '0';
     $swipeStampKeep.style.opacity = '0';
     $swipeStampDelete.style.opacity = '0';
-
-    var photo = swipePhotos[swipeIndex];
-    $swipeImg.src = '/photos/' + photo.id + '/photo.webp';
-    $swipeProgress.textContent = (swipeIndex + 1) + ' / ' + swipePhotos.length;
-
-    // Force reflow so 'transition: none' takes effect before we re-enable
     void $swipeCard.offsetHeight;
 
-    // Re-enable transitions for next swipe
-    $swipeCard.style.transition = '';
-    swipeBusy = false;
+    var photo = swipePhotos[swipeIndex];
+    $swipeProgress.textContent = (swipeIndex + 1) + ' / ' + swipePhotos.length;
+
+    // Preload next image so transition feels instant
+    if (swipeIndex + 1 < swipePhotos.length) {
+      (new Image()).src = '/photos/' + swipePhotos[swipeIndex + 1].id + '/photo.webp';
+    }
+
+    function reveal() {
+      $swipeCard.style.opacity = '1';
+      void $swipeCard.offsetHeight;
+      $swipeCard.style.transition = '';
+      swipeBusy = false;
+    }
+
+    var newSrc = '/photos/' + photo.id + '/photo.webp';
+    $swipeImg.onload = function () { $swipeImg.onload = null; reveal(); };
+    $swipeImg.onerror = function () { $swipeImg.onerror = null; reveal(); };
+    $swipeImg.src = newSrc;
+    // Cached images: onload may not fire, check .complete
+    if ($swipeImg.complete) {
+      $swipeImg.onload = null;
+      $swipeImg.onerror = null;
+      reveal();
+    }
   }
 
   function doSwipeAction(direction) {
@@ -1209,7 +1225,7 @@
     setTimeout(function () {
       swipeIndex++;
       showSwipeCard();
-    }, 280);
+    }, 350);
   }
 
   function showSwipeSummary() {
