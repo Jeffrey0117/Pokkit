@@ -305,6 +305,15 @@
     });
 
     xhr.addEventListener('load', function () {
+      // Retry on rate limit (429)
+      if (xhr.status === 429) {
+        uploading--;
+        row.remove();
+        pending.unshift(file);
+        setTimeout(processQueue, 3000);
+        return;
+      }
+
       if (xhr.status >= 200 && xhr.status < 300) {
         bar.style.width = '100%';
         bar.classList.add('done');
