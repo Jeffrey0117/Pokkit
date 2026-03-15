@@ -345,6 +345,16 @@
 
         // Clear password after successful upload
         $passwordInput.value = '';
+      } else if (xhr.status === 401) {
+        currentUser = null;
+        updateAuthUI();
+        if (Date.now() - lastAuthToast > 5000) {
+          lastAuthToast = Date.now();
+          toast('Session expired, please log in again', true);
+        }
+        bar.classList.add('error');
+        bar.style.width = '100%';
+        pct.textContent = '';
       } else {
         bar.classList.add('error');
         bar.style.width = '100%';
@@ -1001,6 +1011,7 @@
   });
 
   // ── API Helper ────────────────────────────────────────
+  var lastAuthToast = 0;
   function apiRequest(method, url, body, callback) {
     var xhr = new XMLHttpRequest();
     xhr.open(method, url);
@@ -1015,6 +1026,16 @@
         } catch (_) {
           if (callback) callback(null);
         }
+      } else if (xhr.status === 401) {
+        // Token expired — update UI, show toast once (not per-request spam)
+        currentUser = null;
+        updateAuthUI();
+        if (Date.now() - lastAuthToast > 5000) {
+          lastAuthToast = Date.now();
+          toast('Session expired, please log in again', true);
+        }
+      } else if (xhr.status === 429) {
+        toast('Too many requests, please wait a moment', true);
       } else {
         var err = 'Request failed';
         try { err = JSON.parse(xhr.responseText).error || err; } catch (_) { /* */ }

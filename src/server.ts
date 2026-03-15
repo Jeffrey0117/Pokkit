@@ -27,7 +27,7 @@ export async function createServer(config: PokkitConfig) {
   await app.register(cors, { origin: true })
   await app.register(cookie)
   await app.register(formbody)
-  await app.register(rateLimit, { max: 100, timeWindow: '1 minute' })
+  await app.register(rateLimit, { max: 600, timeWindow: '1 minute' })
 
   const storage = new Storage(config.dataDir)
   await storage.init()
