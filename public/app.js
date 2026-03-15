@@ -392,6 +392,7 @@
         $passwordInput.value = '';
       } else if (xhr.status === 401) {
         currentUser = null;
+        saveAuthLocally(null);
         updateAuthUI();
         if (Date.now() - lastAuthToast > 5000) {
           lastAuthToast = Date.now();
@@ -1074,6 +1075,7 @@
       } else if (xhr.status === 401) {
         // Token expired — update UI, show toast once (not per-request spam)
         currentUser = null;
+        saveAuthLocally(null);
         updateAuthUI();
         if (Date.now() - lastAuthToast > 5000) {
           lastAuthToast = Date.now();
@@ -1306,26 +1308,19 @@
     loadFiles();
   }
 
-  // Step 2: When SDK loads, sync with it (source of truth for login/logout)
+  // Step 2: When SDK loads, only accept LOGIN events (user truthy).
+  // NEVER clear cache from onAuthChange(null) — that kills our restore.
+  // Cache is only cleared by: explicit logout button + API 401 response.
   waitForLetMeUse().then(function () {
     if (typeof letmeuse === 'undefined') return;
 
     letmeuse.onAuthChange(function (user) {
-      applyUser(user);
-    });
-
-    // Also poll in case onAuthChange doesn't fire on session restore
-    var authPoll = setInterval(function () {
-      if (letmeuse.ready) {
-        clearInterval(authPoll);
-        if (letmeuse.user && !currentUser) {
-          applyUser(letmeuse.user);
-        } else if (!letmeuse.user && currentUser) {
-          // SDK says no user but we have cached — token expired
-          applyUser(null);
-        }
+      if (user) {
+        // Login or session restored — update and save
+        applyUser(user);
       }
-    }, 200);
-    setTimeout(function () { clearInterval(authPoll); }, 10000);
+      // null = SDK init or token issue — DON'T clear cache.
+      // Explicit logout and 401 handler take care of that.
+    });
   });
 })();
