@@ -1,8 +1,16 @@
 import type { FastifyInstance } from 'fastify'
 import type { Storage } from '../storage.js'
 import type { PokkitConfig } from '../config.js'
+import { STORAGE_TIERS } from '../config.js'
 import { processPhoto } from '../photo-worker.js'
 import { requireAuth } from '../auth.js'
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  return (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1) + ' ' + units[i]
+}
 
 export function uploadRoute(app: FastifyInstance, storage: Storage, config: PokkitConfig) {
   app.post('/upload', {
@@ -42,6 +50,19 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
 
     const buffer = await file.toBuffer()
 
+    // Quota check
+    const isPremium = user.userId === 'admin' || config.premiumUserIds.includes(user.userId)
+    const tier = isPremium ? STORAGE_TIERS.premium : STORAGE_TIERS.free
+    const userStats = storage.userStats(user.userId)
+    if (userStats.totalBytes + buffer.length > tier.quotaBytes) {
+      return reply.status(413).send({
+        error: `Storage quota exceeded. ${tier.name} tier limit: ${formatBytes(tier.quotaBytes)}. Used: ${formatBytes(userStats.totalBytes)}.`,
+        tier: tier.name,
+        used: userStats.totalBytes,
+        quota: tier.quotaBytes,
+      })
+    }
+
     let baseUrl: string
     if (config.publicUrl) {
       baseUrl = config.publicUrl
@@ -55,6 +76,7 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
     if (storage.isImage(file.mimetype)) {
       const entry = storage.savePhoto(file.filename, file.mimetype, buffer, {
         album_id: albumId,
+        userId: user.userId,
       })
 
       // If deduplicated, skip processing (already ready)
@@ -80,7 +102,7 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
       file.filename,
       file.mimetype,
       buffer,
-      { password, expiresIn },
+      { password, expiresIn, userId: user.userId },
     )
 
     const shortPath = `/f/${entry.id}`

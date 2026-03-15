@@ -79,6 +79,10 @@ function openDb(dbPath) {
     _db.exec("ALTER TABLE files ADD COLUMN status TEXT DEFAULT 'ready'");
     _db.exec('CREATE INDEX IF NOT EXISTS idx_files_status ON files(status)');
   }
+  if (!cols.includes('user_id')) {
+    _db.exec('ALTER TABLE files ADD COLUMN user_id TEXT');
+    _db.exec('CREATE INDEX IF NOT EXISTS idx_files_user_id ON files(user_id)');
+  }
 
   // Albums table
   _db.exec(`
@@ -114,8 +118,8 @@ function closeDb() {
  */
 function insertFile(db, entry) {
   const stmt = db.prepare(`
-    INSERT INTO files (id, bucket, filename, stored_name, mime, size, hash, is_directory, uploaded_at, metadata, password_hash, expires_at, download_count, album_id, taken_at, width, height, thumb_stored_name, status)
-    VALUES (@id, @bucket, @filename, @stored_name, @mime, @size, @hash, @is_directory, @uploaded_at, @metadata, @password_hash, @expires_at, @download_count, @album_id, @taken_at, @width, @height, @thumb_stored_name, @status)
+    INSERT INTO files (id, bucket, filename, stored_name, mime, size, hash, is_directory, uploaded_at, metadata, password_hash, expires_at, download_count, album_id, taken_at, width, height, thumb_stored_name, status, user_id)
+    VALUES (@id, @bucket, @filename, @stored_name, @mime, @size, @hash, @is_directory, @uploaded_at, @metadata, @password_hash, @expires_at, @download_count, @album_id, @taken_at, @width, @height, @thumb_stored_name, @status, @user_id)
   `);
   stmt.run({
     id: entry.id,
@@ -137,6 +141,7 @@ function insertFile(db, entry) {
     height: entry.height || null,
     thumb_stored_name: entry.thumb_stored_name || null,
     status: entry.status || 'ready',
+    user_id: entry.user_id || null,
   });
 }
 
@@ -311,6 +316,28 @@ function getStats(db, bucket) {
   return { totalFiles: overall.count, totalBytes: overall.bytes, buckets };
 }
 
+/**
+ * @param {import('better-sqlite3').Database} db
+ * @param {string} userId
+ * @returns {{ totalFiles: number, totalBytes: number }}
+ */
+function getUserStats(db, userId) {
+  const row = db.prepare(
+    'SELECT COUNT(*) as count, COALESCE(SUM(size),0) as bytes FROM files WHERE user_id = ?'
+  ).get(userId);
+  return { totalFiles: row.count, totalBytes: row.bytes };
+}
+
+/**
+ * @param {import('better-sqlite3').Database} db
+ * @param {string} userId
+ * @returns {number} number of rows updated
+ */
+function backfillUserId(db, userId) {
+  const result = db.prepare('UPDATE files SET user_id = ? WHERE user_id IS NULL').run(userId);
+  return result.changes;
+}
+
 // ── Albums ──
 
 function insertAlbum(db, album) {
@@ -449,6 +476,8 @@ module.exports = {
   getTags,
   setTags,
   getStats,
+  getUserStats,
+  backfillUserId,
   incrementDownloads,
   insertAlbum,
   findAlbum,

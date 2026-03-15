@@ -1,5 +1,15 @@
 import { resolve } from 'node:path'
 
+export interface StorageTier {
+  name: string
+  quotaBytes: number
+}
+
+export const STORAGE_TIERS: Record<string, StorageTier> = {
+  free: { name: 'Free', quotaBytes: 1 * 1024 * 1024 * 1024 },
+  premium: { name: 'Premium', quotaBytes: 50 * 1024 * 1024 * 1024 },
+}
+
 export interface PokkitConfig {
   port: number
   host: string
@@ -7,6 +17,7 @@ export interface PokkitConfig {
   apiKey: string
   maxFileSize: number
   publicUrl: string
+  premiumUserIds: string[]
 }
 
 function parseArgs(args: string[]): Partial<PokkitConfig> {
@@ -33,5 +44,6 @@ export function loadConfig(): PokkitConfig {
     apiKey: cliArgs.apiKey ?? process.env.POKKIT_API_KEY ?? '',
     maxFileSize: cliArgs.maxFileSize ?? (Number(process.env.POKKIT_MAX_FILE_SIZE) || 500 * 1024 * 1024),
     publicUrl: (cliArgs.publicUrl ?? process.env.POKKIT_PUBLIC_URL ?? '').replace(/\/$/, ''),
+    premiumUserIds: (process.env.POKKIT_PREMIUM_USERS ?? '').split(',').filter(Boolean),
   }
 }

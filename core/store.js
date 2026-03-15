@@ -113,6 +113,7 @@ class PokkitStore {
       password_hash: opts.password_hash || null,
       expires_at: opts.expires_at || null,
       download_count: 0,
+      user_id: opts.user_id || null,
     };
 
     db.insertFile(this._db, entry);
@@ -447,6 +448,14 @@ class PokkitStore {
     return db.getStats(this._db, bucket);
   }
 
+  userStats(userId) {
+    return db.getUserStats(this._db, userId);
+  }
+
+  backfillUserId(userId) {
+    return db.backfillUserId(this._db, userId);
+  }
+
   // ══════════════════════════════════════════
   //  Internal
   // ══════════════════════════════════════════
@@ -545,6 +554,7 @@ class PokkitStore {
       download_count: 0,
       album_id: opts.album_id || null,
       status: 'processing',
+      user_id: opts.user_id || null,
     };
 
     db.insertFile(this._db, entry);

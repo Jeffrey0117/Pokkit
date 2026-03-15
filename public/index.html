@@ -30,7 +30,15 @@
     <nav class="nav">
       <a href="/" class="nav-logo">Pokkit</a>
       <div class="nav-right">
-        <span class="stats" id="stats"></span>
+        <div class="storage-quota" id="storageQuota" hidden>
+          <div class="quota-info">
+            <span class="quota-text" id="quotaText"></span>
+            <span class="quota-tier" id="quotaTier"></span>
+          </div>
+          <div class="quota-bar">
+            <div class="quota-fill" id="quotaFill"></div>
+          </div>
+        </div>
         <span class="user-name" id="userName"></span>
         <button class="btn" id="loginBtn" hidden>Login</button>
         <button class="btn" id="logoutBtn" hidden>Logout</button>

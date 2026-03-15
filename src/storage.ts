@@ -47,6 +47,7 @@ export interface Album {
 export interface SaveOptions {
   password?: string
   expiresIn?: string
+  userId?: string
 }
 
 export interface StorageStats {
@@ -97,6 +98,10 @@ export class Storage {
       if (ms) {
         storeOpts.expires_at = Date.now() + ms
       }
+    }
+
+    if (opts?.userId) {
+      storeOpts.user_id = opts.userId
     }
 
     return this.store.save(filename, mime, buffer, storeOpts)
@@ -158,10 +163,11 @@ export class Storage {
     return imageTypes.includes(mime.toLowerCase())
   }
 
-  savePhoto(filename: string, mime: string, buffer: Buffer, opts?: { album_id?: string }): PhotoEntry {
+  savePhoto(filename: string, mime: string, buffer: Buffer, opts?: { album_id?: string; userId?: string }): PhotoEntry {
     return this.store.saveRawPhoto(filename, mime, buffer, {
       bucket: 'default',
       album_id: opts?.album_id,
+      user_id: opts?.userId,
     })
   }
 
@@ -210,6 +216,14 @@ export class Storage {
 
   listAllPhotos(opts?: { limit?: number; offset?: number }) {
     return this.store.listAllPhotos(opts)
+  }
+
+  userStats(userId: string): { totalFiles: number; totalBytes: number } {
+    return this.store.userStats(userId)
+  }
+
+  backfillUserId(userId: string): number {
+    return this.store.backfillUserId(userId)
   }
 
   close(): void {

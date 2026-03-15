@@ -4,7 +4,10 @@
   var MAX_CONCURRENT = 10;
 
   // ── DOM ─────────────────────────────────────────────────
-  var $stats = document.getElementById('stats');
+  var $storageQuota = document.getElementById('storageQuota');
+  var $quotaText = document.getElementById('quotaText');
+  var $quotaTier = document.getElementById('quotaTier');
+  var $quotaFill = document.getElementById('quotaFill');
   var $userName = document.getElementById('userName');
   var $loginBtn = document.getElementById('loginBtn');
   var $logoutBtn = document.getElementById('logoutBtn');
@@ -143,6 +146,7 @@
       $logoutBtn.hidden = true;
       $dropzone.style.display = 'none';
       document.getElementById('uploadOptions').style.display = 'none';
+      $storageQuota.hidden = true;
     }
   }
 
@@ -427,6 +431,13 @@
         bar.classList.add('error');
         bar.style.width = '100%';
         pct.textContent = '';
+      } else if (xhr.status === 413) {
+        bar.classList.add('error');
+        bar.style.width = '100%';
+        pct.textContent = '';
+        var quotaErr = 'Storage full!';
+        try { quotaErr = JSON.parse(xhr.responseText).error || quotaErr; } catch (_) { /* */ }
+        toast(quotaErr, true);
       } else {
         bar.classList.add('error');
         bar.style.width = '100%';
@@ -684,24 +695,20 @@
     xhr.send();
   }
 
-  // ── Stats ───────────────────────────────────────────────
+  // ── Stats / Quota ──────────────────────────────────────
   function loadStats() {
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', '/status');
-    setAuthHeader(xhr);
+    apiRequest('GET', '/api/user/storage', null, function (data) {
+      if (!data) return;
+      $storageQuota.hidden = false;
+      $quotaText.textContent = formatBytes(data.used) + ' / ' + formatBytes(data.quota);
+      $quotaTier.textContent = data.tier;
+      $quotaTier.className = 'quota-tier' + (data.isPremium ? ' premium' : '');
 
-    xhr.addEventListener('load', function () {
-      if (xhr.status === 200) {
-        try {
-          var d = JSON.parse(xhr.responseText);
-          $stats.textContent = d.totalFiles + ' files \u00b7 ' + formatBytes(d.totalBytes);
-        } catch (_) { /* */ }
-      } else {
-        $stats.textContent = '';
-      }
+      var pct = Math.min(data.usedPercent, 100);
+      $quotaFill.style.width = pct + '%';
+      $quotaFill.className = 'quota-fill' +
+        (pct >= 90 ? ' critical' : pct >= 75 ? ' warning' : '');
     });
-
-    xhr.send();
   }
 
   // ── Tab Switching ──────────────────────────────────────

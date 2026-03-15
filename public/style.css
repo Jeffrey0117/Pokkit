@@ -43,9 +43,61 @@ body {
   gap: 12px;
 }
 
-.stats {
-  font-size: 12px;
-  color: #999;
+.storage-quota {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+
+.quota-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.quota-text {
+  font-size: 11px;
+  color: #666;
+}
+
+.quota-tier {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: #eee;
+  color: #666;
+}
+
+.quota-tier.premium {
+  background: #000;
+  color: #fff;
+}
+
+.quota-bar {
+  height: 4px;
+  background: #e0e0e0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.quota-fill {
+  height: 100%;
+  background: #000;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+  min-width: 0;
+}
+
+.quota-fill.warning {
+  background: #e65100;
+}
+
+.quota-fill.critical {
+  background: #d32f2f;
 }
 
 .user-name {
