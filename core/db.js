@@ -374,7 +374,7 @@ function listPhotosByAlbum(db, albumId, opts = {}) {
   const { limit = 200, offset = 0 } = opts;
   return db.prepare(`
     SELECT * FROM files
-    WHERE album_id = ? AND status = 'ready'
+    WHERE album_id = ? AND status IN ('ready', 'processing')
     ORDER BY COALESCE(taken_at, uploaded_at) ASC
     LIMIT ? OFFSET ?
   `).all(albumId, limit, offset).map(deserializeRow);

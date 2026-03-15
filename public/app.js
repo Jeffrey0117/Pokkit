@@ -855,33 +855,23 @@
   }
 
   // ── Init ──────────────────────────────────────────────
-  updateAuthUI();
-  loadStats();
+  // Don't show login/logout until SDK resolves — both buttons start hidden in HTML
 
   waitForLetMeUse().then(function () {
-    if (typeof letmeuse !== 'undefined' && letmeuse.ready) {
-      // SDK already ready — read current user
-      currentUser = letmeuse.user || null;
+    if (typeof letmeuse === 'undefined') {
+      // SDK failed to load — show guest mode
+      updateAuthUI();
+      loadFiles();
+      return;
+    }
+
+    // onAuthChange fires immediately with current user if SDK is already ready,
+    // otherwise fires when SDK init completes. Also fires on future login/logout.
+    letmeuse.onAuthChange(function (user) {
+      currentUser = user || null;
       updateAuthUI();
       loadFiles();
       loadStats();
-      letmeuse.onAuthChange(function (user) {
-        currentUser = user || null;
-        updateAuthUI();
-        loadFiles();
-        loadStats();
-      });
-    } else if (typeof letmeuse !== 'undefined') {
-      // SDK loaded but not ready yet — wait for auth change
-      letmeuse.onAuthChange(function (user) {
-        currentUser = user || null;
-        updateAuthUI();
-        loadFiles();
-        loadStats();
-      });
-    } else {
-      // SDK failed to load — show guest mode
-      loadFiles();
-    }
+    });
   });
 })();
