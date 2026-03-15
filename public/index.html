@@ -135,6 +135,7 @@
         <h2 class="section-title" id="galleryTitle"></h2>
         <span class="gallery-count" id="galleryCount"></span>
         <div class="gallery-header-actions">
+          <button class="btn" id="galleryCleanup">Cleanup</button>
           <button class="btn" id="galleryRename">Rename</button>
           <button class="btn btn-danger" id="galleryDelete">Delete Album</button>
         </div>
@@ -161,6 +162,37 @@
           <button class="lightbox-action-btn" id="lightboxCover" title="Set as cover">&#9733; Cover</button>
           <button class="lightbox-action-btn lightbox-action-danger" id="lightboxDelete" title="Delete photo">&#10005; Delete</button>
         </div>
+      </div>
+    </div>
+
+    <div class="swipe-mode" id="swipeMode">
+      <div class="swipe-header">
+        <button class="btn" id="swipeClose">&larr; Back</button>
+        <span class="swipe-progress" id="swipeProgress"></span>
+      </div>
+      <div class="swipe-stage" id="swipeStage">
+        <div class="swipe-card-next" id="swipeNext">
+          <img id="swipeNextImg" alt="">
+        </div>
+        <div class="swipe-card" id="swipeCard">
+          <img id="swipeImg" alt="">
+          <div class="swipe-stamp swipe-stamp-keep" id="swipeStampKeep">KEEP</div>
+          <div class="swipe-stamp swipe-stamp-delete" id="swipeStampDelete">DELETE</div>
+        </div>
+      </div>
+      <div class="swipe-hint" id="swipeHint">
+        <span class="swipe-hint-left">&larr; Delete</span>
+        <span class="swipe-hint-right">Keep &rarr;</span>
+      </div>
+      <div class="swipe-actions" id="swipeActions">
+        <button class="swipe-btn swipe-btn-delete" id="swipeBtnDelete">&#10005;</button>
+        <button class="swipe-btn swipe-btn-keep" id="swipeBtnKeep">&#10003;</button>
+      </div>
+      <div class="swipe-summary" id="swipeSummary" hidden>
+        <div class="swipe-summary-icon">&#10003;</div>
+        <div class="swipe-summary-title">Review Complete</div>
+        <div class="swipe-summary-stats" id="swipeSummaryStats"></div>
+        <button class="btn btn-primary" id="swipeSummaryDone">Done</button>
       </div>
     </div>
 

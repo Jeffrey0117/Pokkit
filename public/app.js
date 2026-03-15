@@ -40,6 +40,26 @@
   var $galleryCount = document.getElementById('galleryCount');
   var $galleryRename = document.getElementById('galleryRename');
   var $galleryDelete = document.getElementById('galleryDelete');
+  var $galleryCleanup = document.getElementById('galleryCleanup');
+
+  // ── Swipe Mode DOM ──────────────────────────────────────
+  var $swipeMode = document.getElementById('swipeMode');
+  var $swipeClose = document.getElementById('swipeClose');
+  var $swipeProgress = document.getElementById('swipeProgress');
+  var $swipeStage = document.getElementById('swipeStage');
+  var $swipeCard = document.getElementById('swipeCard');
+  var $swipeImg = document.getElementById('swipeImg');
+  var $swipeNext = document.getElementById('swipeNext');
+  var $swipeNextImg = document.getElementById('swipeNextImg');
+  var $swipeStampKeep = document.getElementById('swipeStampKeep');
+  var $swipeStampDelete = document.getElementById('swipeStampDelete');
+  var $swipeHint = document.getElementById('swipeHint');
+  var $swipeActions = document.getElementById('swipeActions');
+  var $swipeBtnDelete = document.getElementById('swipeBtnDelete');
+  var $swipeBtnKeep = document.getElementById('swipeBtnKeep');
+  var $swipeSummary = document.getElementById('swipeSummary');
+  var $swipeSummaryStats = document.getElementById('swipeSummaryStats');
+  var $swipeSummaryDone = document.getElementById('swipeSummaryDone');
 
   // ── State ───────────────────────────────────────────────
   var uploading = 0;
@@ -1046,6 +1066,151 @@
     xhr.addEventListener('error', function () { toast('Network error', true); });
     xhr.send(body ? JSON.stringify(body) : null);
   }
+
+  // ── Swipe Cleanup Mode ────────────────────────────────
+  var swipePhotos = [];
+  var swipeIndex = 0;
+  var swipeDeletedCount = 0;
+  var swipeDragging = false;
+  var swipeDragStartX = 0;
+  var swipeDragX = 0;
+  var swipeBusy = false;
+
+  function enterSwipeMode() {
+    swipePhotos = galleryPhotos.filter(function (p) { return p.status === 'ready'; });
+    if (swipePhotos.length === 0) { toast('No photos to review'); return; }
+    swipeIndex = 0;
+    swipeDeletedCount = 0;
+    swipeBusy = false;
+    $swipeSummary.hidden = true;
+    $swipeStage.style.display = '';
+    $swipeHint.style.display = '';
+    $swipeActions.style.display = '';
+    $swipeMode.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    showSwipeCard();
+  }
+
+  function exitSwipeMode() {
+    $swipeMode.classList.remove('active');
+    document.body.style.overflow = '';
+    if (swipeDeletedCount > 0) {
+      toast('Deleted ' + swipeDeletedCount + ' photos');
+      openAlbum(currentAlbumId, currentAlbumName);
+    }
+  }
+
+  function showSwipeCard() {
+    if (swipeIndex >= swipePhotos.length) { showSwipeSummary(); return; }
+    var photo = swipePhotos[swipeIndex];
+    $swipeImg.src = '/photos/' + photo.id + '/photo.webp';
+    $swipeProgress.textContent = (swipeIndex + 1) + ' / ' + swipePhotos.length;
+    $swipeCard.classList.remove('animating');
+    $swipeCard.style.transform = '';
+    $swipeCard.style.opacity = '';
+    $swipeStampKeep.style.opacity = '0';
+    $swipeStampDelete.style.opacity = '0';
+    swipeBusy = false;
+
+    if (swipeIndex + 1 < swipePhotos.length) {
+      $swipeNextImg.src = '/photos/' + swipePhotos[swipeIndex + 1].id + '/thumb.webp';
+      $swipeNext.style.display = '';
+    } else {
+      $swipeNext.style.display = 'none';
+    }
+  }
+
+  function doSwipeAction(direction) {
+    if (swipeBusy || swipeIndex >= swipePhotos.length) return;
+    swipeBusy = true;
+    var photo = swipePhotos[swipeIndex];
+    var tx = direction === 'left' ? -1200 : 1200;
+    var rot = direction === 'left' ? -25 : 25;
+
+    $swipeCard.classList.add('animating');
+    $swipeCard.style.transform = 'translateX(' + tx + 'px) rotate(' + rot + 'deg)';
+    $swipeCard.style.opacity = '0';
+
+    if (direction === 'left') {
+      swipeDeletedCount++;
+      apiRequest('DELETE', '/files/' + photo.id, null, null);
+    }
+
+    setTimeout(function () {
+      swipeIndex++;
+      showSwipeCard();
+    }, 300);
+  }
+
+  function showSwipeSummary() {
+    $swipeStage.style.display = 'none';
+    $swipeHint.style.display = 'none';
+    $swipeActions.style.display = 'none';
+    $swipeSummary.hidden = false;
+    var kept = swipePhotos.length - swipeDeletedCount;
+    $swipeSummaryStats.innerHTML = 'Deleted: ' + swipeDeletedCount + '<br>Kept: ' + kept;
+    $swipeProgress.textContent = 'Done!';
+  }
+
+  // Drag/touch handlers
+  function swipeDragStart(e) {
+    if (swipeBusy || swipeIndex >= swipePhotos.length) return;
+    swipeDragging = true;
+    swipeDragStartX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+    swipeDragX = 0;
+    $swipeCard.classList.remove('animating');
+  }
+
+  function swipeDragMove(e) {
+    if (!swipeDragging) return;
+    e.preventDefault();
+    var cx = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+    swipeDragX = cx - swipeDragStartX;
+    var rot = swipeDragX * 0.06;
+    $swipeCard.style.transform = 'translateX(' + swipeDragX + 'px) rotate(' + rot + 'deg)';
+
+    var pct = Math.min(Math.abs(swipeDragX) / 120, 1);
+    if (swipeDragX < 0) {
+      $swipeStampDelete.style.opacity = pct;
+      $swipeStampKeep.style.opacity = '0';
+    } else {
+      $swipeStampKeep.style.opacity = pct;
+      $swipeStampDelete.style.opacity = '0';
+    }
+  }
+
+  function swipeDragEnd() {
+    if (!swipeDragging) return;
+    swipeDragging = false;
+    if (Math.abs(swipeDragX) > 100) {
+      doSwipeAction(swipeDragX < 0 ? 'left' : 'right');
+    } else {
+      $swipeCard.classList.add('animating');
+      $swipeCard.style.transform = '';
+      $swipeStampKeep.style.opacity = '0';
+      $swipeStampDelete.style.opacity = '0';
+    }
+  }
+
+  $swipeCard.addEventListener('mousedown', swipeDragStart);
+  document.addEventListener('mousemove', swipeDragMove);
+  document.addEventListener('mouseup', swipeDragEnd);
+  $swipeCard.addEventListener('touchstart', swipeDragStart, { passive: true });
+  document.addEventListener('touchmove', swipeDragMove, { passive: false });
+  document.addEventListener('touchend', swipeDragEnd);
+
+  $swipeBtnDelete.addEventListener('click', function () { doSwipeAction('left'); });
+  $swipeBtnKeep.addEventListener('click', function () { doSwipeAction('right'); });
+  $swipeClose.addEventListener('click', exitSwipeMode);
+  $swipeSummaryDone.addEventListener('click', exitSwipeMode);
+  $galleryCleanup.addEventListener('click', enterSwipeMode);
+
+  document.addEventListener('keydown', function (e) {
+    if (!$swipeMode.classList.contains('active')) return;
+    if (e.key === 'ArrowLeft') doSwipeAction('left');
+    if (e.key === 'ArrowRight') doSwipeAction('right');
+    if (e.key === 'Escape') exitSwipeMode();
+  });
 
   // ── Init ──────────────────────────────────────────────
   // Don't show login/logout until SDK resolves — both buttons start hidden in HTML
