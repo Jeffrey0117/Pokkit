@@ -121,9 +121,11 @@
 
   function waitForLetMeUse() {
     return new Promise(function (resolve) {
-      if (typeof letmeuse !== 'undefined') { resolve(); return; }
+      if (typeof letmeuse !== 'undefined' && letmeuse.ready) { resolve(); return; }
       var check = setInterval(function () {
-        if (typeof letmeuse !== 'undefined') { clearInterval(check); resolve(); }
+        if (typeof letmeuse !== 'undefined' && letmeuse.ready) {
+          clearInterval(check); resolve();
+        }
       }, 100);
       setTimeout(function () { clearInterval(check); resolve(); }, 5000);
     });
@@ -1131,10 +1133,11 @@
 
   function showSwipeCard() {
     if (swipeIndex >= swipePhotos.length) { showSwipeSummary(); return; }
-    // Hide card during reset to prevent flash
-    $swipeCard.style.visibility = 'hidden';
+
+    // Kill all transitions instantly
     $swipeCard.classList.remove('animating');
-    $swipeCard.style.transform = '';
+    $swipeCard.style.transition = 'none';
+    $swipeCard.style.transform = 'translateX(0) rotate(0deg)';
     $swipeCard.style.opacity = '1';
     $swipeStampKeep.style.opacity = '0';
     $swipeStampDelete.style.opacity = '0';
@@ -1143,18 +1146,12 @@
     $swipeImg.src = '/photos/' + photo.id + '/photo.webp';
     $swipeProgress.textContent = (swipeIndex + 1) + ' / ' + swipePhotos.length;
 
-    if (swipeIndex + 1 < swipePhotos.length) {
-      $swipeNextImg.src = '/photos/' + swipePhotos[swipeIndex + 1].id + '/thumb.webp';
-      $swipeNext.style.display = '';
-    } else {
-      $swipeNext.style.display = 'none';
-    }
+    // Force reflow so 'transition: none' takes effect before we re-enable
+    void $swipeCard.offsetHeight;
 
-    // Show card after a frame to avoid position flash
-    requestAnimationFrame(function () {
-      $swipeCard.style.visibility = '';
-      swipeBusy = false;
-    });
+    // Re-enable transitions for next swipe
+    $swipeCard.style.transition = '';
+    swipeBusy = false;
   }
 
   function doSwipeAction(direction) {
@@ -1171,6 +1168,7 @@
       $swipeStampKeep.style.opacity = '1';
     }
 
+    $swipeCard.style.transition = '';
     $swipeCard.classList.add('animating');
     $swipeCard.style.transform = 'translateX(' + tx + 'px) rotate(' + rot + 'deg)';
     $swipeCard.style.opacity = '0';
@@ -1206,6 +1204,7 @@
     swipeDragStartX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
     swipeDragX = 0;
     $swipeCard.classList.remove('animating');
+    $swipeCard.style.transition = 'none';
   }
 
   function swipeDragMove(e) {
@@ -1229,11 +1228,13 @@
   function swipeDragEnd() {
     if (!swipeDragging) return;
     swipeDragging = false;
+    $swipeCard.style.transition = '';
     if (Math.abs(swipeDragX) > 100) {
       doSwipeAction(swipeDragX < 0 ? 'left' : 'right');
     } else {
+      // Snap back with animation
       $swipeCard.classList.add('animating');
-      $swipeCard.style.transform = '';
+      $swipeCard.style.transform = 'translateX(0) rotate(0deg)';
       $swipeStampKeep.style.opacity = '0';
       $swipeStampDelete.style.opacity = '0';
     }
@@ -1263,15 +1264,20 @@
   // Don't show login/logout until SDK resolves — both buttons start hidden in HTML
 
   waitForLetMeUse().then(function () {
-    if (typeof letmeuse === 'undefined') {
+    if (typeof letmeuse === 'undefined' || !letmeuse.ready) {
       // SDK failed to load — show guest mode
       updateAuthUI();
       loadFiles();
       return;
     }
 
-    // onAuthChange fires immediately with current user if SDK is already ready,
-    // otherwise fires when SDK init completes. Also fires on future login/logout.
+    // SDK is ready — read current user immediately (session restored from localStorage)
+    currentUser = letmeuse.user || null;
+    updateAuthUI();
+    loadFiles();
+    loadStats();
+
+    // Listen for future login/logout
     letmeuse.onAuthChange(function (user) {
       currentUser = user || null;
       updateAuthUI();
