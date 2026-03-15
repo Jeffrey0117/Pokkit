@@ -5,13 +5,6 @@ import { STORAGE_TIERS } from '../config.js'
 import { processPhoto } from '../photo-worker.js'
 import { requireAuth } from '../auth.js'
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(1024))
-  return (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1) + ' ' + units[i]
-}
-
 export function uploadRoute(app: FastifyInstance, storage: Storage, config: PokkitConfig) {
   app.post('/upload', {
     config: { rateLimit: { max: 200, timeWindow: '1 minute' } },
@@ -50,16 +43,16 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
 
     const buffer = await file.toBuffer()
 
-    // Quota check
+    // Quota check (count-based)
     const isPremium = user.userId === 'admin' || config.premiumUserIds.includes(user.userId)
     const tier = isPremium ? STORAGE_TIERS.premium : STORAGE_TIERS.free
     const userStats = storage.userStats(user.userId)
-    if (userStats.totalBytes + buffer.length > tier.quotaBytes) {
+    if (userStats.totalFiles >= tier.maxPhotos) {
       return reply.status(413).send({
-        error: `Storage quota exceeded. ${tier.name} tier limit: ${formatBytes(tier.quotaBytes)}. Used: ${formatBytes(userStats.totalBytes)}.`,
+        error: `Photo limit reached. ${tier.name} plan: ${tier.maxPhotos.toLocaleString()} photos. Upgrade for more.`,
         tier: tier.name,
-        used: userStats.totalBytes,
-        quota: tier.quotaBytes,
+        photoCount: userStats.totalFiles,
+        maxPhotos: tier.maxPhotos,
       })
     }
 

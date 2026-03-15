@@ -700,7 +700,7 @@
     apiRequest('GET', '/api/user/storage', null, function (data) {
       if (!data) return;
       $storageQuota.hidden = false;
-      $quotaText.textContent = formatBytes(data.used) + ' / ' + formatBytes(data.quota);
+      $quotaText.textContent = data.photoCount.toLocaleString() + ' / ' + data.maxPhotos.toLocaleString() + ' photos';
       $quotaTier.textContent = data.tier;
       $quotaTier.className = 'quota-tier' + (data.isPremium ? ' premium' : '');
 

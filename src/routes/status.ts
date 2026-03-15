@@ -29,10 +29,10 @@ export function statusRoute(app: FastifyInstance, storage: Storage, config: Pokk
       userId: user.userId,
       tier: tier.name,
       isPremium,
-      used: userStats.totalBytes,
-      fileCount: userStats.totalFiles,
-      quota: tier.quotaBytes,
-      usedPercent: tier.quotaBytes > 0 ? Math.round((userStats.totalBytes / tier.quotaBytes) * 10000) / 100 : 0,
+      photoCount: userStats.totalFiles,
+      maxPhotos: tier.maxPhotos,
+      usedBytes: userStats.totalBytes,
+      usedPercent: tier.maxPhotos > 0 ? Math.round((userStats.totalFiles / tier.maxPhotos) * 10000) / 100 : 0,
     }
   })
 }

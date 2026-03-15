@@ -2,12 +2,12 @@ import { resolve } from 'node:path'
 
 export interface StorageTier {
   name: string
-  quotaBytes: number
+  maxPhotos: number
 }
 
 export const STORAGE_TIERS: Record<string, StorageTier> = {
-  free: { name: 'Free', quotaBytes: 1 * 1024 * 1024 * 1024 },
-  premium: { name: 'Premium', quotaBytes: 50 * 1024 * 1024 * 1024 },
+  free: { name: 'Free', maxPhotos: 500 },
+  premium: { name: 'Premium', maxPhotos: 50000 },
 }
 
 export interface PokkitConfig {
