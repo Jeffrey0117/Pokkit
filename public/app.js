@@ -1076,13 +1076,42 @@
   var swipeDragX = 0;
   var swipeBusy = false;
 
+  // Track reviewed photos per album in localStorage
+  function getReviewedIds(albumId) {
+    try {
+      return JSON.parse(localStorage.getItem('pokkit_reviewed_' + albumId) || '[]');
+    } catch (_) { return []; }
+  }
+
+  function markReviewed(albumId, photoId) {
+    var ids = getReviewedIds(albumId);
+    if (ids.indexOf(photoId) === -1) ids.push(photoId);
+    localStorage.setItem('pokkit_reviewed_' + albumId, JSON.stringify(ids));
+  }
+
+  function resetReviewed(albumId) {
+    localStorage.removeItem('pokkit_reviewed_' + albumId);
+  }
+
   function enterSwipeMode() {
-    swipePhotos = galleryPhotos.filter(function (p) { return p.status === 'ready'; });
+    var readyPhotos = galleryPhotos.filter(function (p) { return p.status === 'ready'; });
+    var reviewed = getReviewedIds(currentAlbumId);
+    swipePhotos = readyPhotos.filter(function (p) { return reviewed.indexOf(p.id) === -1; });
+
+    if (swipePhotos.length === 0 && readyPhotos.length > 0) {
+      if (confirm('All ' + readyPhotos.length + ' photos already reviewed.\nReset and review all again?')) {
+        resetReviewed(currentAlbumId);
+        swipePhotos = readyPhotos;
+      } else {
+        return;
+      }
+    }
     if (swipePhotos.length === 0) { toast('No photos to review'); return; }
+
     swipeIndex = 0;
     swipeDeletedCount = 0;
     swipeBusy = false;
-    $swipeSummary.hidden = true;
+    $swipeSummary.classList.remove('visible');
     $swipeStage.style.display = '';
     $swipeHint.style.display = '';
     $swipeActions.style.display = '';
@@ -1102,15 +1131,17 @@
 
   function showSwipeCard() {
     if (swipeIndex >= swipePhotos.length) { showSwipeSummary(); return; }
+    // Hide card during reset to prevent flash
+    $swipeCard.style.visibility = 'hidden';
+    $swipeCard.classList.remove('animating');
+    $swipeCard.style.transform = '';
+    $swipeCard.style.opacity = '1';
+    $swipeStampKeep.style.opacity = '0';
+    $swipeStampDelete.style.opacity = '0';
+
     var photo = swipePhotos[swipeIndex];
     $swipeImg.src = '/photos/' + photo.id + '/photo.webp';
     $swipeProgress.textContent = (swipeIndex + 1) + ' / ' + swipePhotos.length;
-    $swipeCard.classList.remove('animating');
-    $swipeCard.style.transform = '';
-    $swipeCard.style.opacity = '';
-    $swipeStampKeep.style.opacity = '0';
-    $swipeStampDelete.style.opacity = '0';
-    swipeBusy = false;
 
     if (swipeIndex + 1 < swipePhotos.length) {
       $swipeNextImg.src = '/photos/' + swipePhotos[swipeIndex + 1].id + '/thumb.webp';
@@ -1118,6 +1149,12 @@
     } else {
       $swipeNext.style.display = 'none';
     }
+
+    // Show card after a frame to avoid position flash
+    requestAnimationFrame(function () {
+      $swipeCard.style.visibility = '';
+      swipeBusy = false;
+    });
   }
 
   function doSwipeAction(direction) {
@@ -1127,6 +1164,13 @@
     var tx = direction === 'left' ? -1200 : 1200;
     var rot = direction === 'left' ? -25 : 25;
 
+    // Show stamp at full opacity
+    if (direction === 'left') {
+      $swipeStampDelete.style.opacity = '1';
+    } else {
+      $swipeStampKeep.style.opacity = '1';
+    }
+
     $swipeCard.classList.add('animating');
     $swipeCard.style.transform = 'translateX(' + tx + 'px) rotate(' + rot + 'deg)';
     $swipeCard.style.opacity = '0';
@@ -1134,19 +1178,22 @@
     if (direction === 'left') {
       swipeDeletedCount++;
       apiRequest('DELETE', '/files/' + photo.id, null, null);
+    } else {
+      // Right swipe = keep — mark as reviewed
+      markReviewed(currentAlbumId, photo.id);
     }
 
     setTimeout(function () {
       swipeIndex++;
       showSwipeCard();
-    }, 300);
+    }, 280);
   }
 
   function showSwipeSummary() {
     $swipeStage.style.display = 'none';
     $swipeHint.style.display = 'none';
     $swipeActions.style.display = 'none';
-    $swipeSummary.hidden = false;
+    $swipeSummary.classList.add('visible');
     var kept = swipePhotos.length - swipeDeletedCount;
     $swipeSummaryStats.innerHTML = 'Deleted: ' + swipeDeletedCount + '<br>Kept: ' + kept;
     $swipeProgress.textContent = 'Done!';
