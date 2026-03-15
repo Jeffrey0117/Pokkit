@@ -15,6 +15,12 @@ export function statusRoute(app: FastifyInstance, storage: Storage, config: Pokk
     const user = requireAuth(request, reply, config)
     if (!user) return
 
+    // Auto-backfill: assign orphaned files (user_id IS NULL) to current user
+    const backfilled = storage.backfillUserId(user.userId)
+    if (backfilled > 0) {
+      console.log(`[Pokkit] Auto-backfilled ${backfilled} files to user ${user.userId}`)
+    }
+
     const userStats = storage.userStats(user.userId)
     const isPremium = user.userId === 'admin' || config.premiumUserIds.includes(user.userId)
     const tier = isPremium ? STORAGE_TIERS.premium : STORAGE_TIERS.free
@@ -28,22 +34,5 @@ export function statusRoute(app: FastifyInstance, storage: Storage, config: Pokk
       quota: tier.quotaBytes,
       usedPercent: tier.quotaBytes > 0 ? Math.round((userStats.totalBytes / tier.quotaBytes) * 10000) / 100 : 0,
     }
-  })
-
-  app.post<{ Body: { userId?: string } }>('/api/admin/backfill-user', async (request, reply) => {
-    const user = requireAuth(request, reply, config)
-    if (!user) return
-
-    if (user.userId !== 'admin') {
-      return reply.status(403).send({ error: 'Admin only' })
-    }
-
-    const targetUserId = request.body?.userId
-    if (!targetUserId) {
-      return reply.status(400).send({ error: 'userId is required' })
-    }
-
-    const changes = storage.backfillUserId(targetUserId)
-    return { ok: true, backfilled: changes }
   })
 }
