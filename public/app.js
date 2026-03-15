@@ -26,6 +26,7 @@
   var $newAlbumBtn = document.getElementById('newAlbumBtn');
   var $gallerySection = document.getElementById('gallerySection');
   var $galleryTitle = document.getElementById('galleryTitle');
+  var $galleryDropzone = document.getElementById('galleryDropzone');
   var $photoGrid = document.getElementById('photoGrid');
   var $backToAlbums = document.getElementById('backToAlbums');
   var $lightbox = document.getElementById('lightbox');
@@ -204,6 +205,36 @@
 
   document.addEventListener('dragover', function (e) { e.preventDefault(); });
   document.addEventListener('drop', function (e) { e.preventDefault(); });
+
+  // ── Gallery Dropzone ──────────────────────────────────
+  $galleryDropzone.addEventListener('click', function () {
+    if (!currentUser) { toast('Please login first', true); return; }
+    $fileInput.click();
+  });
+
+  $galleryDropzone.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (!currentUser) { toast('Please login first', true); return; }
+      $fileInput.click();
+    }
+  });
+
+  $galleryDropzone.addEventListener('dragover', function (e) {
+    e.preventDefault();
+    $galleryDropzone.classList.add('dragover');
+  });
+
+  $galleryDropzone.addEventListener('dragleave', function () {
+    $galleryDropzone.classList.remove('dragover');
+  });
+
+  $galleryDropzone.addEventListener('drop', function (e) {
+    e.preventDefault();
+    $galleryDropzone.classList.remove('dragover');
+    if (!currentUser) { toast('Please login first', true); return; }
+    if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
+  });
 
   // ── Upload ──────────────────────────────────────────────
   function handleFiles(fileList) {

@@ -658,6 +658,34 @@ body {
   margin-bottom: 16px;
 }
 
+.gallery-dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  margin-bottom: 16px;
+  border: 2px dashed #ccc;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #999;
+  font-size: 14px;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.gallery-dropzone:hover,
+.gallery-dropzone:focus-visible {
+  border-color: #000;
+  color: #333;
+  background: rgba(0,0,0,0.02);
+}
+
+.gallery-dropzone.dragover {
+  border-color: #000;
+  color: #000;
+  background: rgba(0,0,0,0.04);
+}
+
 .photo-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
