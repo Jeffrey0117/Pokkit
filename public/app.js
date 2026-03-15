@@ -121,11 +121,9 @@
 
   function waitForLetMeUse() {
     return new Promise(function (resolve) {
-      if (typeof letmeuse !== 'undefined' && letmeuse.ready) { resolve(); return; }
+      if (typeof letmeuse !== 'undefined') { resolve(); return; }
       var check = setInterval(function () {
-        if (typeof letmeuse !== 'undefined' && letmeuse.ready) {
-          clearInterval(check); resolve();
-        }
+        if (typeof letmeuse !== 'undefined') { clearInterval(check); resolve(); }
       }, 100);
       setTimeout(function () { clearInterval(check); resolve(); }, 5000);
     });
@@ -1263,35 +1261,45 @@
   // ── Init ──────────────────────────────────────────────
   // Don't show login/logout until SDK resolves — both buttons start hidden in HTML
 
+  function applyUser(user) {
+    currentUser = user || null;
+    updateAuthUI();
+    loadFiles();
+    if (currentUser) loadStats();
+  }
+
   waitForLetMeUse().then(function () {
     if (typeof letmeuse === 'undefined') {
-      // SDK completely failed to load — guest mode
-      updateAuthUI();
-      loadFiles();
+      applyUser(null);
       return;
     }
 
-    // Read user immediately if SDK is already ready
-    if (letmeuse.ready && letmeuse.user) {
-      currentUser = letmeuse.user;
-      updateAuthUI();
-      loadFiles();
-      loadStats();
+    // 1) If SDK already ready, read user directly
+    if (letmeuse.ready) {
+      applyUser(letmeuse.user);
     } else {
-      // SDK not ready yet — show guest state for now
-      updateAuthUI();
-      loadFiles();
+      applyUser(null);
     }
 
-    // ALWAYS register onAuthChange — this catches:
-    // 1. Session restoration when SDK finishes init (ready was false, now true)
-    // 2. Future login/logout actions
-    // Without this, timeout-triggered guest mode never recovers.
+    // 2) Register onAuthChange for explicit login/logout
     letmeuse.onAuthChange(function (user) {
-      currentUser = user || null;
-      updateAuthUI();
-      loadFiles();
-      loadStats();
+      applyUser(user);
     });
+
+    // 3) Poll for session restoration — SDK's onAuthChange may NOT fire
+    //    when it restores a session from localStorage on page load.
+    //    Poll every 200ms for up to 10 seconds.
+    if (!currentUser) {
+      var authPoll = setInterval(function () {
+        if (typeof letmeuse === 'undefined') { clearInterval(authPoll); return; }
+        if (letmeuse.ready) {
+          clearInterval(authPoll);
+          if (letmeuse.user && !currentUser) {
+            applyUser(letmeuse.user);
+          }
+        }
+      }, 200);
+      setTimeout(function () { clearInterval(authPoll); }, 10000);
+    }
   });
 })();
