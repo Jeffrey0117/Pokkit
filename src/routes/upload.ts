@@ -5,9 +5,7 @@ import { processPhoto } from '../photo-worker.js'
 import { requireAuth } from '../auth.js'
 
 export function uploadRoute(app: FastifyInstance, storage: Storage, config: PokkitConfig) {
-  app.post('/upload', {
-    config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
-  }, async (request, reply) => {
+  app.post('/upload', async (request, reply) => {
     const user = requireAuth(request, reply, config)
     if (!user) return
 
