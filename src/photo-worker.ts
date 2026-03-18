@@ -54,10 +54,12 @@ function recoverStuckPhotos(): void {
     buckets: { default: { mode: 'uuid-dir' } },
   })
   const stuck = store.listStuckProcessing()
-  if (stuck.length === 0) return
+  // Only recover photos (videos are handled by video-worker)
+  const stuckPhotos = stuck.filter((e: { media_type?: string }) => e.media_type !== 'video')
+  if (stuckPhotos.length === 0) return
 
-  console.log(`[PhotoWorker] Recovering ${stuck.length} stuck photo(s)...`)
-  for (const entry of stuck) {
+  console.log(`[PhotoWorker] Recovering ${stuckPhotos.length} stuck photo(s)...`)
+  for (const entry of stuckPhotos) {
     const entryDir = join(dataDir, 'default', entry.id)
     if (!existsSync(entryDir)) {
       store.failPhoto(entry.id, 'Raw file directory missing after crash')

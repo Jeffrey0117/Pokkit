@@ -34,6 +34,7 @@
           <div class="quota-info">
             <span class="quota-text" id="quotaText"></span>
             <span class="quota-tier" id="quotaTier"></span>
+            <button class="btn btn-upgrade" id="upgradeBtn" hidden>Upgrade</button>
           </div>
           <div class="quota-bar">
             <div class="quota-fill" id="quotaFill"></div>
@@ -59,8 +60,8 @@
             <line x1="12" y1="3" x2="12" y2="15"/>
           </svg>
         </div>
-        <p class="drop-text">Drop files here to upload</p>
-        <p class="drop-hint">or click to browse &middot; any file type &middot; no signup needed</p>
+        <p class="drop-text">Drop files or folders here to upload</p>
+        <p class="drop-hint">or click to browse &middot; supports folders &middot; no signup needed</p>
       </div>
       <input type="file" id="fileInput" multiple hidden>
     </section>
@@ -174,6 +175,7 @@
       <button class="lightbox-nav lightbox-prev" id="lightboxPrev">&lsaquo;</button>
       <button class="lightbox-nav lightbox-next" id="lightboxNext">&rsaquo;</button>
       <img class="lightbox-img" id="lightboxImg" alt="">
+      <video class="lightbox-video" id="lightboxVideo" controls playsinline preload="metadata" hidden></video>
       <div class="lightbox-bottom">
         <div class="lightbox-info" id="lightboxInfo"></div>
         <div class="lightbox-actions">
@@ -194,6 +196,7 @@
         </div>
         <div class="swipe-card" id="swipeCard">
           <img id="swipeImg" alt="">
+          <video id="swipeVideo" playsinline muted loop preload="metadata" hidden></video>
           <div class="swipe-stamp swipe-stamp-keep" id="swipeStampKeep">KEEP</div>
           <div class="swipe-stamp swipe-stamp-delete" id="swipeStampDelete">DELETE</div>
         </div>

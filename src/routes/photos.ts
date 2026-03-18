@@ -1,4 +1,4 @@
-import { createReadStream } from 'node:fs'
+import { createReadStream, statSync } from 'node:fs'
 import type { FastifyInstance } from 'fastify'
 import type { Storage } from '../storage.js'
 import type { PokkitConfig } from '../config.js'
@@ -99,6 +99,53 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
       .header('Content-Type', 'image/webp')
       .header('Cache-Control', 'public, max-age=31536000, immutable')
       .send(createReadStream(thumbPath))
+  })
+
+  // GET /photos/:id/video.mp4 — serve video with Range support
+  app.get<{ Params: { id: string } }>('/photos/:id/video.mp4', async (request, reply) => {
+    const entry = storage.find(request.params.id)
+    if (!entry || entry.media_type !== 'video') {
+      return reply.status(404).send({ error: 'Video not found' })
+    }
+    const filePath = storage.getPath(entry.id)
+    if (!filePath) {
+      return reply.status(404).send({ error: 'Video file not found on disk' })
+    }
+
+    const stat = statSync(filePath)
+    const fileSize = stat.size
+    const range = request.headers.range
+
+    if (range) {
+      const parts = range.replace(/bytes=/, '').split('-')
+      const start = parseInt(parts[0], 10)
+      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1
+
+      if (isNaN(start) || isNaN(end) || start < 0 || end >= fileSize || start > end) {
+        return reply
+          .status(416)
+          .header('Content-Range', `bytes */${fileSize}`)
+          .send({ error: 'Range not satisfiable' })
+      }
+
+      const chunkSize = end - start + 1
+
+      return reply
+        .status(206)
+        .header('Content-Range', `bytes ${start}-${end}/${fileSize}`)
+        .header('Accept-Ranges', 'bytes')
+        .header('Content-Length', chunkSize)
+        .header('Content-Type', 'video/mp4')
+        .header('Cache-Control', 'public, max-age=31536000, immutable')
+        .send(createReadStream(filePath, { start, end }))
+    }
+
+    return reply
+      .header('Content-Length', fileSize)
+      .header('Content-Type', 'video/mp4')
+      .header('Accept-Ranges', 'bytes')
+      .header('Cache-Control', 'public, max-age=31536000, immutable')
+      .send(createReadStream(filePath))
   })
 
   // GET /api/photos/:id/status — processing status

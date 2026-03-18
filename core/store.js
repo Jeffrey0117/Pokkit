@@ -538,6 +538,7 @@ class PokkitStore {
     }
     fs.writeFileSync(destPath, buffer);
 
+    const mediaType = opts.media_type || 'photo';
     const entry = {
       id,
       bucket,
@@ -555,6 +556,7 @@ class PokkitStore {
       album_id: opts.album_id || null,
       status: 'processing',
       user_id: opts.user_id || null,
+      media_type: mediaType,
     };
 
     db.insertFile(this._db, entry);
@@ -594,6 +596,47 @@ class PokkitStore {
       width,
       height,
       taken_at: takenAt,
+    });
+
+    return true;
+  }
+
+  /**
+   * Finalize video after worker processing.
+   * Writes compressed video + thumb, deletes raw, updates DB.
+   */
+  finalizeVideo(id, { videoPath: compressedPath, thumbBuffer, width, height, duration, takenAt }) {
+    const entry = db.findFile(this._db, id);
+    if (!entry) return false;
+
+    const bucket = entry.bucket;
+    const videoName = `${id}/video.mp4`;
+    const thumbName = `${id}/thumb.webp`;
+
+    const destVideoPath = this._resolveFilePath(bucket, videoName);
+    const thumbPath = this._resolveFilePath(bucket, thumbName);
+
+    // Move compressed video (already on disk from ffmpeg)
+    fs.copyFileSync(compressedPath, destVideoPath);
+    try { fs.unlinkSync(compressedPath); } catch {}
+    fs.writeFileSync(thumbPath, thumbBuffer);
+
+    // Delete raw temp file
+    const rawPath = this._resolveFilePath(bucket, entry.stored_name);
+    try { if (fs.existsSync(rawPath)) fs.unlinkSync(rawPath); } catch {}
+
+    const videoSize = fs.statSync(destVideoPath).size;
+    db.updateFilePhoto(this._db, id, {
+      status: 'ready',
+      stored_name: videoName,
+      thumb_stored_name: thumbName,
+      mime: 'video/mp4',
+      size: videoSize,
+      width,
+      height,
+      duration,
+      taken_at: takenAt,
+      media_type: 'video',
     });
 
     return true;

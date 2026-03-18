@@ -7,7 +7,7 @@ export interface StorageTier {
 
 export const STORAGE_TIERS: Record<string, StorageTier> = {
   free: { name: 'Free', maxPhotos: 500 },
-  premium: { name: 'Premium', maxPhotos: 50000 },
+  premium: { name: 'Premium', maxPhotos: 5000 },
 }
 
 export interface PokkitConfig {

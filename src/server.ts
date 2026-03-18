@@ -15,6 +15,7 @@ import { filesRoute } from './routes/files.js'
 import { statusRoute } from './routes/status.js'
 import { photosRoute } from './routes/photos.js'
 import { initPhotoWorker, shutdownWorker } from './photo-worker.js'
+import { initVideoWorker, shutdownVideoWorker } from './video-worker.js'
 
 function fileHash(filePath: string): string {
   return createHash('md5').update(readFileSync(filePath)).digest('hex').substring(0, 8)
@@ -32,8 +33,9 @@ export async function createServer(config: PokkitConfig) {
   const storage = new Storage(config.dataDir)
   await storage.init()
 
-  // Init photo processing worker
+  // Init processing workers
   initPhotoWorker(config.dataDir)
+  await initVideoWorker(config.dataDir)
 
   // ── ver2: auto cache-bust for index.html ──
   const publicDir = join(import.meta.dirname, '..', 'public')
@@ -52,9 +54,10 @@ export async function createServer(config: PokkitConfig) {
   statusRoute(app, storage, config)
   photosRoute(app, storage, config)
 
-  // Graceful shutdown: terminate photo worker
+  // Graceful shutdown: terminate workers
   app.addHook('onClose', async () => {
     await shutdownWorker()
+    await shutdownVideoWorker()
     storage.close()
   })
 

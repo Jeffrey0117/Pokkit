@@ -8,6 +8,7 @@
   var $quotaText = document.getElementById('quotaText');
   var $quotaTier = document.getElementById('quotaTier');
   var $quotaFill = document.getElementById('quotaFill');
+  var $upgradeBtn = document.getElementById('upgradeBtn');
   var $userName = document.getElementById('userName');
   var $loginBtn = document.getElementById('loginBtn');
   var $logoutBtn = document.getElementById('logoutBtn');
@@ -34,6 +35,7 @@
   var $backToAlbums = document.getElementById('backToAlbums');
   var $lightbox = document.getElementById('lightbox');
   var $lightboxImg = document.getElementById('lightboxImg');
+  var $lightboxVideo = document.getElementById('lightboxVideo');
   var $lightboxInfo = document.getElementById('lightboxInfo');
   var $lightboxClose = document.getElementById('lightboxClose');
   var $lightboxPrev = document.getElementById('lightboxPrev');
@@ -68,6 +70,7 @@
   var $swipeStage = document.getElementById('swipeStage');
   var $swipeCard = document.getElementById('swipeCard');
   var $swipeImg = document.getElementById('swipeImg');
+  var $swipeVideo = document.getElementById('swipeVideo');
   var $swipeNext = document.getElementById('swipeNext');
   var $swipeNextImg = document.getElementById('swipeNextImg');
   var $swipeStampKeep = document.getElementById('swipeStampKeep');
@@ -83,6 +86,12 @@
   // ── State ───────────────────────────────────────────────
   var uploading = 0;
   var pending = [];
+  var batchTotal = 0;
+  var batchDone = 0;
+  var batchFailed = 0;
+  var batchBytes = 0;
+  var batchStartTime = 0;
+  var SUMMARY_THRESHOLD = 20;
   var toastTimer = null;
   var currentTab = 'files';
   var currentAlbumId = null;
@@ -205,6 +214,18 @@
     return 'file';
   }
 
+  function formatDuration(seconds) {
+    if (!seconds || seconds <= 0) return '';
+    var m = Math.floor(seconds / 60);
+    var s = seconds % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  function isVideoEntry(entry) {
+    return entry.media_type === 'video' ||
+      (entry.mime && entry.mime.startsWith('video/'));
+  }
+
   // ── Toast ───────────────────────────────────────────────
   function toast(msg, isError) {
     $toast.textContent = msg;
@@ -275,7 +296,7 @@
     e.preventDefault();
     $dropzone.classList.remove('dragover');
     if (!currentUser) { toast('Please login first', true); return; }
-    if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
+    handleDrop(e.dataTransfer);
   });
 
   document.addEventListener('dragover', function (e) { e.preventDefault(); });
@@ -308,14 +329,118 @@
     e.preventDefault();
     $galleryDropzone.classList.remove('dragover');
     if (!currentUser) { toast('Please login first', true); return; }
-    if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
+    handleDrop(e.dataTransfer);
   });
+
+  // ── Folder Reading ─────────────────────────────────────
+  var MEDIA_EXTS = /\.(jpe?g|png|webp|heic|heif|avif|gif|mp4|mov|avi|webm|mkv|m4v|3gp)$/i;
+
+  function readEntriesRecursive(entry) {
+    return new Promise(function (resolve) {
+      if (entry.isFile) {
+        entry.file(function (f) {
+          resolve(MEDIA_EXTS.test(f.name) ? [f] : []);
+        }, function () { resolve([]); });
+      } else if (entry.isDirectory) {
+        var reader = entry.createReader();
+        var allEntries = [];
+        (function readBatch() {
+          reader.readEntries(function (entries) {
+            if (entries.length === 0) {
+              Promise.all(allEntries.map(readEntriesRecursive)).then(function (results) {
+                resolve([].concat.apply([], results));
+              });
+            } else {
+              allEntries = allEntries.concat(Array.from(entries));
+              readBatch();
+            }
+          }, function () { resolve([]); });
+        })();
+      } else {
+        resolve([]);
+      }
+    });
+  }
+
+  function handleDrop(dataTransfer) {
+    var items = dataTransfer.items;
+    if (!items || !items.length) {
+      if (dataTransfer.files.length > 0) handleFiles(dataTransfer.files);
+      return;
+    }
+    var entries = [];
+    for (var i = 0; i < items.length; i++) {
+      var entry = items[i].webkitGetAsEntry && items[i].webkitGetAsEntry();
+      if (entry) entries.push(entry);
+    }
+    if (entries.length === 0) {
+      if (dataTransfer.files.length > 0) handleFiles(dataTransfer.files);
+      return;
+    }
+    Promise.all(entries.map(readEntriesRecursive)).then(function (results) {
+      var files = [].concat.apply([], results);
+      if (files.length > 0) handleFiles(files);
+      else toast('No media files found in folder');
+    });
+  }
 
   // ── Upload ──────────────────────────────────────────────
   function handleFiles(fileList) {
+    var files = Array.isArray(fileList) ? fileList : Array.from(fileList);
+    if (files.length === 0) return;
     $queueSection.hidden = false;
-    for (var i = 0; i < fileList.length; i++) pending.push(fileList[i]);
+    // Init batch counters if starting fresh
+    if (pending.length === 0 && uploading === 0) {
+      batchTotal = 0;
+      batchDone = 0;
+      batchFailed = 0;
+      batchBytes = 0;
+      batchStartTime = Date.now();
+    }
+    batchTotal += files.length;
+    for (var i = 0; i < files.length; i++) pending.push(files[i]);
+    updateQueueSummary();
     processQueue();
+  }
+
+  function updateQueueSummary() {
+    var $summary = document.getElementById('queueSummary');
+    if (batchTotal <= SUMMARY_THRESHOLD) {
+      if ($summary) $summary.hidden = true;
+      return;
+    }
+    if (!$summary) {
+      $summary = document.createElement('div');
+      $summary.id = 'queueSummary';
+      $summary.className = 'queue-summary';
+      $queueSection.insertBefore($summary, $queueList);
+    }
+    $summary.hidden = false;
+    // Hide individual items in summary mode
+    $queueList.hidden = true;
+    var elapsed = (Date.now() - batchStartTime) / 1000 || 1;
+    var speed = batchBytes / elapsed;
+    var finished = batchDone + batchFailed;
+    var pct = batchTotal > 0 ? Math.round((finished / batchTotal) * 100) : 0;
+    $summary.innerHTML =
+      '<div class="queue-summary-text">' +
+        'Uploading ' + finished + ' / ' + batchTotal.toLocaleString() +
+        (batchFailed > 0 ? ' <span class="queue-summary-fail">(' + batchFailed + ' failed)</span>' : '') +
+        ' &middot; ' + formatBytes(Math.round(speed)) + '/s' +
+      '</div>' +
+      '<div class="queue-summary-bar"><div class="queue-summary-fill" style="width:' + pct + '%"></div></div>';
+    if (finished >= batchTotal) {
+      $summary.innerHTML =
+        '<div class="queue-summary-text queue-summary-done">' +
+          'Done! ' + batchDone + ' uploaded' +
+          (batchFailed > 0 ? ', ' + batchFailed + ' failed' : '') +
+        '</div>';
+      setTimeout(function () {
+        $summary.hidden = true;
+        $queueList.hidden = false;
+        $queueSection.hidden = true;
+      }, 3000);
+    }
   }
 
   function processQueue() {
@@ -326,9 +451,11 @@
 
   function uploadFile(file) {
     uploading++;
+    var inSummaryMode = batchTotal > SUMMARY_THRESHOLD;
 
     var row = document.createElement('div');
     row.className = 'queue-item';
+    if (inSummaryMode) row.hidden = true;
 
     var name = document.createElement('span');
     name.className = 'queue-name';
@@ -384,6 +511,8 @@
       }
 
       if (xhr.status >= 200 && xhr.status < 300) {
+        batchDone++;
+        batchBytes += file.size;
         bar.style.width = '100%';
         bar.classList.add('done');
         pct.textContent = '';
@@ -421,6 +550,7 @@
         // Clear password after successful upload
         $passwordInput.value = '';
       } else if (xhr.status === 401) {
+        batchFailed++;
         currentUser = null;
         saveAuthLocally(null);
         updateAuthUI();
@@ -432,6 +562,7 @@
         bar.style.width = '100%';
         pct.textContent = '';
       } else if (xhr.status === 413) {
+        batchFailed++;
         bar.classList.add('error');
         bar.style.width = '100%';
         pct.textContent = '';
@@ -439,6 +570,7 @@
         try { quotaErr = JSON.parse(xhr.responseText).error || quotaErr; } catch (_) { /* */ }
         toast(quotaErr, true);
       } else {
+        batchFailed++;
         bar.classList.add('error');
         bar.style.width = '100%';
         pct.textContent = '';
@@ -448,6 +580,7 @@
       }
 
       uploading--;
+      updateQueueSummary();
       processQueue();
       loadStats();
 
@@ -462,11 +595,13 @@
     });
 
     xhr.addEventListener('error', function () {
+      batchFailed++;
       bar.classList.add('error');
       bar.style.width = '100%';
       pct.textContent = '';
       toast(file.name + ': Network error', true);
       uploading--;
+      updateQueueSummary();
       processQueue();
     });
 
@@ -703,6 +838,7 @@
       $quotaText.textContent = data.photoCount.toLocaleString() + ' / ' + data.maxPhotos.toLocaleString() + ' photos';
       $quotaTier.textContent = data.tier;
       $quotaTier.className = 'quota-tier' + (data.isPremium ? ' premium' : '');
+      $upgradeBtn.hidden = !!data.isPremium;
 
       var pct = Math.min(data.usedPercent, 100);
       $quotaFill.style.width = pct + '%';
@@ -710,6 +846,29 @@
         (pct >= 90 ? ' critical' : pct >= 75 ? ' warning' : '');
     });
   }
+
+  $upgradeBtn.addEventListener('click', function () {
+    apiRequest('GET', '/api/plans', null, function (data) {
+      if (!data || !data.plans || data.plans.length === 0) {
+        toast('Upgrade plans coming soon!');
+        return;
+      }
+      // Find the cheapest plan with a checkout URL
+      var plan = null;
+      for (var i = 0; i < data.plans.length; i++) {
+        if (data.plans[i].checkout_url) {
+          if (!plan || data.plans[i].price < plan.price) {
+            plan = data.plans[i];
+          }
+        }
+      }
+      if (plan) {
+        window.open(plan.checkout_url, '_blank');
+      } else {
+        toast('Upgrade plans coming soon!');
+      }
+    });
+  });
 
   // ── Tab Switching ──────────────────────────────────────
   $viewTabs.addEventListener('click', function (e) {
@@ -943,6 +1102,19 @@
       img.loading = 'lazy';
       cell.appendChild(img);
 
+      // Video overlay: play icon + duration badge
+      if (isVideoEntry(photo)) {
+        var playIcon = document.createElement('div');
+        playIcon.className = 'video-play-icon';
+        cell.appendChild(playIcon);
+        if (photo.duration) {
+          var dur = document.createElement('div');
+          dur.className = 'video-duration';
+          dur.textContent = formatDuration(photo.duration);
+          cell.appendChild(dur);
+        }
+      }
+
       // Hover action buttons
       var actions = document.createElement('div');
       actions.className = 'photo-actions';
@@ -1020,24 +1192,44 @@
         if (data.status === 'ready') {
           clearInterval(processingPolls[id]);
           delete processingPolls[id];
+
+          // Find the entry to check if it's a video
+          var entry = null;
+          for (var i = 0; i < galleryPhotos.length; i++) {
+            if (galleryPhotos[i].id === id) {
+              galleryPhotos[i].status = 'ready';
+              entry = galleryPhotos[i];
+              break;
+            }
+          }
+
           var cell = $photoGrid.querySelector('[data-id="' + id + '"]');
+          if (!cell) cell = $allPhotoGrid.querySelector('[data-id="' + id + '"]');
           if (cell) {
             cell.innerHTML = '';
+            var checkbox = document.createElement('div');
+            checkbox.className = 'photo-checkbox';
+            cell.appendChild(checkbox);
             var img = document.createElement('img');
             img.src = '/photos/' + id + '/thumb.webp';
             img.loading = 'lazy';
             cell.appendChild(img);
-          }
-          for (var i = 0; i < galleryPhotos.length; i++) {
-            if (galleryPhotos[i].id === id) {
-              galleryPhotos[i].status = 'ready';
-              break;
+            if (entry && isVideoEntry(entry)) {
+              var playIcon = document.createElement('div');
+              playIcon.className = 'video-play-icon';
+              cell.appendChild(playIcon);
+              if (entry.duration) {
+                var dur = document.createElement('div');
+                dur.className = 'video-duration';
+                dur.textContent = formatDuration(entry.duration);
+                cell.appendChild(dur);
+              }
             }
           }
         } else if (data.status === 'failed') {
           clearInterval(processingPolls[id]);
           delete processingPolls[id];
-          toast('Photo processing failed: ' + id, true);
+          toast('Processing failed: ' + id, true);
         }
       });
     }, 2000);
@@ -1053,16 +1245,38 @@
   function closeLightbox() {
     $lightbox.classList.remove('active');
     lightboxIndex = -1;
+    // Pause and reset video when closing
+    $lightboxVideo.pause();
+    $lightboxVideo.removeAttribute('src');
+    $lightboxVideo.hidden = true;
+    $lightboxImg.hidden = false;
   }
 
   function showLightboxPhoto() {
     if (lightboxIndex < 0 || lightboxIndex >= galleryPhotos.length) return;
     var photo = galleryPhotos[lightboxIndex];
-    $lightboxImg.src = '/photos/' + photo.id + '/photo.webp';
+
     var photoInfo = photo.filename;
     if (photo.width && photo.height) photoInfo += ' \u00b7 ' + photo.width + '\u00d7' + photo.height;
+    if (photo.duration) photoInfo += ' \u00b7 ' + formatDuration(photo.duration);
     if (photo.taken_at) photoInfo += ' \u00b7 ' + formatDate(photo.taken_at);
     $lightboxInfo.textContent = photoInfo;
+
+    if (isVideoEntry(photo)) {
+      // Clean up previous video before loading new one
+      $lightboxVideo.pause();
+      $lightboxVideo.removeAttribute('src');
+      $lightboxImg.hidden = true;
+      $lightboxVideo.hidden = false;
+      $lightboxVideo.src = '/photos/' + photo.id + '/video.mp4';
+      $lightboxVideo.load();
+    } else {
+      $lightboxVideo.pause();
+      $lightboxVideo.removeAttribute('src');
+      $lightboxVideo.hidden = true;
+      $lightboxImg.hidden = false;
+      $lightboxImg.src = '/photos/' + photo.id + '/photo.webp';
+    }
   }
 
   $lightboxClose.addEventListener('click', closeLightbox);
@@ -1271,6 +1485,19 @@
       img.loading = 'lazy';
       cell.appendChild(img);
 
+      // Video overlay: play icon + duration badge
+      if (isVideoEntry(photo)) {
+        var playIcon = document.createElement('div');
+        playIcon.className = 'video-play-icon';
+        cell.appendChild(playIcon);
+        if (photo.duration) {
+          var dur = document.createElement('div');
+          dur.className = 'video-duration';
+          dur.textContent = formatDuration(photo.duration);
+          cell.appendChild(dur);
+        }
+      }
+
       // Album badge
       if (photo.album_id && allPhotosAlbumMap[photo.album_id]) {
         var badge = document.createElement('div');
@@ -1397,8 +1624,11 @@
   function exitSwipeMode() {
     $swipeMode.classList.remove('active');
     document.body.style.overflow = '';
+    // Clean up video
+    $swipeVideo.pause();
+    $swipeVideo.removeAttribute('src');
     if (swipeDeletedCount > 0) {
-      toast('Deleted ' + swipeDeletedCount + ' photos');
+      toast('Deleted ' + swipeDeletedCount + ' items');
       openAlbum(currentAlbumId, currentAlbumName);
     }
   }
@@ -1406,7 +1636,7 @@
   function showSwipeCard() {
     if (swipeIndex >= swipePhotos.length) { showSwipeSummary(); return; }
 
-    // Reset card position, keep HIDDEN until new image loads
+    // Reset card position, keep HIDDEN until new content loads
     $swipeCard.classList.remove('animating');
     $swipeCard.style.transition = 'none';
     $swipeCard.style.transform = 'translateX(0) rotate(0deg)';
@@ -1415,13 +1645,12 @@
     $swipeStampDelete.style.opacity = '0';
     void $swipeCard.offsetHeight;
 
+    // Stop any playing video
+    $swipeVideo.pause();
+    $swipeVideo.removeAttribute('src');
+
     var photo = swipePhotos[swipeIndex];
     $swipeProgress.textContent = (swipeIndex + 1) + ' / ' + swipePhotos.length;
-
-    // Preload next image so transition feels instant
-    if (swipeIndex + 1 < swipePhotos.length) {
-      (new Image()).src = '/photos/' + swipePhotos[swipeIndex + 1].id + '/photo.webp';
-    }
 
     var revealed = false;
     function reveal() {
@@ -1435,11 +1664,32 @@
       swipeBusy = false;
     }
 
-    var newSrc = '/photos/' + photo.id + '/photo.webp';
-    $swipeImg.onload = reveal;
-    $swipeImg.onerror = reveal;
-    $swipeImg.src = newSrc;
-    if ($swipeImg.complete) reveal();
+    if (isVideoEntry(photo)) {
+      $swipeImg.hidden = true;
+      $swipeVideo.hidden = false;
+      $swipeVideo.src = '/photos/' + photo.id + '/video.mp4';
+      $swipeVideo.load();
+      $swipeVideo.onloadeddata = function () {
+        reveal();
+        $swipeVideo.play().catch(function () {});
+      };
+      // Fallback reveal after timeout
+      setTimeout(reveal, 3000);
+    } else {
+      $swipeVideo.hidden = true;
+      $swipeImg.hidden = false;
+
+      // Preload next image so transition feels instant
+      if (swipeIndex + 1 < swipePhotos.length && !isVideoEntry(swipePhotos[swipeIndex + 1])) {
+        (new Image()).src = '/photos/' + swipePhotos[swipeIndex + 1].id + '/photo.webp';
+      }
+
+      var newSrc = '/photos/' + photo.id + '/photo.webp';
+      $swipeImg.onload = reveal;
+      $swipeImg.onerror = reveal;
+      $swipeImg.src = newSrc;
+      if ($swipeImg.complete) reveal();
+    }
   }
 
   function doSwipeAction(direction) {
@@ -1448,6 +1698,9 @@
     var photo = swipePhotos[swipeIndex];
     var tx = direction === 'left' ? -1200 : 1200;
     var rot = direction === 'left' ? -25 : 25;
+
+    // Pause video before swiping away
+    if (isVideoEntry(photo)) $swipeVideo.pause();
 
     // Show stamp at full opacity
     if (direction === 'left') {

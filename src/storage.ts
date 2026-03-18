@@ -21,6 +21,7 @@ export interface FileEntry {
   password_hash: string | null
   expires_at: number | null
   download_count: number
+  media_type: string
 }
 
 export interface PhotoEntry extends FileEntry {
@@ -28,6 +29,7 @@ export interface PhotoEntry extends FileEntry {
   taken_at: number | null
   width: number | null
   height: number | null
+  duration: number | null
   thumb_stored_name: string | null
   status: string
   deduplicated?: boolean
@@ -163,11 +165,25 @@ export class Storage {
     return imageTypes.includes(mime.toLowerCase())
   }
 
+  isVideo(mime: string): boolean {
+    const videoTypes = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo', 'video/x-matroska', 'video/3gpp', 'video/avi']
+    return videoTypes.includes(mime.toLowerCase())
+  }
+
   savePhoto(filename: string, mime: string, buffer: Buffer, opts?: { album_id?: string; userId?: string }): PhotoEntry {
     return this.store.saveRawPhoto(filename, mime, buffer, {
       bucket: 'default',
       album_id: opts?.album_id,
       user_id: opts?.userId,
+    })
+  }
+
+  saveVideo(filename: string, mime: string, buffer: Buffer, opts?: { album_id?: string; userId?: string }): PhotoEntry {
+    return this.store.saveRawPhoto(filename, mime, buffer, {
+      bucket: 'default',
+      album_id: opts?.album_id,
+      user_id: opts?.userId,
+      media_type: 'video',
     })
   }
 

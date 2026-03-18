@@ -83,6 +83,14 @@ function openDb(dbPath) {
     _db.exec('ALTER TABLE files ADD COLUMN user_id TEXT');
     _db.exec('CREATE INDEX IF NOT EXISTS idx_files_user_id ON files(user_id)');
   }
+  if (!cols.includes('duration')) {
+    _db.exec('ALTER TABLE files ADD COLUMN duration INTEGER');
+  }
+  if (!cols.includes('media_type')) {
+    _db.exec("ALTER TABLE files ADD COLUMN media_type TEXT DEFAULT 'file'");
+    // Backfill existing photos
+    _db.exec("UPDATE files SET media_type = 'photo' WHERE mime LIKE 'image/%' AND media_type = 'file'");
+  }
 
   // Albums table
   _db.exec(`
@@ -118,8 +126,8 @@ function closeDb() {
  */
 function insertFile(db, entry) {
   const stmt = db.prepare(`
-    INSERT INTO files (id, bucket, filename, stored_name, mime, size, hash, is_directory, uploaded_at, metadata, password_hash, expires_at, download_count, album_id, taken_at, width, height, thumb_stored_name, status, user_id)
-    VALUES (@id, @bucket, @filename, @stored_name, @mime, @size, @hash, @is_directory, @uploaded_at, @metadata, @password_hash, @expires_at, @download_count, @album_id, @taken_at, @width, @height, @thumb_stored_name, @status, @user_id)
+    INSERT INTO files (id, bucket, filename, stored_name, mime, size, hash, is_directory, uploaded_at, metadata, password_hash, expires_at, download_count, album_id, taken_at, width, height, thumb_stored_name, status, user_id, duration, media_type)
+    VALUES (@id, @bucket, @filename, @stored_name, @mime, @size, @hash, @is_directory, @uploaded_at, @metadata, @password_hash, @expires_at, @download_count, @album_id, @taken_at, @width, @height, @thumb_stored_name, @status, @user_id, @duration, @media_type)
   `);
   stmt.run({
     id: entry.id,
@@ -142,6 +150,8 @@ function insertFile(db, entry) {
     thumb_stored_name: entry.thumb_stored_name || null,
     status: entry.status || 'ready',
     user_id: entry.user_id || null,
+    duration: entry.duration || null,
+    media_type: entry.media_type || 'file',
   });
 }
 
@@ -410,7 +420,7 @@ function listPhotosByAlbum(db, albumId, opts = {}) {
 function updateFilePhoto(db, id, updates) {
   const fields = [];
   const values = { id };
-  for (const key of ['status', 'width', 'height', 'taken_at', 'thumb_stored_name', 'stored_name', 'mime', 'size', 'album_id']) {
+  for (const key of ['status', 'width', 'height', 'taken_at', 'thumb_stored_name', 'stored_name', 'mime', 'size', 'album_id', 'duration', 'media_type']) {
     if (updates[key] !== undefined) {
       fields.push(`${key} = @${key}`);
       values[key] = updates[key];
@@ -455,7 +465,7 @@ function listAllPhotos(db, opts = {}) {
   const { limit = 200, offset = 0 } = opts;
   return db.prepare(`
     SELECT * FROM files
-    WHERE status IN ('ready', 'processing') AND mime LIKE 'image/%'
+    WHERE status IN ('ready', 'processing') AND media_type IN ('photo', 'video')
     ORDER BY COALESCE(taken_at, uploaded_at) DESC
     LIMIT ? OFFSET ?
   `).all(limit, offset).map(deserializeRow);
