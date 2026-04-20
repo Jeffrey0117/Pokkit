@@ -47,7 +47,7 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
   const isAudio = entry.mime.startsWith('audio/')
   const isExpired = entry.expires_at ? Date.now() > entry.expires_at : false
   const hasPassword = !!entry.password_hash
-  const rawUrl = `${baseUrl}/f/${entry.id}?raw=1`
+  const rawUrl = `${baseUrl}/f/${entry.id}?dl=1`
   const previewUrl = `/files/${entry.id}/${encodeURIComponent(entry.filename)}`
 
   const expiryInfo = entry.expires_at
@@ -73,7 +73,7 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
         <input type="password" name="password" placeholder="Enter password" class="password-input" autofocus required>
         <button type="submit" class="btn btn-primary btn-large">Unlock &amp; Download</button>
       </form>`
-    : `<a href="${rawUrl}" class="btn btn-primary btn-large">Download</a>`
+    : `<a href="${rawUrl}" class="btn btn-primary btn-large" download="${escapeHtml(entry.filename)}">Download</a>`
 
   const countdownScript = entry.expires_at && !isExpired
     ? `<script>
@@ -165,7 +165,7 @@ async function serveFile(
   reply: FastifyReply,
   entry: FileEntry,
   storage: Storage,
-  opts?: { incrementDownloads?: boolean },
+  opts?: { incrementDownloads?: boolean; forceDownload?: boolean },
 ) {
   const filePath = storage.getPath(entry.id)
   if (!filePath) return reply.status(404).send({ error: 'File not found on disk' })
@@ -196,6 +196,7 @@ async function serveFile(
 
     const chunkSize = end - start + 1
     const stream = createReadStream(filePath, { start, end })
+    const disposition = opts?.forceDownload ? 'attachment' : 'inline'
 
     return reply
       .status(206)
@@ -203,16 +204,18 @@ async function serveFile(
       .header('Content-Length', chunkSize)
       .header('Content-Range', `bytes ${start}-${end}/${total}`)
       .header('Accept-Ranges', 'bytes')
+      .header('Content-Disposition', `${disposition}; filename="${encodeURIComponent(entry.filename)}"`)
       .send(stream)
   }
 
   // No range — full file
+  const disposition = opts?.forceDownload ? 'attachment' : 'inline'
   const stream = createReadStream(filePath)
   return reply
     .header('Content-Type', entry.mime)
     .header('Content-Length', total)
     .header('Accept-Ranges', 'bytes')
-    .header('Content-Disposition', `inline; filename="${encodeURIComponent(entry.filename)}"`)
+    .header('Content-Disposition', `${disposition}; filename="${encodeURIComponent(entry.filename)}"`)
     .send(stream)
 }
 
@@ -253,7 +256,7 @@ export function filesRoute(app: FastifyInstance, storage: Storage, config: Pokki
   )
 
   // GET /f/:id — smart routing: download page (browser) or raw file (API)
-  app.get<{ Params: { id: string }; Querystring: { raw?: string } }>(
+  app.get<{ Params: { id: string }; Querystring: { raw?: string; dl?: string } }>(
     '/f/:id',
     async (request, reply) => {
       const entry = storage.find(request.params.id)
@@ -263,10 +266,11 @@ export function filesRoute(app: FastifyInstance, storage: Storage, config: Pokki
 
       const acceptHeader = request.headers.accept || ''
       const isRaw = request.query.raw === '1'
+      const forceDownload = request.query.dl === '1'
       const isBrowser = acceptHeader.includes('text/html')
 
-      // Raw file serving (API clients, curl, ?raw=1)
-      if (isRaw || !isBrowser) {
+      // Raw file serving (API clients, curl, ?raw=1, ?dl=1)
+      if (isRaw || forceDownload || !isBrowser) {
         // Check expiry
         if (storage.isExpired(entry)) {
           return reply.status(410).send({ error: 'File expired' })
@@ -281,7 +285,7 @@ export function filesRoute(app: FastifyInstance, storage: Storage, config: Pokki
           }
         }
 
-        return serveFile(request, reply, entry, storage, { incrementDownloads: true })
+        return serveFile(request, reply, entry, storage, { incrementDownloads: true, forceDownload })
       }
 
       // HTML download page (browsers)
@@ -341,7 +345,7 @@ export function filesRoute(app: FastifyInstance, storage: Storage, config: Pokki
           httpOnly: true,
           sameSite: 'lax',
         })
-        .redirect(`/f/${entry.id}?raw=1`)
+        .redirect(`/f/${entry.id}?dl=1`)
     },
   )
 
