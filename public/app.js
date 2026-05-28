@@ -652,7 +652,7 @@
     block.appendChild(urlRow);
 
     var meta = document.createElement('div');
-    meta.style.cssText = 'font-size:11px;color:#999;margin-top:8px';
+    meta.style.cssText = 'font-size:11px;color:#71717a;margin-top:8px';
     var metaText = data.filename + ' \u00b7 ' + formatBytes(data.size) + ' \u00b7 ' + (data.mime || 'unknown');
     if (data.has_password) metaText += ' \u00b7 password protected';
     if (data.expires_at) metaText += ' \u00b7 expires ' + formatDate(data.expires_at);
@@ -766,7 +766,7 @@
     if (entry.has_password || entry.password_hash) {
       var lockSpan = document.createElement('span');
       lockSpan.textContent = 'locked';
-      lockSpan.style.color = '#e65100';
+      lockSpan.style.color = '#f59e0b';
       metaDiv.appendChild(lockSpan);
     }
 
