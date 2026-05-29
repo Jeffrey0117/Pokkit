@@ -59,8 +59,8 @@
 
   // ── Theme DOM ──────────────────────────────────────
   var $themeToggle = document.getElementById('themeToggle');
-  var $iconSun = document.getElementById('iconSun');
-  var $iconMoon = document.getElementById('iconMoon');
+  var $themeLight = document.getElementById('themeLight');
+  var $themeDark = document.getElementById('themeDark');
   var $metaThemeColor = document.getElementById('metaThemeColor');
 
   // ── Selection DOM ─────────────────────────────────────
@@ -142,9 +142,9 @@
     if ($metaThemeColor) {
       $metaThemeColor.setAttribute('content', theme === 'light' ? '#ffffff' : '#030303');
     }
-    if ($iconSun && $iconMoon) {
-      $iconSun.hidden = theme !== 'dark';
-      $iconMoon.hidden = theme !== 'light';
+    if ($themeLight && $themeDark) {
+      $themeLight.classList.toggle('active', theme === 'light');
+      $themeDark.classList.toggle('active', theme === 'dark');
     }
     var lmuScript = document.querySelector('script[data-app-id]');
     if (lmuScript) lmuScript.setAttribute('data-theme', theme);

@@ -563,23 +563,30 @@ body {
   color: var(--bg-primary);
 }
 
-.btn-icon {
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  padding: 2px;
+  border: 1px solid var(--border-default);
+  border-radius: 0;
+  background: var(--bg-secondary);
+  cursor: pointer;
+}
+
+.theme-toggle-option {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: color var(--transition);
+  width: 28px;
+  height: 28px;
+  color: var(--text-tertiary);
+  transition: background var(--transition), color var(--transition);
 }
 
-.btn-icon:hover {
-  color: var(--text-primary);
+.theme-toggle-option.active {
+  background: var(--text-primary);
+  color: var(--bg-primary);
 }
 
 /* ── Hero ──────────────────────────────────────────────── */
@@ -762,6 +769,13 @@ body {
   margin-bottom: 0;
   border-bottom: 1px solid var(--border-default);
   padding-bottom: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.view-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .tab {
@@ -778,6 +792,8 @@ body {
   transition: color var(--transition), border-color var(--transition);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .tab:hover {
@@ -1727,18 +1743,35 @@ body {
   }
 
   .nav {
-    margin: 0 -12px 20px;
-    padding: 0 12px;
-    height: 56px;
-    flex-wrap: wrap;
+    margin: 0 -12px 16px;
+    padding: 10px 12px;
     height: auto;
-    padding: 12px;
     gap: 8px;
   }
 
+  .nav-logo {
+    font-size: 14px;
+  }
+
   .nav-right {
-    width: 100%;
-    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .storage-quota {
+    min-width: 120px;
+  }
+
+  .user-name {
+    font-size: 0.75rem;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .theme-toggle-option {
+    width: 24px;
+    height: 24px;
   }
 
   .upload-options {
@@ -1747,7 +1780,11 @@ body {
   }
 
   .drop-area {
-    padding: 36px 16px;
+    padding: 32px 16px;
+  }
+
+  .drop-text {
+    font-size: 0.8125rem;
   }
 
   .queue-progress {
@@ -1769,8 +1806,16 @@ body {
     font-size: 0.8125rem;
   }
 
+  .hero {
+    margin-bottom: 24px;
+  }
+
   .hero-title {
     font-size: 1.25rem;
+  }
+
+  .hero-subtitle {
+    font-size: 0.75rem;
   }
 
   .feature-grid {
@@ -1780,6 +1825,19 @@ body {
 
   .feature-card {
     padding: 16px;
+  }
+
+  .view-tabs {
+    margin-top: 16px;
+  }
+
+  .tab {
+    padding: 8px 16px;
+    font-size: 0.6875rem;
+  }
+
+  .section-title {
+    font-size: 0.75rem;
   }
 
   .result-row {
@@ -1797,11 +1855,26 @@ body {
 
   .photo-grid {
     grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 1px;
   }
 
   .lightbox-nav {
     font-size: 28px;
     padding: 10px;
+  }
+
+  .lightbox-bottom {
+    bottom: 12px;
+    gap: 6px;
+  }
+
+  .lightbox-info {
+    font-size: 0.625rem;
+  }
+
+  .lightbox-action-btn {
+    padding: 5px 10px;
+    font-size: 0.6875rem;
   }
 
   .swipe-stage {
@@ -1828,6 +1901,11 @@ body {
     padding: 5px 12px;
   }
 
+  .gallery-dropzone {
+    padding: 14px;
+    font-size: 0.75rem;
+  }
+
   .gallery-header-actions {
     width: 100%;
     justify-content: flex-end;
@@ -1836,5 +1914,16 @@ body {
 
   .gallery-section .section-header {
     gap: 8px;
+  }
+
+  .selection-bar {
+    gap: 10px;
+    padding: 10px 12px;
+    font-size: 0.75rem;
+  }
+
+  .album-picker-modal {
+    width: 90vw;
+    max-width: 320px;
   }
 }
