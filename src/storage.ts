@@ -141,8 +141,9 @@ export class Storage {
     return entry ?? undefined
   }
 
-  list(): FileEntry[] {
-    return this.store.list({ bucket: 'default', limit: 100000 })
+  list(opts?: { limit?: number; offset?: number }): FileEntry[] {
+    const { limit = 50, offset = 0 } = opts || {}
+    return this.store.list({ bucket: 'default', limit, offset })
   }
 
   async remove(id: string): Promise<boolean> {

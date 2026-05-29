@@ -220,11 +220,13 @@ async function serveFile(
 }
 
 export function filesRoute(app: FastifyInstance, storage: Storage, config: PokkitConfig) {
-  // GET /files — list all files (auth required)
-  app.get('/files', async (request, reply) => {
+  // GET /files — list all files (auth required, paginated)
+  app.get<{ Querystring: { limit?: string; offset?: string } }>('/files', async (request, reply) => {
     const user = requireAuth(request, reply, config)
     if (!user) return
-    return storage.list()
+    const limit = Math.min(parseInt(request.query.limit || '50', 10) || 50, 200)
+    const offset = parseInt(request.query.offset || '0', 10) || 0
+    return storage.list({ limit, offset })
   })
 
   // GET /files/:id/:filename — direct file download (no auth, for streaming/embedding)

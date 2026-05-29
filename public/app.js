@@ -105,6 +105,25 @@
   var allPhotos = [];
   var allPhotosAlbumMap = {};
 
+  // ── Infinite scroll state ──────────────────────────────
+  var filesOffset = 0;
+  var filesLoading = false;
+  var filesHasMore = true;
+  var filesScrollLoader = null;
+  var FILES_PAGE_SIZE = 30;
+
+  var allPhotosOffset = 0;
+  var allPhotosLoading = false;
+  var allPhotosHasMore = true;
+  var allPhotosScrollLoader = null;
+  var ALL_PHOTOS_PAGE_SIZE = 40;
+
+  var galleryOffset = 0;
+  var galleryLoading = false;
+  var galleryHasMore = true;
+  var galleryScrollLoader = null;
+  var GALLERY_PAGE_SIZE = 40;
+
   // ── Auth (LetMeUse) ───────────────────────────────────
   var STORAGE_TOKEN_KEY = 'pokkit_token';
   var STORAGE_USER_KEY = 'pokkit_user';
@@ -528,21 +547,12 @@
             }
             // Refresh gallery if we're in album view
             if (currentAlbumId && !$gallerySection.hidden) {
-              apiRequest('GET', '/api/albums/' + currentAlbumId, null, function (albumData) {
-                var photos = albumData.photos || [];
-                var seen = {};
-                galleryPhotos = photos.filter(function (p) {
-                  if (seen[p.id]) return false;
-                  seen[p.id] = true;
-                  return true;
-                });
-                $galleryCount.textContent = galleryPhotos.length + ' photos';
-                renderPhotoGrid();
-              });
+              openAlbum(currentAlbumId, currentAlbumName);
             }
           } else {
             showResult(data);
             addFileRow(data);
+            filesOffset++;
             $emptyState.style.display = 'none';
           }
         } catch (_) { /* */ }
@@ -662,8 +672,36 @@
     $dropzone.parentNode.insertBefore(block, $dropzone.nextSibling);
   }
 
+  // ── Infinite Scroll Helper ──────────────────────────────
+  function createScrollLoader(container, loadMore) {
+    var sentinel = document.createElement('div');
+    sentinel.className = 'scroll-sentinel';
+    sentinel.style.height = '1px';
+    container.appendChild(sentinel);
+
+    var observer = new IntersectionObserver(function (entries) {
+      if (entries[0].isIntersecting) loadMore();
+    }, { rootMargin: '200px' });
+
+    observer.observe(sentinel);
+    return {
+      sentinel: sentinel,
+      observer: observer,
+      destroy: function () {
+        observer.disconnect();
+        if (sentinel.parentNode) sentinel.remove();
+      }
+    };
+  }
+
   // ── File List ───────────────────────────────────────────
   function loadFiles() {
+    // Reset scroll state
+    filesOffset = 0;
+    filesHasMore = true;
+    filesLoading = false;
+    if (filesScrollLoader) { filesScrollLoader.destroy(); filesScrollLoader = null; }
+
     if (!currentUser) {
       $fileList.innerHTML = '';
       $emptyState.style.display = '';
@@ -672,14 +710,47 @@
       return;
     }
 
+    $fileList.innerHTML = '';
+    $emptyState.style.display = 'none';
+    loadFilesPage();
+  }
+
+  function loadFilesPage() {
+    if (filesLoading || !filesHasMore) return;
+    filesLoading = true;
+
     var xhr = new XMLHttpRequest();
-    xhr.open('GET', '/files');
+    xhr.open('GET', '/files?limit=' + FILES_PAGE_SIZE + '&offset=' + filesOffset);
     setAuthHeader(xhr);
 
     xhr.addEventListener('load', function () {
+      filesLoading = false;
       if (xhr.status === 200) {
         try {
-          renderFiles(JSON.parse(xhr.responseText));
+          var files = JSON.parse(xhr.responseText);
+          if (filesOffset === 0 && files.length === 0) {
+            $emptyState.style.display = '';
+            $emptyState.querySelector('.empty-state-text').textContent = 'No files yet';
+            $fileList.appendChild($emptyState);
+            return;
+          }
+          // Files come pre-sorted from backend (uploaded_at DESC)
+          // Deduplicate against already-rendered rows
+          for (var i = 0; i < files.length; i++) {
+            if (!$fileList.querySelector('[data-id="' + files[i].id + '"]')) {
+              addFileRow(files[i], true);
+            }
+          }
+          filesOffset += files.length;
+          if (files.length < FILES_PAGE_SIZE) {
+            filesHasMore = false;
+            if (filesScrollLoader) { filesScrollLoader.destroy(); filesScrollLoader = null; }
+          } else if (!filesScrollLoader) {
+            filesScrollLoader = createScrollLoader($fileList, loadFilesPage);
+          } else {
+            // Re-append sentinel to end
+            $fileList.appendChild(filesScrollLoader.sentinel);
+          }
         } catch (_) { /* */ }
       } else if (xhr.status === 401) {
         $fileList.innerHTML = '';
@@ -692,30 +763,11 @@
     xhr.send();
   }
 
-  function renderFiles(files) {
-    $fileList.innerHTML = '';
-
-    if (files.length === 0) {
-      $emptyState.style.display = '';
-      $emptyState.querySelector('.empty-state-text').textContent = 'No files yet';
-      $fileList.appendChild($emptyState);
-      return;
-    }
-
-    $emptyState.style.display = 'none';
-
-    files.sort(function (a, b) { return b.uploaded_at - a.uploaded_at; });
-
-    for (var i = 0; i < files.length; i++) {
-      addFileRow(files[i]);
-    }
-  }
-
   function buildUrl(entry) {
     return '/f/' + entry.id;
   }
 
-  function addFileRow(entry) {
+  function addFileRow(entry, append) {
     var url = entry.url || buildUrl(entry);
     var fullUrl = url;
     if (fullUrl && !fullUrl.startsWith('http')) {
@@ -791,7 +843,9 @@
     actions.appendChild(delBtn);
     row.appendChild(actions);
 
-    if ($fileList.firstChild && $fileList.firstChild !== $emptyState) {
+    if (append) {
+      $fileList.appendChild(row);
+    } else if ($fileList.firstChild && $fileList.firstChild !== $emptyState) {
       $fileList.insertBefore(row, $fileList.firstChild);
     } else {
       $fileList.appendChild(row);
@@ -880,6 +934,10 @@
 
   function switchTab(tabName) {
     exitSelectMode();
+    // Destroy scroll loaders from previous tab
+    if (filesScrollLoader) { filesScrollLoader.destroy(); filesScrollLoader = null; }
+    if (galleryScrollLoader) { galleryScrollLoader.destroy(); galleryScrollLoader = null; }
+    if (allPhotosScrollLoader) { allPhotosScrollLoader.destroy(); allPhotosScrollLoader = null; }
     currentTab = tabName;
     var tabs = $viewTabs.querySelectorAll('.tab');
     for (var i = 0; i < tabs.length; i++) {
@@ -1044,21 +1102,72 @@
     $galleryCount.textContent = '';
     $photoGrid.innerHTML = '';
 
-    apiRequest('GET', '/api/albums/' + albumId, null, function (data) {
+    // Reset scroll state
+    galleryOffset = 0;
+    galleryHasMore = true;
+    galleryLoading = false;
+    galleryPhotos = [];
+    if (galleryScrollLoader) { galleryScrollLoader.destroy(); galleryScrollLoader = null; }
+
+    loadGalleryPage();
+  }
+
+  function loadGalleryPage() {
+    if (galleryLoading || !galleryHasMore) return;
+    galleryLoading = true;
+
+    var url = '/api/albums/' + currentAlbumId + '?limit=' + GALLERY_PAGE_SIZE + '&offset=' + galleryOffset;
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url);
+    setAuthHeader(xhr);
+    xhr.addEventListener('load', function () {
+      galleryLoading = false;
+      if (xhr.status < 200 || xhr.status >= 300) return;
+      var data;
+      try { data = JSON.parse(xhr.responseText); } catch (_) { return; }
+      if (!data) return;
+
       var photos = data.photos || [];
       // Deduplicate by ID
       var seen = {};
-      galleryPhotos = photos.filter(function (p) {
+      for (var j = 0; j < galleryPhotos.length; j++) {
+        seen[galleryPhotos[j].id] = true;
+      }
+      var newPhotos = photos.filter(function (p) {
         if (seen[p.id]) return false;
         seen[p.id] = true;
         return true;
       });
+
+      for (var i = 0; i < newPhotos.length; i++) {
+        galleryPhotos.push(newPhotos[i]);
+        addPhotoCell(newPhotos[i], galleryPhotos.length - 1);
+      }
+
       $galleryCount.textContent = galleryPhotos.length + ' photos';
-      renderPhotoGrid();
+      galleryOffset += photos.length;
+
+      // Empty state check before scroll loader logic
+      if (galleryOffset === 0 && galleryPhotos.length === 0) {
+        $photoGrid.innerHTML = '<div class="empty-state"><div class="empty-state-icon">~</div><div class="empty-state-text">No photos yet \u2014 drop images to upload</div></div>';
+        return;
+      }
+
+      if (photos.length < GALLERY_PAGE_SIZE) {
+        galleryHasMore = false;
+        if (galleryScrollLoader) { galleryScrollLoader.destroy(); galleryScrollLoader = null; }
+      } else if (!galleryScrollLoader) {
+        galleryScrollLoader = createScrollLoader($photoGrid, loadGalleryPage);
+      } else {
+        $photoGrid.appendChild(galleryScrollLoader.sentinel);
+      }
     });
+    xhr.addEventListener('error', function () { galleryLoading = false; });
+    xhr.send();
   }
 
   $backToAlbums.addEventListener('click', function () {
+    if (galleryScrollLoader) { galleryScrollLoader.destroy(); galleryScrollLoader = null; }
     $gallerySection.hidden = true;
     $albumsSection.hidden = false;
     currentAlbumId = null;
@@ -1082,6 +1191,10 @@
     }
     for (var i = 0; i < galleryPhotos.length; i++) {
       addPhotoCell(galleryPhotos[i], i);
+    }
+    // Re-attach scroll sentinel if more pages remain
+    if (galleryHasMore && galleryScrollLoader) {
+      $photoGrid.appendChild(galleryScrollLoader.sentinel);
     }
   }
 
@@ -1446,28 +1559,71 @@
   // ── All Photos Tab ───────────────────────────────────
 
   function loadAllPhotos() {
-    apiRequest('GET', '/api/photos?limit=500', null, function (photos) {
-      allPhotos = photos || [];
-      // Also load album list to show album names as badges
-      apiRequest('GET', '/api/albums', null, function (albums) {
-        allPhotosAlbumMap = {};
-        for (var i = 0; i < albums.length; i++) {
-          allPhotosAlbumMap[albums[i].id] = albums[i].name;
-        }
-        renderAllPhotoGrid();
-      });
+    // Reset scroll state
+    allPhotosOffset = 0;
+    allPhotosHasMore = true;
+    allPhotosLoading = false;
+    allPhotos = [];
+    if (allPhotosScrollLoader) { allPhotosScrollLoader.destroy(); allPhotosScrollLoader = null; }
+
+    $allPhotoGrid.innerHTML = '';
+    // Load album map first, then start paginated photo loading
+    apiRequest('GET', '/api/albums', null, function (albums) {
+      allPhotosAlbumMap = {};
+      for (var i = 0; i < albums.length; i++) {
+        allPhotosAlbumMap[albums[i].id] = albums[i].name;
+      }
+      loadAllPhotosPage();
     });
   }
 
-  function renderAllPhotoGrid() {
-    $allPhotoGrid.innerHTML = '';
-    if (allPhotos.length === 0) {
-      $allPhotoGrid.innerHTML = '<div class="empty-state"><div class="empty-state-icon">~</div><div class="empty-state-text">No photos yet</div></div>';
-      return;
-    }
-    for (var i = 0; i < allPhotos.length; i++) {
-      addAllPhotoCell(allPhotos[i], i);
-    }
+  function loadAllPhotosPage() {
+    if (allPhotosLoading || !allPhotosHasMore) return;
+    allPhotosLoading = true;
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/api/photos?limit=' + ALL_PHOTOS_PAGE_SIZE + '&offset=' + allPhotosOffset);
+    setAuthHeader(xhr);
+    xhr.addEventListener('load', function () {
+      allPhotosLoading = false;
+      if (xhr.status < 200 || xhr.status >= 300) return;
+      var photos;
+      try { photos = JSON.parse(xhr.responseText); } catch (_) { return; }
+      if (!photos) return;
+
+      if (allPhotosOffset === 0 && photos.length === 0) {
+        $allPhotoGrid.innerHTML = '<div class="empty-state"><div class="empty-state-icon">~</div><div class="empty-state-text">No photos yet</div></div>';
+        return;
+      }
+
+      // Deduplicate by ID
+      var seen = {};
+      for (var j = 0; j < allPhotos.length; j++) {
+        seen[allPhotos[j].id] = true;
+      }
+      var newPhotos = photos.filter(function (p) {
+        if (seen[p.id]) return false;
+        seen[p.id] = true;
+        return true;
+      });
+
+      for (var i = 0; i < newPhotos.length; i++) {
+        allPhotos.push(newPhotos[i]);
+        addAllPhotoCell(newPhotos[i], allPhotos.length - 1);
+      }
+
+      allPhotosOffset += photos.length;
+      if (photos.length < ALL_PHOTOS_PAGE_SIZE) {
+        allPhotosHasMore = false;
+        if (allPhotosScrollLoader) { allPhotosScrollLoader.destroy(); allPhotosScrollLoader = null; }
+      } else if (!allPhotosScrollLoader) {
+        allPhotosScrollLoader = createScrollLoader($allPhotoGrid, loadAllPhotosPage);
+      } else {
+        $allPhotoGrid.appendChild(allPhotosScrollLoader.sentinel);
+      }
+    });
+    xhr.addEventListener('error', function () { allPhotosLoading = false; });
+    xhr.send();
   }
 
   function addAllPhotoCell(photo, index) {
