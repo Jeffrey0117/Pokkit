@@ -53,6 +53,16 @@
   var $allPhotoGrid = document.getElementById('allPhotoGrid');
   var $allPhotosSelect = document.getElementById('allPhotosSelect');
 
+  // ── Videos DOM ──────────────────────────────────────
+  var $videosSection = document.getElementById('videosSection');
+  var $videoGrid = document.getElementById('videoGrid');
+
+  // ── Theme DOM ──────────────────────────────────────
+  var $themeToggle = document.getElementById('themeToggle');
+  var $iconSun = document.getElementById('iconSun');
+  var $iconMoon = document.getElementById('iconMoon');
+  var $metaThemeColor = document.getElementById('metaThemeColor');
+
   // ── Selection DOM ─────────────────────────────────────
   var $selectionBar = document.getElementById('selectionBar');
   var $selectionCount = document.getElementById('selectionCount');
@@ -123,6 +133,44 @@
   var galleryHasMore = true;
   var galleryScrollLoader = null;
   var GALLERY_PAGE_SIZE = 40;
+
+  // ── Theme ──────────────────────────────────────────────
+  var STORAGE_THEME_KEY = 'pokkit_theme';
+
+  function applyTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    if ($metaThemeColor) {
+      $metaThemeColor.setAttribute('content', theme === 'light' ? '#ffffff' : '#030303');
+    }
+    if ($iconSun && $iconMoon) {
+      $iconSun.hidden = theme !== 'dark';
+      $iconMoon.hidden = theme !== 'light';
+    }
+    var lmuScript = document.querySelector('script[data-app-id]');
+    if (lmuScript) lmuScript.setAttribute('data-theme', theme);
+  }
+
+  (function initTheme() {
+    var saved = localStorage.getItem(STORAGE_THEME_KEY) || 'light';
+    applyTheme(saved);
+  })();
+
+  if ($themeToggle) {
+    $themeToggle.addEventListener('click', function () {
+      var current = document.documentElement.dataset.theme || 'light';
+      var next = current === 'light' ? 'dark' : 'light';
+      localStorage.setItem(STORAGE_THEME_KEY, next);
+      applyTheme(next);
+    });
+  }
+
+  // ── Videos State ──────────────────────────────────────
+  var videosData = [];
+  var videosOffset = 0;
+  var videosLoading = false;
+  var videosHasMore = true;
+  var videosScrollLoader = null;
+  var VIDEOS_PAGE_SIZE = 40;
 
   // ── Auth (LetMeUse) ───────────────────────────────────
   var STORAGE_TOKEN_KEY = 'pokkit_token';
@@ -946,11 +994,13 @@
     $filesSection.hidden = tabName !== 'files';
     $albumsSection.hidden = tabName !== 'albums';
     $photosSection.hidden = tabName !== 'photos';
+    $videosSection.hidden = tabName !== 'videos';
     $gallerySection.hidden = true;
     currentAlbumId = null;
     currentAlbumName = '';
     if (tabName === 'albums') loadAlbums();
     if (tabName === 'photos') loadAllPhotos();
+    if (tabName === 'videos') loadVideos();
   }
 
   // ── Albums ─────────────────────────────────────────────
@@ -1677,6 +1727,109 @@
     });
 
     $allPhotoGrid.appendChild(cell);
+  }
+
+  // ── Videos Tab ─────────────────────────────────────────
+
+  function loadVideos() {
+    videosOffset = 0;
+    videosHasMore = true;
+    videosLoading = false;
+    videosData = [];
+    if (videosScrollLoader) { videosScrollLoader.destroy(); videosScrollLoader = null; }
+
+    $videoGrid.innerHTML = '';
+    loadVideosPage();
+  }
+
+  function loadVideosPage() {
+    if (videosLoading || !videosHasMore) return;
+    videosLoading = true;
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/api/photos?type=video&limit=' + VIDEOS_PAGE_SIZE + '&offset=' + videosOffset);
+    setAuthHeader(xhr);
+    xhr.addEventListener('load', function () {
+      videosLoading = false;
+      if (xhr.status < 200 || xhr.status >= 300) return;
+      var videos;
+      try { videos = JSON.parse(xhr.responseText); } catch (_) { return; }
+      if (!videos) return;
+
+      if (videosOffset === 0 && videos.length === 0) {
+        $videoGrid.innerHTML = '<div class="empty-state"><div class="empty-state-icon">~</div><div class="empty-state-text">No videos yet</div></div>';
+        return;
+      }
+
+      var seen = {};
+      for (var j = 0; j < videosData.length; j++) {
+        seen[videosData[j].id] = true;
+      }
+      var newVideos = videos.filter(function (v) {
+        if (seen[v.id]) return false;
+        seen[v.id] = true;
+        return true;
+      });
+
+      for (var i = 0; i < newVideos.length; i++) {
+        videosData.push(newVideos[i]);
+        addVideoCell(newVideos[i], videosData.length - 1);
+      }
+
+      videosOffset += videos.length;
+      if (videos.length < VIDEOS_PAGE_SIZE) {
+        videosHasMore = false;
+        if (videosScrollLoader) { videosScrollLoader.destroy(); videosScrollLoader = null; }
+      } else if (!videosScrollLoader) {
+        videosScrollLoader = createScrollLoader($videoGrid, loadVideosPage);
+      } else {
+        $videoGrid.appendChild(videosScrollLoader.sentinel);
+      }
+    });
+    xhr.addEventListener('error', function () { videosLoading = false; });
+    xhr.send();
+  }
+
+  function addVideoCell(video, index) {
+    var cell = document.createElement('div');
+    cell.className = 'photo-cell';
+    cell.dataset.id = video.id;
+
+    if (video.status === 'ready') {
+      var img = document.createElement('img');
+      img.src = '/photos/' + video.id + '/thumb.webp';
+      img.loading = 'lazy';
+      cell.appendChild(img);
+
+      var playIcon = document.createElement('div');
+      playIcon.className = 'video-play-icon';
+      cell.appendChild(playIcon);
+
+      if (video.duration) {
+        var dur = document.createElement('div');
+        dur.className = 'video-duration';
+        dur.textContent = formatDuration(video.duration);
+        cell.appendChild(dur);
+      }
+    } else {
+      var overlay = document.createElement('div');
+      overlay.className = 'processing-overlay';
+      var spinner = document.createElement('div');
+      spinner.className = 'processing-spinner';
+      overlay.appendChild(spinner);
+      cell.appendChild(overlay);
+    }
+
+    cell.addEventListener('click', function () {
+      if (video.status === 'ready') {
+        lightboxIndex = index;
+        galleryPhotos = videosData;
+        showLightboxPhoto();
+        $lightbox.classList.add('active');
+      }
+    });
+
+    $videoGrid.appendChild(cell);
   }
 
   // ── API Helper ────────────────────────────────────────

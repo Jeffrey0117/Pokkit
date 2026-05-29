@@ -462,7 +462,15 @@ function bulkMoveToAlbum(db, photoIds, albumId) {
 }
 
 function listAllPhotos(db, opts = {}) {
-  const { limit = 200, offset = 0 } = opts;
+  const { limit = 200, offset = 0, mediaType } = opts;
+  if (mediaType) {
+    return db.prepare(`
+      SELECT * FROM files
+      WHERE status IN ('ready', 'processing') AND media_type = ?
+      ORDER BY COALESCE(taken_at, uploaded_at) DESC
+      LIMIT ? OFFSET ?
+    `).all(mediaType, limit, offset).map(deserializeRow);
+  }
   return db.prepare(`
     SELECT * FROM files
     WHERE status IN ('ready', 'processing') AND media_type IN ('photo', 'video')
