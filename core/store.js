@@ -708,6 +708,10 @@ class PokkitStore {
     return db.listAllPhotos(this._db, opts);
   }
 
+  updatePhotoNotes(id, notes) {
+    return db.updateFilePhoto(this._db, id, { notes });
+  }
+
   /**
    * Close the database connection
    */
