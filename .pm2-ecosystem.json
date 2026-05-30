@@ -2,7 +2,9 @@
   "apps": [
     {
       "name": "pokkit",
-      "script": ".pm2-start.cjs",
+      "script": "src/index.ts",
+      "interpreter": "node",
+      "interpreter_args": "--require C:/Users/jeffb/Desktop/code/workhub/pokkit/node_modules/tsx/dist/preflight.cjs --import file:///C:/Users/jeffb/Desktop/code/workhub/pokkit/node_modules/tsx/dist/loader.mjs",
       "cwd": "C:\\Users\\jeffb\\Desktop\\code\\workhub\\pokkit",
       "env": {
         "NODE_ENV": "production",
