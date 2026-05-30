@@ -1669,12 +1669,14 @@ body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 36px;
-  height: 36px;
-  border-radius: 0;
-  background: rgba(0, 0, 0, 0.7);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
   z-index: 4;
   pointer-events: none;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 .video-play-icon::after {
@@ -1686,8 +1688,8 @@ body {
   width: 0;
   height: 0;
   border-style: solid;
-  border-width: 7px 0 7px 12px;
-  border-color: transparent transparent transparent var(--text-primary);
+  border-width: 8px 0 8px 14px;
+  border-color: transparent transparent transparent #ffffff;
 }
 
 .video-duration {

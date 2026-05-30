@@ -1632,7 +1632,7 @@
     allPhotosLoading = true;
 
     var xhr = new XMLHttpRequest();
-    xhr.open('GET', '/api/photos?limit=' + ALL_PHOTOS_PAGE_SIZE + '&offset=' + allPhotosOffset);
+    xhr.open('GET', '/api/photos?type=photo&limit=' + ALL_PHOTOS_PAGE_SIZE + '&offset=' + allPhotosOffset);
     setAuthHeader(xhr);
     xhr.addEventListener('load', function () {
       allPhotosLoading = false;
