@@ -147,7 +147,13 @@
       $themeDark.classList.toggle('active', theme === 'dark');
     }
     var lmuScript = document.querySelector('script[data-app-id]');
-    if (lmuScript) lmuScript.setAttribute('data-theme', theme);
+    if (lmuScript) {
+      lmuScript.setAttribute('data-theme', theme);
+      lmuScript.setAttribute(
+        'data-accent',
+        theme === 'light' ? '#18181b' : '#ffffff',
+      );
+    }
   }
 
   (function initTheme() {
