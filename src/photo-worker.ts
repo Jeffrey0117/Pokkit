@@ -9,41 +9,49 @@ const require = createRequire(import.meta.url)
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const WORKER_PATH = join(__dirname, 'workers', 'photo-processor.cjs')
 
-let worker: Worker | null = null
+const POOL_SIZE = 4
+let workers: Worker[] = []
+let nextWorker = 0
 let dataDir: string = ''
 
-function spawn(): Worker {
+function spawnOne(index: number): Worker {
   const w = new Worker(WORKER_PATH, {
     workerData: { dataDir },
   })
 
   w.on('message', (msg) => {
     if (msg.type === 'ready') {
-      console.log('[PhotoWorker] Worker ready')
+      console.log(`[PhotoWorker#${index}] Worker ready`)
     } else if (msg.type === 'done') {
-      console.log(`[PhotoWorker] Processed ${msg.id}`)
+      console.log(`[PhotoWorker#${index}] Processed ${msg.id}`)
     } else if (msg.type === 'error') {
-      console.error(`[PhotoWorker] Failed ${msg.id}: ${msg.error}`)
+      console.error(`[PhotoWorker#${index}] Failed ${msg.id}: ${msg.error}`)
     }
   })
 
   w.on('error', (err) => {
-    console.error('[PhotoWorker] Worker error:', err.message)
+    console.error(`[PhotoWorker#${index}] Worker error:`, err.message)
   })
 
   w.on('exit', (code) => {
     if (code !== 0) {
-      console.error(`[PhotoWorker] Worker exited with code ${code}, respawning...`)
-      worker = spawn()
+      console.error(`[PhotoWorker#${index}] Worker exited with code ${code}, respawning...`)
+      workers[index] = spawnOne(index)
     }
   })
 
   return w
 }
 
+function spawnPool(): void {
+  for (let i = 0; i < POOL_SIZE; i++) {
+    workers[i] = spawnOne(i)
+  }
+}
+
 export function initPhotoWorker(dir: string): void {
   dataDir = dir
-  worker = spawn()
+  spawnPool()
   recoverStuckPhotos()
 }
 
@@ -79,16 +87,18 @@ function recoverStuckPhotos(): void {
 }
 
 export function processPhoto(id: string, rawPath: string): void {
-  if (!worker) {
-    throw new Error('Photo worker not initialized. Call initPhotoWorker() first.')
+  if (workers.length === 0) {
+    throw new Error('Photo worker pool not initialized. Call initPhotoWorker() first.')
   }
-  worker.postMessage({ id, rawPath })
+  const w = workers[nextWorker % workers.length]
+  nextWorker++
+  w.postMessage({ id, rawPath })
 }
 
 export async function shutdownWorker(): Promise<void> {
-  if (worker) {
-    await worker.terminate()
-    worker = null
-    console.log('[PhotoWorker] Worker terminated')
-  }
+  const terminations = workers.map((w) => w.terminate())
+  await Promise.all(terminations)
+  workers = []
+  nextWorker = 0
+  console.log(`[PhotoWorker] All ${POOL_SIZE} workers terminated`)
 }

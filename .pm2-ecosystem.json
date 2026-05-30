@@ -1,0 +1,21 @@
+{
+  "apps": [
+    {
+      "name": "pokkit",
+      "script": "src/index.ts",
+      "interpreter": "node",
+      "interpreter_args": "--require C:/Users/jeffb/Desktop/code/workhub/pokkit/node_modules/tsx/dist/preflight.cjs --import file:///C:/Users/jeffb/Desktop/code/workhub/pokkit/node_modules/tsx/dist/loader.mjs",
+      "cwd": "C:\\Users\\jeffb\\Desktop\\code\\workhub\\pokkit",
+      "env": {
+        "NODE_ENV": "production",
+        "PORT": "4009",
+        "POKKIT_DATA_DIR": "F:\\pokkit-data",
+        "TELEGRAM_PROXY": "https://tg-proxy.jeffby8.workers.dev",
+        "MEEI_PATH": "C:\\Users\\jeffb\\Desktop\\code\\workhub\\meei\\python\\src",
+        "PYTHON_PATH": "C:\\Windows\\py.exe"
+      },
+      "autorestart": true,
+      "max_restarts": 5
+    }
+  ]
+}

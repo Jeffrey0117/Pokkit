@@ -583,9 +583,7 @@ class PokkitStore {
     fs.writeFileSync(photoPath, webpBuffer);
     fs.writeFileSync(thumbPath, thumbBuffer);
 
-    // Delete raw temp file
-    const rawPath = this._resolveFilePath(bucket, entry.stored_name);
-    try { if (fs.existsSync(rawPath)) fs.unlinkSync(rawPath); } catch {}
+    // Keep raw file — user can access originals at data/{bucket}/{id}/_raw.*
 
     db.updateFilePhoto(this._db, id, {
       status: 'ready',
@@ -621,9 +619,7 @@ class PokkitStore {
     try { fs.unlinkSync(compressedPath); } catch {}
     fs.writeFileSync(thumbPath, thumbBuffer);
 
-    // Delete raw temp file
-    const rawPath = this._resolveFilePath(bucket, entry.stored_name);
-    try { if (fs.existsSync(rawPath)) fs.unlinkSync(rawPath); } catch {}
+    // Keep raw file — user can access originals at data/{bucket}/{id}/_raw.*
 
     const videoSize = fs.statSync(destVideoPath).size;
     db.updateFilePhoto(this._db, id, {

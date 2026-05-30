@@ -20,7 +20,7 @@ const store = new PokkitStore({
 
 function exec(cmd, args) {
   return new Promise((resolve, reject) => {
-    execFile(cmd, args, { timeout: 600000 }, (err, stdout, stderr) => {
+    execFile(cmd, args, { timeout: 600000, windowsHide: true }, (err, stdout, stderr) => {
       if (err) reject(new Error(stderr || err.message));
       else resolve(stdout);
     });

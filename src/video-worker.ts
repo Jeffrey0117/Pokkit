@@ -20,7 +20,7 @@ export function hasFfmpeg(): boolean {
 
 function checkFfmpeg(): Promise<boolean> {
   return new Promise((resolve) => {
-    execFile('ffmpeg', ['-version'], { timeout: 5000 }, (err) => {
+    execFile('ffmpeg', ['-version'], { timeout: 5000, windowsHide: true }, (err) => {
       resolve(!err)
     })
   })
