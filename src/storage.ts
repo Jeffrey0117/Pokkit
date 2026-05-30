@@ -32,6 +32,7 @@ export interface PhotoEntry extends FileEntry {
   duration: number | null
   thumb_stored_name: string | null
   status: string
+  notes: string | null
   deduplicated?: boolean
   rawPath?: string
 }
@@ -233,6 +234,10 @@ export class Storage {
 
   listAllPhotos(opts?: { limit?: number; offset?: number; mediaType?: string }) {
     return this.store.listAllPhotos(opts)
+  }
+
+  updatePhotoNotes(id: string, notes: string | null): boolean {
+    return this.store.updatePhotoNotes(id, notes)
   }
 
   userStats(userId: string): { totalFiles: number; totalBytes: number } {

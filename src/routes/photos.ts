@@ -175,6 +175,30 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
     },
   )
 
+  // PUT /api/photos/:id — update photo (notes, etc.)
+  app.put<{ Params: { id: string }; Body: { notes?: string } }>(
+    '/api/photos/:id',
+    async (request, reply) => {
+      const user = requireAuth(request, reply, config)
+      if (!user) return
+      const entry = storage.find(request.params.id)
+      if (!entry) {
+        return reply.status(404).send({ error: 'Photo not found' })
+      }
+
+      const updates: Record<string, unknown> = {}
+      if (request.body?.notes !== undefined) {
+        const trimmed = (request.body.notes || '').trim()
+        updates.notes = trimmed || null
+      }
+      if (Object.keys(updates).length === 0) {
+        return reply.status(400).send({ error: 'No updates provided' })
+      }
+      storage.updatePhotoNotes(request.params.id, updates.notes as string | null)
+      return { ok: true }
+    },
+  )
+
   // PUT /api/photos/bulk-move — move multiple photos to an album
   app.put<{ Body: { photo_ids: string[]; album_id: string } }>(
     '/api/photos/bulk-move',

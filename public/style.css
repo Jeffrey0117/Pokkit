@@ -1430,6 +1430,61 @@ body {
   text-align: center;
 }
 
+/* ── Lightbox Notes ───────────────────────────────────── */
+
+.lightbox-notes {
+  width: 100%;
+  max-width: 600px;
+}
+
+.lightbox-notes-display {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: background 0.2s ease;
+  min-height: 28px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.lightbox-notes-display:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.lightbox-notes-display.placeholder {
+  color: rgba(255, 255, 255, 0.3);
+  font-style: italic;
+}
+
+.lightbox-notes-edit {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.lightbox-notes-edit:focus {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.lightbox-notes-edit::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+  font-style: italic;
+}
+
 .lightbox-actions {
   display: flex;
   gap: 8px;
@@ -1959,6 +2014,16 @@ body {
   .lightbox-action-btn {
     padding: 6px 12px;
     font-size: 0.6875rem;
+  }
+
+  .lightbox-notes-display {
+    font-size: 0.75rem;
+    padding: 4px 8px;
+  }
+
+  .lightbox-notes-edit {
+    font-size: 0.75rem;
+    padding: 6px 8px;
   }
 
   .swipe-stage {
