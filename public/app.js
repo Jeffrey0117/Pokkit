@@ -42,6 +42,8 @@
   var $lightboxNext = document.getElementById('lightboxNext');
   var $lightboxDelete = document.getElementById('lightboxDelete');
   var $lightboxCover = document.getElementById('lightboxCover');
+  var $lightboxCounter = document.getElementById('lightboxCounter');
+  var $lightboxFilename = document.getElementById('lightboxFilename');
   var $galleryCount = document.getElementById('galleryCount');
   var $galleryRename = document.getElementById('galleryRename');
   var $galleryDelete = document.getElementById('galleryDelete');
@@ -1425,11 +1427,16 @@
     if (lightboxIndex < 0 || lightboxIndex >= galleryPhotos.length) return;
     var photo = galleryPhotos[lightboxIndex];
 
-    var photoInfo = photo.filename;
-    if (photo.width && photo.height) photoInfo += ' \u00b7 ' + photo.width + '\u00d7' + photo.height;
-    if (photo.duration) photoInfo += ' \u00b7 ' + formatDuration(photo.duration);
-    if (photo.taken_at) photoInfo += ' \u00b7 ' + formatDate(photo.taken_at);
-    $lightboxInfo.textContent = photoInfo;
+    // Header: filename + counter
+    $lightboxFilename.textContent = photo.filename;
+    $lightboxCounter.textContent = (lightboxIndex + 1) + ' / ' + galleryPhotos.length;
+
+    // Bottom info line
+    var infoParts = [];
+    if (photo.width && photo.height) infoParts.push(photo.width + '\u00d7' + photo.height);
+    if (photo.duration) infoParts.push(formatDuration(photo.duration));
+    if (photo.taken_at) infoParts.push(formatDate(photo.taken_at));
+    $lightboxInfo.textContent = infoParts.join(' \u00b7 ');
 
     if (isVideoEntry(photo)) {
       // Clean up previous video before loading new one
@@ -1729,6 +1736,13 @@
     cell.addEventListener('click', function () {
       if (selectMode) {
         togglePhotoSelection(photo.id, cell);
+        return;
+      }
+      if (photo.status === 'ready') {
+        lightboxIndex = index;
+        galleryPhotos = allPhotos;
+        showLightboxPhoto();
+        $lightbox.classList.add('active');
       }
     });
 
