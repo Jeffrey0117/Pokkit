@@ -65,6 +65,8 @@
   // ── Videos DOM ──────────────────────────────────────
   var $videosSection = document.getElementById('videosSection');
   var $videoGrid = document.getElementById('videoGrid');
+  var $videoSelectToggle = document.getElementById('videoSelectToggle');
+  var videoSelectMode = false;
 
   // ── Theme DOM ──────────────────────────────────────
   var $themeToggle = document.getElementById('themeToggle');
@@ -371,8 +373,23 @@
       var boxes = $fileList.querySelectorAll('.file-checkbox');
       for (var i = 0; i < boxes.length; i++) { boxes[i].checked = false; }
     }
+    if ($videoGrid) {
+      var vcells = $videoGrid.querySelectorAll('.photo-cell');
+      for (var k = 0; k < vcells.length; k++) {
+        vcells[k].classList.remove('selected');
+        var cb = vcells[k].querySelector('.cell-checkbox');
+        if (cb) cb.checked = false;
+      }
+    }
     if ($selectAllFiles) $selectAllFiles.checked = false;
     updateSelectionBar();
+  }
+
+  function setVideoSelectMode(on) {
+    videoSelectMode = on;
+    if ($videoGrid) $videoGrid.classList.toggle('select-mode', on);
+    if ($videoSelectToggle) $videoSelectToggle.textContent = on ? 'Done' : 'Select';
+    if (!on) clearSelection();
   }
 
   function triggerDownload(id, filename) {
@@ -398,6 +415,11 @@
 
   if ($selectionDownload) $selectionDownload.addEventListener('click', downloadSelected);
   if ($selectionClear) $selectionClear.addEventListener('click', clearSelection);
+  if ($videoSelectToggle) {
+    $videoSelectToggle.addEventListener('click', function () {
+      setVideoSelectMode(!videoSelectMode);
+    });
+  }
   if ($selectAllFiles) {
     $selectAllFiles.addEventListener('change', function () {
       var boxes = $fileList ? $fileList.querySelectorAll('.file-checkbox') : [];
@@ -1146,7 +1168,7 @@
 
   function switchTab(tabName) {
     exitSelectMode();
-    clearSelection();
+    setVideoSelectMode(false);
     // Destroy scroll loaders from previous tab
     if (filesScrollLoader) { filesScrollLoader.destroy(); filesScrollLoader = null; }
     if (galleryScrollLoader) { galleryScrollLoader.destroy(); galleryScrollLoader = null; }
@@ -1990,6 +2012,19 @@
     cell.className = 'photo-cell';
     cell.dataset.id = video.id;
 
+    var checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'cell-checkbox';
+    checkbox.checked = !!selectedFiles[video.id];
+    if (checkbox.checked) cell.classList.add('selected');
+    checkbox.addEventListener('click', function (e) { e.stopPropagation(); });
+    checkbox.addEventListener('change', function () {
+      if (checkbox.checked) { selectedFiles[video.id] = video.filename; cell.classList.add('selected'); }
+      else { delete selectedFiles[video.id]; cell.classList.remove('selected'); }
+      updateSelectionBar();
+    });
+    cell.appendChild(checkbox);
+
     if (video.status === 'ready') {
       var img = document.createElement('img');
       img.src = '/photos/' + video.id + '/thumb.webp';
@@ -2016,6 +2051,11 @@
     }
 
     cell.addEventListener('click', function () {
+      if (videoSelectMode) {
+        checkbox.checked = !checkbox.checked;
+        checkbox.dispatchEvent(new Event('change'));
+        return;
+      }
       if (video.status === 'ready') {
         lightboxIndex = index;
         galleryPhotos = videosData;
