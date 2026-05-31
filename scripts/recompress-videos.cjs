@@ -79,8 +79,16 @@ for (const v of videos) {
 
   if (APPLY) {
     if (newSize < oldSize) {
-      fs.renameSync(tmp, src);
-      db.prepare('UPDATE files SET size = ? WHERE id = ?').run(newSize, v.id);
+      try {
+        fs.renameSync(tmp, src);
+        db.prepare('UPDATE files SET size = ? WHERE id = ?').run(newSize, v.id);
+      } catch (e) {
+        // e.g. Windows file lock — keep the original intact, drop the temp
+        console.log(`    (could not replace, kept original: ${String(e.message).split('\n')[0]})`);
+        try { fs.unlinkSync(tmp); } catch (_) {}
+        newTotal -= newSize;
+        newTotal += oldSize;
+      }
     } else {
       // No gain — don't degrade quality for nothing
       fs.unlinkSync(tmp);

@@ -9,7 +9,7 @@
       "env": {
         "NODE_ENV": "production",
         "PORT": "4009",
-        "POKKIT_DATA_DIR": "F:\\pokkit-data",
+        "POKKIT_DATA_DIR": "C:\\Users\\jeffb\\Desktop\\code\\workhub\\pokkit\\data",
         "TELEGRAM_PROXY": "https://tg-proxy.jeffby8.workers.dev",
         "MEEI_PATH": "C:\\Users\\jeffb\\Desktop\\code\\workhub\\meei\\python\\src",
         "PYTHON_PATH": "C:\\Windows\\py.exe"

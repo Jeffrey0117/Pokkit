@@ -88,6 +88,17 @@ class PokkitStore {
 
     const id = opts.id || shortId();
     const hash = opts.hash || hashBuffer(buffer);
+
+    // Dedup: identical content already stored. Skip when this upload sets a
+    // password or expiry, so protected/temporary copies stay independent.
+    if (!opts.password_hash && !opts.expires_at) {
+      const existing = db.findByHash(this._db, hash, bucket);
+      const match = existing.find(e => !e.is_directory && !e.expires_at && !e.password_hash);
+      if (match) {
+        return { ...match, deduplicated: true };
+      }
+    }
+
     const storedName = this._resolveStoredName(bucket, id, filename);
     const destPath = this._resolveFilePath(bucket, storedName);
 
