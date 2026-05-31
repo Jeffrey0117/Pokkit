@@ -76,13 +76,17 @@ parentPort.on('message', async (msg) => {
       .toBuffer();
     try { fs.unlinkSync(thumbRawPath); } catch {}
 
-    // 4. Compress video (H.264 CRF 28, AAC 128k, faststart)
+    // 4. Compress video (H.264 CRF 30, medium preset, AAC 128k, faststart)
+    //    + cap to ~1080p (orientation-aware): landscape fits 1920x1080,
+    //    portrait fits 1080x1920, only downscales, preserves aspect, even dims.
+    //    Commas inside if() are escaped (\\,) so ffmpeg's filtergraph parser
+    //    doesn't read them as filter separators.
     await exec('ffmpeg', [
       '-y', '-i', rawPath,
-      '-c:v', 'libx264', '-crf', '28', '-preset', 'fast',
+      '-c:v', 'libx264', '-crf', '30', '-preset', 'medium',
       '-c:a', 'aac', '-b:a', '128k',
       '-movflags', '+faststart',
-      '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+      '-vf', "scale=w='if(gt(iw\\,ih)\\,1920\\,1080)':h='if(gt(iw\\,ih)\\,1080\\,1920)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2",
       compressedPath,
     ]);
 

@@ -1610,6 +1610,8 @@
       $lightboxVideo.removeAttribute('src');
       $lightboxImg.hidden = true;
       $lightboxVideo.hidden = false;
+      // Show the thumbnail instantly as a poster instead of a black frame while buffering
+      $lightboxVideo.poster = '/photos/' + photo.id + '/thumb.webp';
       $lightboxVideo.src = '/photos/' + photo.id + '/video.mp4';
       $lightboxVideo.load();
     } else {
