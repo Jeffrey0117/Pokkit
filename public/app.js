@@ -42,6 +42,8 @@
   var $lightboxNext = document.getElementById('lightboxNext');
   var $lightboxDelete = document.getElementById('lightboxDelete');
   var $lightboxCover = document.getElementById('lightboxCover');
+  var $lightboxDownload = document.getElementById('lightboxDownload');
+  var $lightboxLocate = document.getElementById('lightboxLocate');
   var $lightboxCounter = document.getElementById('lightboxCounter');
   var $lightboxFilename = document.getElementById('lightboxFilename');
   var $galleryCount = document.getElementById('galleryCount');
@@ -1505,6 +1507,15 @@
     if (photo.taken_at) infoParts.push(formatDate(photo.taken_at));
     $lightboxInfo.textContent = infoParts.join(' \u00b7 ');
 
+    // Download (force-download original) + host-only Locate
+    if ($lightboxDownload) {
+      $lightboxDownload.href = '/f/' + photo.id + '?dl=1';
+      $lightboxDownload.setAttribute('download', photo.filename || '');
+    }
+    if ($lightboxLocate) {
+      $lightboxLocate.hidden = !isLocalhost();
+    }
+
     if (isVideoEntry(photo)) {
       // Clean up previous video before loading new one
       $lightboxVideo.pause();
@@ -1529,6 +1540,13 @@
   $lightboxNext.addEventListener('click', function () {
     if (lightboxIndex < galleryPhotos.length - 1) { lightboxIndex++; showLightboxPhoto(); }
   });
+
+  if ($lightboxLocate) {
+    $lightboxLocate.addEventListener('click', function () {
+      if (lightboxIndex < 0 || lightboxIndex >= galleryPhotos.length) return;
+      revealFile(galleryPhotos[lightboxIndex].id, $lightboxLocate);
+    });
+  }
 
   $lightboxDelete.addEventListener('click', function () {
     if (lightboxIndex < 0 || lightboxIndex >= galleryPhotos.length) return;
