@@ -518,6 +518,61 @@ body {
   flex-shrink: 0;
 }
 
+/* ── Multi-select ──────────────────────────────────────── */
+.file-checkbox {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--text-primary);
+}
+
+.select-all-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.select-all-label input {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--text-primary);
+}
+
+.selection-bar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 12px 10px 20px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-hover);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.selection-bar[hidden] { display: none; }
+
+.selection-count {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.selection-actions {
+  display: flex;
+  gap: 6px;
+}
+
 /* ── Buttons ───────────────────────────────────────────── */
 
 .btn {

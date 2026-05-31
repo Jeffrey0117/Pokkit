@@ -132,6 +132,7 @@
     <section class="files-section" id="filesSection">
       <div class="section-header">
         <h2 class="section-title">Files</h2>
+        <label class="select-all-label"><input type="checkbox" id="selectAllFiles"> Select all</label>
       </div>
       <div id="fileList">
         <div class="empty-state" id="emptyState">
@@ -140,6 +141,14 @@
         </div>
       </div>
     </section>
+
+    <div class="selection-bar" id="selectionBar" hidden>
+      <span class="selection-count" id="selectionCount">0 selected</span>
+      <div class="selection-actions">
+        <button class="btn" id="selectionClear">Clear</button>
+        <button class="btn btn-primary" id="selectionDownload">Download</button>
+      </div>
+    </div>
 
     <section class="albums-section" id="albumsSection" hidden>
       <div class="section-header">

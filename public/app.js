@@ -21,6 +21,11 @@
   var $fileList = document.getElementById('fileList');
   var $emptyState = document.getElementById('emptyState');
   var $toast = document.getElementById('toast');
+  var $selectionBar = document.getElementById('selectionBar');
+  var $selectionCount = document.getElementById('selectionCount');
+  var $selectionDownload = document.getElementById('selectionDownload');
+  var $selectionClear = document.getElementById('selectionClear');
+  var $selectAllFiles = document.getElementById('selectAllFiles');
 
   // ── Albums/Gallery DOM ──────────────────────────────────
   var $viewTabs = document.getElementById('viewTabs');
@@ -337,6 +342,76 @@
       toast('Copy failed', true);
     }
     document.body.removeChild(ta);
+  }
+
+  // ── Multi-select download (Files tab) ──────────────────
+  var selectedFiles = {}; // id -> filename
+
+  function updateSelectionBar() {
+    var ids = Object.keys(selectedFiles);
+    if (!$selectionBar) return;
+    if (ids.length > 0) {
+      $selectionBar.hidden = false;
+      $selectionCount.textContent = ids.length + (ids.length === 1 ? ' selected' : ' selected');
+    } else {
+      $selectionBar.hidden = true;
+    }
+    // keep the "select all" box in sync with what's visible
+    if ($selectAllFiles) {
+      var boxes = $fileList ? $fileList.querySelectorAll('.file-checkbox') : [];
+      var allChecked = boxes.length > 0;
+      for (var i = 0; i < boxes.length; i++) { if (!boxes[i].checked) { allChecked = false; break; } }
+      $selectAllFiles.checked = allChecked;
+    }
+  }
+
+  function clearSelection() {
+    selectedFiles = {};
+    if ($fileList) {
+      var boxes = $fileList.querySelectorAll('.file-checkbox');
+      for (var i = 0; i < boxes.length; i++) { boxes[i].checked = false; }
+    }
+    if ($selectAllFiles) $selectAllFiles.checked = false;
+    updateSelectionBar();
+  }
+
+  function triggerDownload(id, filename) {
+    var a = document.createElement('a');
+    a.href = '/f/' + id + '?dl=1';
+    a.setAttribute('download', filename || '');
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { if (a.parentNode) document.body.removeChild(a); }, 2000);
+  }
+
+  function downloadSelected() {
+    var ids = Object.keys(selectedFiles);
+    if (!ids.length) return;
+    toast('Downloading ' + ids.length + ' file' + (ids.length === 1 ? '' : 's') + '…');
+    // Stagger so the browser doesn't drop/block rapid-fire downloads
+    ids.forEach(function (id, i) {
+      var name = selectedFiles[id];
+      setTimeout(function () { triggerDownload(id, name); }, i * 600);
+    });
+  }
+
+  if ($selectionDownload) $selectionDownload.addEventListener('click', downloadSelected);
+  if ($selectionClear) $selectionClear.addEventListener('click', clearSelection);
+  if ($selectAllFiles) {
+    $selectAllFiles.addEventListener('change', function () {
+      var boxes = $fileList ? $fileList.querySelectorAll('.file-checkbox') : [];
+      for (var i = 0; i < boxes.length; i++) {
+        var box = boxes[i];
+        box.checked = $selectAllFiles.checked;
+        var row = box.closest('.file-row');
+        var id = row ? row.dataset.id : null;
+        if (!id) continue;
+        if (box.checked) { selectedFiles[id] = box.dataset.filename || ''; }
+        else { delete selectedFiles[id]; }
+      }
+      updateSelectionBar();
+    });
   }
 
   // ── Host-local file locating (server machine only) ─────
@@ -878,6 +953,18 @@
     row.className = 'file-row';
     row.dataset.id = entry.id;
 
+    var checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'file-checkbox';
+    checkbox.checked = !!selectedFiles[entry.id];
+    checkbox.dataset.filename = entry.filename;
+    checkbox.addEventListener('change', function () {
+      if (checkbox.checked) { selectedFiles[entry.id] = entry.filename; }
+      else { delete selectedFiles[entry.id]; }
+      updateSelectionBar();
+    });
+    row.appendChild(checkbox);
+
     if (entry.mime && entry.mime.startsWith('image/')) {
       var img = document.createElement('img');
       img.className = 'file-thumb';
@@ -1059,6 +1146,7 @@
 
   function switchTab(tabName) {
     exitSelectMode();
+    clearSelection();
     // Destroy scroll loaders from previous tab
     if (filesScrollLoader) { filesScrollLoader.destroy(); filesScrollLoader = null; }
     if (galleryScrollLoader) { galleryScrollLoader.destroy(); galleryScrollLoader = null; }
