@@ -337,6 +337,47 @@
     document.body.removeChild(ta);
   }
 
+  // ── Host-local file locating (server machine only) ─────
+  function isLocalhost() {
+    var h = window.location.hostname;
+    return h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '';
+  }
+
+  function revealFile(id, btn) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/files/' + id + '/reveal');
+    setAuthHeader(xhr);
+    if (btn) btn.disabled = true;
+    xhr.addEventListener('load', function () {
+      if (btn) btn.disabled = false;
+      toast(xhr.status === 200 ? 'Opened in file manager' : 'Locate failed (host only)', xhr.status !== 200);
+    });
+    xhr.addEventListener('error', function () {
+      if (btn) btn.disabled = false;
+      toast('Locate failed', true);
+    });
+    xhr.send();
+  }
+
+  function copyLocalPath(id) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/files/' + id + '/local-path');
+    setAuthHeader(xhr);
+    xhr.addEventListener('load', function () {
+      if (xhr.status === 200) {
+        try {
+          var data = JSON.parse(xhr.responseText);
+          if (data && data.path) { copyUrl(data.path); return; }
+        } catch (_) {}
+        toast('Copy path failed', true);
+      } else {
+        toast('Path unavailable (host only)', true);
+      }
+    });
+    xhr.addEventListener('error', function () { toast('Copy path failed', true); });
+    xhr.send();
+  }
+
   // ── Drop Zone Events ───────────────────────────────────
   $dropzone.addEventListener('click', function () {
     if (!currentUser) { toast('Please login first', true); return; }
@@ -890,12 +931,38 @@
     cpBtn.textContent = 'Copy';
     cpBtn.addEventListener('click', function () { copyUrl(fullUrl); });
 
+    var dlBtn = document.createElement('a');
+    dlBtn.className = 'btn';
+    dlBtn.textContent = 'Download';
+    dlBtn.href = '/f/' + entry.id + '?dl=1';
+    dlBtn.setAttribute('download', entry.filename);
+
     var delBtn = document.createElement('button');
     delBtn.className = 'btn btn-danger';
     delBtn.textContent = 'Del';
     delBtn.addEventListener('click', function () { deleteFile(entry.id, row); });
 
     actions.appendChild(cpBtn);
+    actions.appendChild(dlBtn);
+
+    // Host-only: locate the real file on disk (no download, no duplicate)
+    if (isLocalhost()) {
+      var locBtn = document.createElement('button');
+      locBtn.className = 'btn';
+      locBtn.textContent = 'Locate';
+      locBtn.title = 'Open this file in the file manager on the server';
+      locBtn.addEventListener('click', function () { revealFile(entry.id, locBtn); });
+
+      var pathBtn = document.createElement('button');
+      pathBtn.className = 'btn';
+      pathBtn.textContent = 'Path';
+      pathBtn.title = 'Copy the local disk path of this file';
+      pathBtn.addEventListener('click', function () { copyLocalPath(entry.id); });
+
+      actions.appendChild(locBtn);
+      actions.appendChild(pathBtn);
+    }
+
     actions.appendChild(delBtn);
     row.appendChild(actions);
 

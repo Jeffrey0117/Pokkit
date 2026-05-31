@@ -1,6 +1,7 @@
 import { createReadStream, readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
+import { execFile } from 'node:child_process'
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import type { Storage, FileEntry } from '../storage.js'
 import type { PokkitConfig } from '../config.js'
@@ -11,6 +12,14 @@ const cssHash = createHash('md5')
   .update(readFileSync(join(import.meta.dirname, '../../public/download.css')))
   .digest('hex')
   .substring(0, 8)
+
+// Only allow host-local requests (server machine itself) for filesystem reveal.
+// Behind a reverse proxy the client IP is the proxy, so these endpoints stay
+// invisible/forbidden to remote users — they're for when you're on the host.
+function isLocalRequest(request: FastifyRequest): boolean {
+  const ip = request.ip || ''
+  return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1'
+}
 
 function escapeHtml(text: string): string {
   const map: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }
@@ -363,6 +372,61 @@ export function filesRoute(app: FastifyInstance, storage: Storage, config: Pokki
         return reply.status(404).send({ error: 'File not found' })
       }
       return { ok: true }
+    },
+  )
+
+  // GET /files/:id/local-path — absolute on-disk path (auth + host-local only)
+  // For when this machine IS the server: locate a file to edit without downloading.
+  app.get<{ Params: { id: string } }>(
+    '/files/:id/local-path',
+    async (request, reply) => {
+      const user = requireAuth(request, reply, config)
+      if (!user) return
+      if (!isLocalRequest(request)) {
+        return reply.status(403).send({ error: 'Local access only' })
+      }
+      const entry = storage.find(request.params.id)
+      if (!entry) {
+        return reply.status(404).send({ error: 'File not found' })
+      }
+      const filePath = storage.getPath(entry.id)
+      if (!filePath) {
+        return reply.status(404).send({ error: 'File not found on disk' })
+      }
+      return { path: filePath, filename: entry.filename }
+    },
+  )
+
+  // POST /files/:id/reveal — open the file in the host's file manager, selected
+  // (auth + host-local only). Path comes from the DB, never user input.
+  app.post<{ Params: { id: string } }>(
+    '/files/:id/reveal',
+    async (request, reply) => {
+      const user = requireAuth(request, reply, config)
+      if (!user) return
+      if (!isLocalRequest(request)) {
+        return reply.status(403).send({ error: 'Local access only' })
+      }
+      const entry = storage.find(request.params.id)
+      if (!entry) {
+        return reply.status(404).send({ error: 'File not found' })
+      }
+      const filePath = storage.getPath(entry.id)
+      if (!filePath) {
+        return reply.status(404).send({ error: 'File not found on disk' })
+      }
+      // Windows Explorer "/select," highlights the file in its folder.
+      // execFile (no shell) + DB-sourced path => no injection surface.
+      // Explorer returns exit code 1 even on success, so the callback is ignored.
+      if (process.platform === 'win32') {
+        execFile('explorer.exe', ['/select,' + filePath], () => {})
+      } else if (process.platform === 'darwin') {
+        execFile('open', ['-R', filePath], () => {})
+      } else {
+        // Linux: open the containing folder (no portable file-select)
+        execFile('xdg-open', [join(filePath, '..')], () => {})
+      }
+      return { ok: true, path: filePath }
     },
   )
 }
