@@ -67,6 +67,7 @@
   var $videoGrid = document.getElementById('videoGrid');
   var $videoSelectToggle = document.getElementById('videoSelectToggle');
   var videoSelectMode = false;
+  var videoLongPressed = false;
 
   // ── Theme DOM ──────────────────────────────────────
   var $themeToggle = document.getElementById('themeToggle');
@@ -420,6 +421,26 @@
     $videoSelectToggle.addEventListener('click', function () {
       setVideoSelectMode(!videoSelectMode);
     });
+  }
+
+  // Long-press a video cell to enter select mode (parity with Photos)
+  if ($videoGrid) {
+    var videoLongPressTimer = null;
+    $videoGrid.addEventListener('pointerdown', function (e) {
+      var cell = e.target.closest('.photo-cell');
+      if (!cell) return;
+      videoLongPressed = false;
+      videoLongPressTimer = setTimeout(function () {
+        videoLongPressed = true;
+        if (!videoSelectMode) setVideoSelectMode(true);
+        var cb = cell.querySelector('.cell-checkbox');
+        if (cb && !cb.checked) { cb.checked = true; cb.dispatchEvent(new Event('change')); }
+      }, 500);
+    });
+    var cancelVideoLongPress = function () { clearTimeout(videoLongPressTimer); };
+    $videoGrid.addEventListener('pointerup', cancelVideoLongPress);
+    $videoGrid.addEventListener('pointerleave', cancelVideoLongPress);
+    $videoGrid.addEventListener('pointermove', cancelVideoLongPress);
   }
   if ($selectAllFiles) {
     $selectAllFiles.addEventListener('change', function () {
@@ -2063,6 +2084,7 @@
     }
 
     cell.addEventListener('click', function () {
+      if (videoLongPressed) { videoLongPressed = false; return; }
       if (videoSelectMode) {
         checkbox.checked = !checkbox.checked;
         checkbox.dispatchEvent(new Event('change'));
