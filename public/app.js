@@ -21,10 +21,10 @@
   var $fileList = document.getElementById('fileList');
   var $emptyState = document.getElementById('emptyState');
   var $toast = document.getElementById('toast');
-  var $selectionBar = document.getElementById('selectionBar');
-  var $selectionCount = document.getElementById('selectionCount');
-  var $selectionDownload = document.getElementById('selectionDownload');
-  var $selectionClear = document.getElementById('selectionClear');
+  var $dlBar = document.getElementById('dlBar');
+  var $dlCount = document.getElementById('dlCount');
+  var $dlDownload = document.getElementById('dlDownload');
+  var $dlClear = document.getElementById('dlClear');
   var $selectAllFiles = document.getElementById('selectAllFiles');
 
   // ── Albums/Gallery DOM ──────────────────────────────────
@@ -78,6 +78,7 @@
   var $selectionBar = document.getElementById('selectionBar');
   var $selectionCount = document.getElementById('selectionCount');
   var $selectionMove = document.getElementById('selectionMove');
+  var $selectionDownload = document.getElementById('selectionDownload');
   var $selectionCancel = document.getElementById('selectionCancel');
   var $albumPicker = document.getElementById('albumPicker');
   var $albumPickerOverlay = document.getElementById('albumPickerOverlay');
@@ -351,12 +352,12 @@
 
   function updateSelectionBar() {
     var ids = Object.keys(selectedFiles);
-    if (!$selectionBar) return;
+    if (!$dlBar) return;
     if (ids.length > 0) {
-      $selectionBar.hidden = false;
-      $selectionCount.textContent = ids.length + (ids.length === 1 ? ' selected' : ' selected');
+      $dlBar.hidden = false;
+      $dlCount.textContent = ids.length + ' selected';
     } else {
-      $selectionBar.hidden = true;
+      $dlBar.hidden = true;
     }
     // keep the "select all" box in sync with what's visible
     if ($selectAllFiles) {
@@ -413,8 +414,8 @@
     });
   }
 
-  if ($selectionDownload) $selectionDownload.addEventListener('click', downloadSelected);
-  if ($selectionClear) $selectionClear.addEventListener('click', clearSelection);
+  if ($dlDownload) $dlDownload.addEventListener('click', downloadSelected);
+  if ($dlClear) $dlClear.addEventListener('click', clearSelection);
   if ($videoSelectToggle) {
     $videoSelectToggle.addEventListener('click', function () {
       setVideoSelectMode(!videoSelectMode);
@@ -1748,6 +1749,17 @@
   });
 
   $selectionCancel.addEventListener('click', exitSelectMode);
+
+  if ($selectionDownload) {
+    $selectionDownload.addEventListener('click', function () {
+      if (!selectedIds.length) return;
+      toast('Downloading ' + selectedIds.length + ' file' + (selectedIds.length === 1 ? '' : 's') + '…');
+      // Server sets the real filename via Content-Disposition, so id alone is enough
+      selectedIds.slice().forEach(function (id, i) {
+        setTimeout(function () { triggerDownload(id, ''); }, i * 600);
+      });
+    });
+  }
 
   // Long press to enter select mode
   var longPressTimer = null;
