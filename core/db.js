@@ -91,6 +91,9 @@ function openDb(dbPath) {
     // Backfill existing photos
     _db.exec("UPDATE files SET media_type = 'photo' WHERE mime LIKE 'image/%' AND media_type = 'file'");
   }
+  if (!cols.includes('notes')) {
+    _db.exec('ALTER TABLE files ADD COLUMN notes TEXT');
+  }
 
   // Albums table
   _db.exec(`
@@ -432,7 +435,7 @@ function listPhotosByAlbum(db, albumId, opts = {}) {
 function updateFilePhoto(db, id, updates) {
   const fields = [];
   const values = { id };
-  for (const key of ['status', 'width', 'height', 'taken_at', 'thumb_stored_name', 'stored_name', 'mime', 'size', 'album_id', 'duration', 'media_type']) {
+  for (const key of ['status', 'width', 'height', 'taken_at', 'thumb_stored_name', 'stored_name', 'mime', 'size', 'album_id', 'duration', 'media_type', 'notes']) {
     if (updates[key] !== undefined) {
       fields.push(`${key} = @${key}`);
       values[key] = updates[key];

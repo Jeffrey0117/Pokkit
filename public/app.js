@@ -52,6 +52,9 @@
   var $lightboxLocate = document.getElementById('lightboxLocate');
   var $lightboxCounter = document.getElementById('lightboxCounter');
   var $lightboxFilename = document.getElementById('lightboxFilename');
+  var $lightboxNotes = document.getElementById('lightboxNotes');
+  var $lightboxNotesDisplay = document.getElementById('lightboxNotesDisplay');
+  var $lightboxNotesEdit = document.getElementById('lightboxNotesEdit');
   var $galleryCount = document.getElementById('galleryCount');
   var $galleryRename = document.getElementById('galleryRename');
   var $galleryDelete = document.getElementById('galleryDelete');
@@ -1756,6 +1759,17 @@
       $lightboxLocate.hidden = !isLocalhost();
     }
 
+    // Notes display
+    $lightboxNotesEdit.hidden = true;
+    $lightboxNotesDisplay.hidden = false;
+    if (photo.notes) {
+      $lightboxNotesDisplay.textContent = photo.notes;
+      $lightboxNotesDisplay.classList.remove('placeholder');
+    } else {
+      $lightboxNotesDisplay.textContent = 'Add notes...';
+      $lightboxNotesDisplay.classList.add('placeholder');
+    }
+
     if (isVideoEntry(photo)) {
       // Clean up previous video before loading new one
       $lightboxVideo.pause();
@@ -1822,10 +1836,82 @@
 
   document.addEventListener('keydown', function (e) {
     if (!$lightbox.classList.contains('active')) return;
-    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'Escape') {
+      if (!$lightboxNotesEdit.hidden) {
+        cancelNotesEdit();
+        return;
+      }
+      closeLightbox();
+    }
+    // Don't navigate when editing notes
+    if (!$lightboxNotesEdit.hidden) return;
     if (e.key === 'ArrowLeft' && lightboxIndex > 0) { lightboxIndex--; showLightboxPhoto(); }
     if (e.key === 'ArrowRight' && lightboxIndex < galleryPhotos.length - 1) { lightboxIndex++; showLightboxPhoto(); }
   });
+
+  // ── Notes Click-to-Edit ───────────────────────────────
+  var notesOriginalValue = '';
+
+  $lightboxNotesDisplay.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (lightboxIndex < 0 || lightboxIndex >= galleryPhotos.length) return;
+    var photo = galleryPhotos[lightboxIndex];
+    notesOriginalValue = photo.notes || '';
+    $lightboxNotesEdit.value = notesOriginalValue;
+    $lightboxNotesDisplay.hidden = true;
+    $lightboxNotesEdit.hidden = false;
+    $lightboxNotesEdit.focus();
+  });
+
+  $lightboxNotesEdit.addEventListener('keydown', function (e) {
+    e.stopPropagation();
+    if (e.key === 'Escape') {
+      cancelNotesEdit();
+    }
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      saveNotes();
+    }
+  });
+
+  $lightboxNotesEdit.addEventListener('blur', function () {
+    saveNotes();
+  });
+
+  $lightboxNotesEdit.addEventListener('click', function (e) {
+    e.stopPropagation();
+  });
+
+  function cancelNotesEdit() {
+    $lightboxNotesEdit.hidden = true;
+    $lightboxNotesDisplay.hidden = false;
+  }
+
+  function saveNotes() {
+    if ($lightboxNotesEdit.hidden) return;
+    if (lightboxIndex < 0 || lightboxIndex >= galleryPhotos.length) return;
+    var photo = galleryPhotos[lightboxIndex];
+    var newValue = $lightboxNotesEdit.value.trim();
+    var oldValue = (photo.notes || '').trim();
+
+    $lightboxNotesEdit.hidden = true;
+    $lightboxNotesDisplay.hidden = false;
+
+    if (newValue === oldValue) return;
+
+    photo.notes = newValue || null;
+    if (photo.notes) {
+      $lightboxNotesDisplay.textContent = photo.notes;
+      $lightboxNotesDisplay.classList.remove('placeholder');
+    } else {
+      $lightboxNotesDisplay.textContent = 'Add notes...';
+      $lightboxNotesDisplay.classList.add('placeholder');
+    }
+
+    apiRequest('PUT', '/api/photos/' + photo.id, { notes: newValue || '' }, function () {
+      toast('Notes saved');
+    });
+  }
 
   // ── Multi-Select Mode ─────────────────────────────────
 
