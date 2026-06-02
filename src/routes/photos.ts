@@ -148,6 +148,28 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
       .send(createReadStream(filePath))
   })
 
+  // GET /api/photos/status?ids=a,b,c — batch processing status.
+  // Lets the client poll many in-flight uploads with a single request instead
+  // of one request per item.
+  app.get<{ Querystring: { ids?: string } }>('/api/photos/status', async (request, reply) => {
+    const user = requireAuth(request, reply, config)
+    if (!user) return
+    const ids = (request.query.ids || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 500)
+    const statuses: Record<
+      string,
+      { status: string; duration: number | null; media_type: string }
+    > = {}
+    for (const id of ids) {
+      const meta = storage.getPhotoMeta(id)
+      if (meta) statuses[id] = meta
+    }
+    return { statuses }
+  })
+
   // GET /api/photos/:id/status — processing status
   app.get<{ Params: { id: string } }>('/api/photos/:id/status', async (request, reply) => {
     const user = requireAuth(request, reply, config)

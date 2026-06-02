@@ -104,6 +104,18 @@ function openDb(dbPath) {
     CREATE INDEX IF NOT EXISTS idx_albums_created ON albums(created_at);
   `);
 
+  // ── Timeline indexes ──
+  // The photo/video grids sort by COALESCE(taken_at, uploaded_at). Without an
+  // index on that expression, every paginated query does a full scan + sort
+  // (and OFFSET makes deeper scrolls progressively slower). These expression
+  // indexes let SQLite satisfy the WHERE filter + ORDER BY directly.
+  _db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_files_media_time
+      ON files(media_type, COALESCE(taken_at, uploaded_at));
+    CREATE INDEX IF NOT EXISTS idx_files_album_time
+      ON files(album_id, COALESCE(taken_at, uploaded_at));
+  `);
+
   return _db;
 }
 

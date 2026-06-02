@@ -4,6 +4,11 @@ import type { PokkitConfig } from '../config.js'
 import { requireAuth } from '../auth.js'
 import { checkPremium, fetchPlans } from '../subscription.js'
 
+// Users whose orphaned files have already been backfilled this server session.
+// New uploads always carry a user_id, so orphans only come from legacy data —
+// there's no need to re-run the UPDATE scan on every storage request.
+const backfilledUsers = new Set<string>()
+
 export function statusRoute(app: FastifyInstance, storage: Storage, config: PokkitConfig) {
   app.get('/status', async (request, reply) => {
     const user = requireAuth(request, reply, config)
@@ -20,10 +25,14 @@ export function statusRoute(app: FastifyInstance, storage: Storage, config: Pokk
     const user = requireAuth(request, reply, config)
     if (!user) return
 
-    // Auto-backfill: assign orphaned files (user_id IS NULL) to current user
-    const backfilled = storage.backfillUserId(user.userId)
-    if (backfilled > 0) {
-      console.log(`[Pokkit] Auto-backfilled ${backfilled} files to user ${user.userId}`)
+    // Auto-backfill: assign orphaned files (user_id IS NULL) to current user.
+    // Runs at most once per user per server session (see backfilledUsers above).
+    if (!backfilledUsers.has(user.userId)) {
+      backfilledUsers.add(user.userId)
+      const backfilled = storage.backfillUserId(user.userId)
+      if (backfilled > 0) {
+        console.log(`[Pokkit] Auto-backfilled ${backfilled} files to user ${user.userId}`)
+      }
     }
 
     const userStats = storage.userStats(user.userId)

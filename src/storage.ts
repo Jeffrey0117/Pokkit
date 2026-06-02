@@ -193,6 +193,20 @@ export class Storage {
     return entry?.status ?? null
   }
 
+  // Fresh status + the fields the grid needs to finalize a cell once processing
+  // completes (duration only exists after the video worker has run).
+  getPhotoMeta(
+    id: string,
+  ): { status: string; duration: number | null; media_type: string } | null {
+    const entry = this.store.find(id) as PhotoEntry | undefined
+    if (!entry || !entry.status) return null
+    return {
+      status: entry.status,
+      duration: entry.duration ?? null,
+      media_type: entry.media_type,
+    }
+  }
+
   getThumbPath(id: string): string | null {
     return this.store.getThumbPath(id)
   }

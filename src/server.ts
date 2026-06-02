@@ -1,10 +1,11 @@
 import { join } from 'node:path'
-import { readFileSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import Fastify from 'fastify'
 import multipart from '@fastify/multipart'
 import cors from '@fastify/cors'
 import staticPlugin from '@fastify/static'
+import compress from '@fastify/compress'
 import rateLimit from '@fastify/rate-limit'
 import cookie from '@fastify/cookie'
 import formbody from '@fastify/formbody'
@@ -24,6 +25,10 @@ function fileHash(filePath: string): string {
 export async function createServer(config: PokkitConfig) {
   const app = Fastify({ logger: true })
 
+  // gzip/brotli for text responses (JSON API, JS, CSS, HTML). Already-compressed
+  // media (webp thumbnails, mp4 video) is flagged non-compressible in mime-db and
+  // skipped automatically, so this never wastes CPU re-compressing binaries.
+  await app.register(compress, { global: true, threshold: 1024 })
   await app.register(multipart, { limits: { fileSize: config.maxFileSize } })
   await app.register(cors, { origin: true })
   await app.register(cookie)
@@ -37,14 +42,36 @@ export async function createServer(config: PokkitConfig) {
   initPhotoWorker(config.dataDir)
   await initVideoWorker(config.dataDir)
 
-  // ── ver2: auto cache-bust for index.html ──
+  // ── Auto cache-bust for index.html ──
+  // Rebuild the HTML (and the ?v= asset hashes) only when one of the source
+  // files actually changes on disk, keyed on mtime. Production stays fast (no
+  // work unless a deploy touches the files) while local front-end edits show up
+  // on a plain browser refresh — no server restart needed. The HTML itself is
+  // sent no-store so the browser always receives the current asset hashes.
   const publicDir = join(import.meta.dirname, '..', 'public')
-  const indexHtml = readFileSync(join(publicDir, 'index.html'), 'utf-8')
-    .replace('__CSS_HASH__', fileHash(join(publicDir, 'style.css')))
-    .replace('__JS_HASH__', fileHash(join(publicDir, 'app.js')))
+  const indexPath = join(publicDir, 'index.html')
+  const cssPath = join(publicDir, 'style.css')
+  const jsPath = join(publicDir, 'app.js')
+
+  let cachedHtml = ''
+  let cachedSig = ''
+
+  function buildIndexHtml(): string {
+    const sig = [indexPath, cssPath, jsPath].map((p) => statSync(p).mtimeMs).join(':')
+    if (sig !== cachedSig) {
+      cachedHtml = readFileSync(indexPath, 'utf-8')
+        .replace('__CSS_HASH__', fileHash(cssPath))
+        .replace('__JS_HASH__', fileHash(jsPath))
+      cachedSig = sig
+    }
+    return cachedHtml
+  }
 
   app.get('/', async (_request, reply) => {
-    return reply.header('Content-Type', 'text/html; charset=utf-8').send(indexHtml)
+    return reply
+      .header('Content-Type', 'text/html; charset=utf-8')
+      .header('Cache-Control', 'no-store')
+      .send(buildIndexHtml())
   })
 
   // API routes

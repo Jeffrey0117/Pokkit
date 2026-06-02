@@ -2,6 +2,7 @@
   'use strict';
 
   var MAX_CONCURRENT = 10;
+  var MAX_UPLOAD_RETRIES = 3; // auto-retry transient failures (network / 5xx) before giving up
 
   // ── DOM ─────────────────────────────────────────────────
   var $storageQuota = document.getElementById('storageQuota');
@@ -67,6 +68,23 @@
   var $videoGrid = document.getElementById('videoGrid');
   var $videoSelectToggle = document.getElementById('videoSelectToggle');
   var videoSelectMode = false;
+
+  // ── Thumbnail fade-in ───────────────────────────────
+  // Drop the skeleton shimmer + fade a thumbnail in once it loads. `load` and
+  // `error` don't bubble, so listen in the capture phase on the grid container —
+  // this catches every <img.loading=lazy> no matter which function created it.
+  function markThumbLoaded(e) {
+    var img = e.target;
+    if (!img || img.tagName !== 'IMG') return;
+    img.classList.add('loaded');
+    var cell = img.closest ? img.closest('.photo-cell') : null;
+    if (cell) cell.classList.add('loaded');
+  }
+  [$photoGrid, $allPhotoGrid, $videoGrid].forEach(function (grid) {
+    if (!grid) return;
+    grid.addEventListener('load', markThumbLoaded, true);
+    grid.addEventListener('error', markThumbLoaded, true); // broken thumb: stop shimmering too
+  });
   var videoLongPressed = false;
 
   // ── Theme DOM ──────────────────────────────────────
@@ -121,7 +139,8 @@
   var currentAlbumName = '';
   var galleryPhotos = [];
   var lightboxIndex = -1;
-  var processingPolls = {};
+  var processingIds = {};   // id -> true, set of photos/videos still processing
+  var processingTimer = null;
   var currentUser = null;
   var selectMode = false;
   var selectedIds = [];
@@ -686,7 +705,8 @@
     }
   }
 
-  function uploadFile(file) {
+  function uploadFile(file, attempt) {
+    attempt = attempt || 0;
     uploading++;
     var inSummaryMode = batchTotal > SUMMARY_THRESHOLD;
 
@@ -710,13 +730,52 @@
 
     var pct = document.createElement('span');
     pct.className = 'queue-pct';
-    pct.textContent = '0%';
+    pct.textContent = attempt > 0 ? 'retry ' + attempt : '0%';
 
     row.appendChild(name);
     row.appendChild(size);
     row.appendChild(progWrap);
     row.appendChild(pct);
     $queueList.appendChild(row);
+
+    // Schedule an automatic retry with exponential backoff for transient failures.
+    // Returns true if a retry was scheduled (caller should NOT count a failure yet).
+    function autoRetry() {
+      if (attempt >= MAX_UPLOAD_RETRIES) return false;
+      var delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+      uploading--;
+      row.remove();
+      setTimeout(function () { uploadFile(file, attempt + 1); }, delay);
+      return true;
+    }
+
+    // Permanent failure: count it and show a manual Retry button on the row.
+    function failPermanently(msg) {
+      batchFailed++;
+      bar.classList.add('error');
+      bar.style.width = '100%';
+      if (msg) toast(file.name + ': ' + msg, true);
+
+      pct.textContent = '';
+      var retryBtn = document.createElement('button');
+      retryBtn.type = 'button';
+      retryBtn.className = 'queue-retry';
+      retryBtn.textContent = '↺ Retry';
+      retryBtn.title = 'Retry upload';
+      retryBtn.addEventListener('click', function () {
+        batchFailed = Math.max(0, batchFailed - 1);
+        row.remove();
+        $queueSection.hidden = false;
+        pending.push(file); // fresh attempt count
+        updateQueueSummary();
+        processQueue();
+      });
+      row.replaceChild(retryBtn, pct);
+
+      uploading--;
+      updateQueueSummary();
+      processQueue();
+    }
 
     var xhr = new XMLHttpRequest();
     var fd = new FormData();
@@ -738,7 +797,7 @@
     });
 
     xhr.addEventListener('load', function () {
-      // Retry on rate limit (429)
+      // Rate limited — always retry (separate from the transient-error budget)
       if (xhr.status === 429) {
         uploading--;
         row.remove();
@@ -777,8 +836,25 @@
 
         // Clear password after successful upload
         $passwordInput.value = '';
-      } else if (xhr.status === 401) {
-        batchFailed++;
+
+        uploading--;
+        updateQueueSummary();
+        processQueue();
+        scheduleStatsRefresh();
+
+        setTimeout(function () {
+          row.style.opacity = '0';
+          row.style.transition = 'opacity 0.3s';
+          setTimeout(function () {
+            row.remove();
+            if ($queueList.children.length === 0) $queueSection.hidden = true;
+          }, 300);
+        }, 2000);
+        return;
+      }
+
+      if (xhr.status === 401) {
+        // Auth expired — not transient; needs re-login. Offer manual retry.
         currentUser = null;
         saveAuthLocally(null);
         updateAuthUI();
@@ -786,51 +862,42 @@
           lastAuthToast = Date.now();
           toast('Session expired, please log in again', true);
         }
-        bar.classList.add('error');
-        bar.style.width = '100%';
-        pct.textContent = '';
-      } else if (xhr.status === 413) {
-        batchFailed++;
-        bar.classList.add('error');
-        bar.style.width = '100%';
-        pct.textContent = '';
-        var quotaErr = 'Storage full!';
-        try { quotaErr = JSON.parse(xhr.responseText).error || quotaErr; } catch (_) { /* */ }
-        toast(quotaErr, true);
-      } else {
-        batchFailed++;
-        bar.classList.add('error');
-        bar.style.width = '100%';
-        pct.textContent = '';
-        var err = 'Upload failed';
-        try { err = JSON.parse(xhr.responseText).error || err; } catch (_) { /* */ }
-        toast(file.name + ': ' + err, true);
+        failPermanently(null);
+        return;
       }
 
-      uploading--;
-      updateQueueSummary();
-      processQueue();
-      loadStats();
+      if (xhr.status === 413) {
+        // Storage full — retrying won't help; manual retry still available.
+        var quotaErr = 'Storage full!';
+        try { quotaErr = JSON.parse(xhr.responseText).error || quotaErr; } catch (_) { /* */ }
+        failPermanently(quotaErr);
+        return;
+      }
 
-      setTimeout(function () {
-        row.style.opacity = '0';
-        row.style.transition = 'opacity 0.3s';
-        setTimeout(function () {
-          row.remove();
-          if ($queueList.children.length === 0) $queueSection.hidden = true;
-        }, 300);
-      }, 2000);
+      if (xhr.status >= 500) {
+        // Transient server error — auto-retry, then fall back to manual.
+        if (autoRetry()) return;
+        var serr = 'Server error';
+        try { serr = JSON.parse(xhr.responseText).error || serr; } catch (_) { /* */ }
+        failPermanently(serr);
+        return;
+      }
+
+      // Other 4xx — client error, unlikely to succeed on retry; manual only.
+      var err = 'Upload failed';
+      try { err = JSON.parse(xhr.responseText).error || err; } catch (_) { /* */ }
+      failPermanently(err);
     });
 
     xhr.addEventListener('error', function () {
-      batchFailed++;
-      bar.classList.add('error');
-      bar.style.width = '100%';
-      pct.textContent = '';
-      toast(file.name + ': Network error', true);
-      uploading--;
-      updateQueueSummary();
-      processQueue();
+      // Network error — transient, auto-retry then fall back to manual.
+      if (autoRetry()) return;
+      failPermanently('Network error');
+    });
+
+    xhr.addEventListener('timeout', function () {
+      if (autoRetry()) return;
+      failPermanently('Timed out');
     });
 
     xhr.open('POST', '/upload');
@@ -1155,6 +1222,18 @@
       $quotaFill.className = 'quota-fill' +
         (pct >= 90 ? ' critical' : pct >= 75 ? ' warning' : '');
     });
+  }
+
+  // Debounced quota refresh — during a large batch upload, loadStats() would
+  // otherwise fire once per file (hundreds of /api/user/storage requests).
+  // Collapse them into a single trailing call.
+  var statsRefreshTimer = null;
+  function scheduleStatsRefresh() {
+    if (statsRefreshTimer) clearTimeout(statsRefreshTimer);
+    statsRefreshTimer = setTimeout(function () {
+      statsRefreshTimer = null;
+      loadStats();
+    }, 800);
   }
 
   $upgradeBtn.addEventListener('click', function () {
@@ -1556,55 +1635,84 @@
     });
   }
 
-  // ── Processing Poll ───────────────────────────────────
+  // ── Processing Poll (shared, batched) ─────────────────
+  // One timer for the whole page: each tick asks the server for the status of
+  // every still-processing item in a single request, instead of spinning up a
+  // separate 2s interval per upload (which floods the server on big batches).
   function pollPhotoStatus(id) {
-    if (processingPolls[id]) return;
-    processingPolls[id] = setInterval(function () {
-      apiRequest('GET', '/api/photos/' + id + '/status', null, function (data) {
-        if (data.status === 'ready') {
-          clearInterval(processingPolls[id]);
-          delete processingPolls[id];
+    processingIds[id] = true;
+    if (!processingTimer) {
+      processingTimer = setInterval(pollProcessingBatch, 2000);
+    }
+  }
 
-          // Find the entry to check if it's a video
-          var entry = null;
-          for (var i = 0; i < galleryPhotos.length; i++) {
-            if (galleryPhotos[i].id === id) {
-              galleryPhotos[i].status = 'ready';
-              entry = galleryPhotos[i];
-              break;
-            }
-          }
-
-          var cell = $photoGrid.querySelector('[data-id="' + id + '"]');
-          if (!cell) cell = $allPhotoGrid.querySelector('[data-id="' + id + '"]');
-          if (cell) {
-            cell.innerHTML = '';
-            var checkbox = document.createElement('div');
-            checkbox.className = 'photo-checkbox';
-            cell.appendChild(checkbox);
-            var img = document.createElement('img');
-            img.src = '/photos/' + id + '/thumb.webp';
-            img.loading = 'lazy';
-            cell.appendChild(img);
-            if (entry && isVideoEntry(entry)) {
-              var playIcon = document.createElement('div');
-              playIcon.className = 'video-play-icon';
-              cell.appendChild(playIcon);
-              if (entry.duration) {
-                var dur = document.createElement('div');
-                dur.className = 'video-duration';
-                dur.textContent = formatDuration(entry.duration);
-                cell.appendChild(dur);
-              }
-            }
-          }
-        } else if (data.status === 'failed') {
-          clearInterval(processingPolls[id]);
-          delete processingPolls[id];
-          toast('Processing failed: ' + id, true);
+  function pollProcessingBatch() {
+    var ids = Object.keys(processingIds);
+    if (ids.length === 0) {
+      clearInterval(processingTimer);
+      processingTimer = null;
+      return;
+    }
+    var batch = ids.slice(0, 200); // remaining ids are picked up on the next tick
+    apiRequest('GET', '/api/photos/status?ids=' + encodeURIComponent(batch.join(',')), null, function (data) {
+      if (!data || !data.statuses) return;
+      for (var i = 0; i < batch.length; i++) {
+        var pid = batch[i];
+        var info = data.statuses[pid]; // { status, duration, media_type } or undefined
+        if (!info) {
+          // Unknown id (deleted, or never existed) — stop polling it.
+          delete processingIds[pid];
+        } else if (info.status === 'ready') {
+          delete processingIds[pid];
+          markPhotoReady(pid, info);
+        } else if (info.status === 'failed') {
+          delete processingIds[pid];
+          toast('Processing failed: ' + pid, true);
         }
-      });
-    }, 2000);
+      }
+    });
+  }
+
+  // info (optional) carries fresh { duration, media_type } from the status poll,
+  // so a just-finished video shows its duration without needing a reload.
+  function markPhotoReady(id, info) {
+    var entry = null;
+    for (var i = 0; i < galleryPhotos.length; i++) {
+      if (galleryPhotos[i].id === id) {
+        galleryPhotos[i].status = 'ready';
+        if (info && info.duration != null) galleryPhotos[i].duration = info.duration;
+        entry = galleryPhotos[i];
+        break;
+      }
+    }
+
+    var cell = $photoGrid.querySelector('[data-id="' + id + '"]');
+    if (!cell) cell = $allPhotoGrid.querySelector('[data-id="' + id + '"]');
+    if (!cell) return;
+
+    // Prefer fresh server info; fall back to the (possibly stale) gallery entry.
+    var isVideo = info ? info.media_type === 'video' : (entry && isVideoEntry(entry));
+    var duration = info && info.duration != null ? info.duration : (entry && entry.duration);
+
+    cell.innerHTML = '';
+    var checkbox = document.createElement('div');
+    checkbox.className = 'photo-checkbox';
+    cell.appendChild(checkbox);
+    var img = document.createElement('img');
+    img.src = '/photos/' + id + '/thumb.webp';
+    img.loading = 'lazy';
+    cell.appendChild(img);
+    if (isVideo) {
+      var playIcon = document.createElement('div');
+      playIcon.className = 'video-play-icon';
+      cell.appendChild(playIcon);
+      if (duration) {
+        var dur = document.createElement('div');
+        dur.className = 'video-duration';
+        dur.textContent = formatDuration(duration);
+        cell.appendChild(dur);
+      }
+    }
   }
 
   // ── Lightbox ──────────────────────────────────────────
