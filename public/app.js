@@ -88,6 +88,26 @@
     grid.addEventListener('load', markThumbLoaded, true);
     grid.addEventListener('error', markThumbLoaded, true); // broken thumb: stop shimmering too
   });
+
+  // Placeholder skeleton cells, shown the instant a tab is opened so the grid
+  // shimmers while the list request is still in flight (instead of a blank gap).
+  // Cleared once the first page of real data arrives.
+  var SKELETON_COUNT = 18;
+  function fillGridSkeletons(container) {
+    if (!container) return;
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < SKELETON_COUNT; i++) {
+      var c = document.createElement('div');
+      c.className = 'photo-cell skeleton-cell';
+      frag.appendChild(c);
+    }
+    container.appendChild(frag);
+  }
+  function clearGridSkeletons(container) {
+    if (!container) return;
+    var nodes = container.querySelectorAll('.skeleton-cell');
+    for (var i = 0; i < nodes.length; i++) nodes[i].remove();
+  }
   var videoLongPressed = false;
 
   // ── Theme DOM ──────────────────────────────────────
@@ -1442,6 +1462,7 @@
     $galleryTitle.textContent = albumName;
     $galleryCount.textContent = '';
     $photoGrid.innerHTML = '';
+    fillGridSkeletons($photoGrid);
 
     // Reset scroll state
     galleryOffset = 0;
@@ -1463,6 +1484,7 @@
     setAuthHeader(xhr);
     xhr.addEventListener('load', function () {
       galleryLoading = false;
+      if (galleryOffset === 0) clearGridSkeletons($photoGrid);
       if (xhr.status < 200 || xhr.status >= 300) return;
       var data;
       try { data = JSON.parse(xhr.responseText); } catch (_) { return; }
@@ -1503,7 +1525,10 @@
         $photoGrid.appendChild(galleryScrollLoader.sentinel);
       }
     });
-    xhr.addEventListener('error', function () { galleryLoading = false; });
+    xhr.addEventListener('error', function () {
+      galleryLoading = false;
+      if (galleryOffset === 0) clearGridSkeletons($photoGrid);
+    });
     xhr.send();
   }
 
@@ -2054,6 +2079,7 @@
     if (allPhotosScrollLoader) { allPhotosScrollLoader.destroy(); allPhotosScrollLoader = null; }
 
     $allPhotoGrid.innerHTML = '';
+    fillGridSkeletons($allPhotoGrid);
     // Load album map first, then start paginated photo loading
     apiRequest('GET', '/api/albums', null, function (albums) {
       allPhotosAlbumMap = {};
@@ -2073,6 +2099,7 @@
     setAuthHeader(xhr);
     xhr.addEventListener('load', function () {
       allPhotosLoading = false;
+      if (allPhotosOffset === 0) clearGridSkeletons($allPhotoGrid);
       if (xhr.status < 200 || xhr.status >= 300) return;
       var photos;
       try { photos = JSON.parse(xhr.responseText); } catch (_) { return; }
@@ -2109,7 +2136,10 @@
         $allPhotoGrid.appendChild(allPhotosScrollLoader.sentinel);
       }
     });
-    xhr.addEventListener('error', function () { allPhotosLoading = false; });
+    xhr.addEventListener('error', function () {
+      allPhotosLoading = false;
+      if (allPhotosOffset === 0) clearGridSkeletons($allPhotoGrid);
+    });
     xhr.send();
   }
 
@@ -2183,6 +2213,7 @@
     if (videosScrollLoader) { videosScrollLoader.destroy(); videosScrollLoader = null; }
 
     $videoGrid.innerHTML = '';
+    fillGridSkeletons($videoGrid);
     loadVideosPage();
   }
 
@@ -2195,6 +2226,7 @@
     setAuthHeader(xhr);
     xhr.addEventListener('load', function () {
       videosLoading = false;
+      if (videosOffset === 0) clearGridSkeletons($videoGrid);
       if (xhr.status < 200 || xhr.status >= 300) return;
       var videos;
       try { videos = JSON.parse(xhr.responseText); } catch (_) { return; }
@@ -2230,7 +2262,10 @@
         $videoGrid.appendChild(videosScrollLoader.sentinel);
       }
     });
-    xhr.addEventListener('error', function () { videosLoading = false; });
+    xhr.addEventListener('error', function () {
+      videosLoading = false;
+      if (videosOffset === 0) clearGridSkeletons($videoGrid);
+    });
     xhr.send();
   }
 

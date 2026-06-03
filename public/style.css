@@ -1137,6 +1137,12 @@ body {
   display: none;
 }
 
+/* Placeholder cells while the list request is in flight — just the shimmer. */
+.skeleton-cell {
+  pointer-events: none;
+  cursor: default;
+}
+
 .photo-cell img {
   position: relative;
   z-index: 1;
