@@ -5,7 +5,6 @@ import Fastify from 'fastify'
 import multipart from '@fastify/multipart'
 import cors from '@fastify/cors'
 import staticPlugin from '@fastify/static'
-import compress from '@fastify/compress'
 import rateLimit from '@fastify/rate-limit'
 import cookie from '@fastify/cookie'
 import formbody from '@fastify/formbody'
@@ -28,7 +27,14 @@ export async function createServer(config: PokkitConfig) {
   // gzip/brotli for text responses (JSON API, JS, CSS, HTML). Already-compressed
   // media (webp thumbnails, mp4 video) is flagged non-compressible in mime-db and
   // skipped automatically, so this never wastes CPU re-compressing binaries.
-  await app.register(compress, { global: true, threshold: 1024 })
+  // Loaded optionally so a missing/failed install never blocks server startup
+  // (the deploy host can have a stale node_modules without @fastify/compress).
+  try {
+    const compress = (await import('@fastify/compress')).default
+    await app.register(compress, { global: true, threshold: 1024 })
+  } catch {
+    app.log.warn('@fastify/compress unavailable — responses will not be compressed')
+  }
   await app.register(multipart, { limits: { fileSize: config.maxFileSize } })
   await app.register(cors, { origin: true })
   await app.register(cookie)
