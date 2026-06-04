@@ -52,7 +52,7 @@
 body {
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-family: 'Inter', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'JetBrains Mono', 'Noto Sans TC', ui-monospace, 'Cascadia Code', monospace;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
