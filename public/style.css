@@ -1833,11 +1833,13 @@ body.mode-dashboard .landing-only {
   display: flex;
 }
 
-/* Pokkit-style card modal — FIXED size so it never jumps between items */
+/* Pokkit-style card modal — fixed HEIGHT (no vertical jump), width hugs the
+   media so portrait gets a tall narrow window and landscape a wide one. */
 .lightbox-card {
   display: flex;
   flex-direction: column;
-  width: min(960px, 92vw);
+  width: auto;
+  max-width: 94vw;
   height: min(86vh, 820px);
   background: var(--bg-secondary);
   border: 1px solid var(--border-default);
@@ -1851,6 +1853,7 @@ body.mode-dashboard .landing-only {
 .lightbox-media {
   flex: 1;
   min-height: 0;
+  min-width: 260px;
   position: relative;
   display: flex;
   align-items: center;
@@ -1928,13 +1931,20 @@ body.mode-dashboard .landing-only {
 
 .lightbox-img {
   position: relative;
-  max-width: 100%;
+  max-width: 94vw;
   max-height: 100%;
+  width: auto;
+  height: auto;
   object-fit: contain;
   user-select: none;
-  display: block;
   opacity: 0;
   transition: opacity var(--transition);
+}
+
+/* `hidden` must win over the rules above, or the inactive img/video shows too */
+.lightbox-img[hidden],
+.lightbox-video[hidden] {
+  display: none !important;
 }
 
 .lightbox-media.loaded .lightbox-img,
@@ -2412,11 +2422,12 @@ body.mode-dashboard .landing-only {
 
 .lightbox-video {
   position: relative;
-  max-width: 100%;
+  max-width: 94vw;
   max-height: 100%;
+  width: auto;
+  height: auto;
   outline: none;
   background: #000;
-  display: block;
   opacity: 0;
   transition: opacity var(--transition);
 }
