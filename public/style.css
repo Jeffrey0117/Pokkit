@@ -1595,15 +1595,24 @@ body {
 /* ── Lightbox Notes ───────────────────────────────────── */
 
 .lightbox-notes {
-  width: 100%;
-  max-width: 600px;
-  /* Collapsed by default — toggled open via the "Note" button so it never
-     covers the video controls. */
+  /* Collapsed by default — toggled open via the "Note" button. When open it
+     floats near the top, never over the bottom video controls. */
   display: none;
 }
 
 .lightbox.notes-open .lightbox-notes {
   display: block;
+  position: absolute;
+  top: 72px;
+  left: 16px;
+  right: 140px; /* clear the right action rail */
+  max-width: 600px;
+  z-index: 216;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.66);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 /* Dot on the Note button when this item already has notes */
@@ -1668,11 +1677,19 @@ body {
 }
 
 .lightbox-actions {
+  position: absolute;
+  top: 72px;
+  right: 16px;
+  z-index: 215;
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
   gap: 8px;
 }
 
 .lightbox-action-btn {
+  text-align: left;
+  white-space: nowrap;
   padding: 8px 16px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
