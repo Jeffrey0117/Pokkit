@@ -615,11 +615,14 @@
   // ── Folder Reading ─────────────────────────────────────
   var MEDIA_EXTS = /\.(jpe?g|png|webp|heic|heif|avif|gif|mp4|mov|avi|webm|mkv|m4v|3gp)$/i;
 
-  function readEntriesRecursive(entry) {
+  function readEntriesRecursive(entry, topLevel) {
     return new Promise(function (resolve) {
       if (entry.isFile) {
         entry.file(function (f) {
-          resolve(MEDIA_EXTS.test(f.name) ? [f] : []);
+          // Directly-dropped files: accept anything (PDFs, docs, zips…).
+          // Files found *inside* a dropped folder: media only, so a folder
+          // drag doesn't slurp junk (.DS_Store, Thumbs.db, etc.).
+          resolve(topLevel || MEDIA_EXTS.test(f.name) ? [f] : []);
         }, function () { resolve([]); });
       } else if (entry.isDirectory) {
         var reader = entry.createReader();
@@ -627,9 +630,10 @@
         (function readBatch() {
           reader.readEntries(function (entries) {
             if (entries.length === 0) {
-              Promise.all(allEntries.map(readEntriesRecursive)).then(function (results) {
-                resolve([].concat.apply([], results));
-              });
+              Promise.all(allEntries.map(function (e) { return readEntriesRecursive(e, false); }))
+                .then(function (results) {
+                  resolve([].concat.apply([], results));
+                });
             } else {
               allEntries = allEntries.concat(Array.from(entries));
               readBatch();
@@ -657,7 +661,7 @@
       if (dataTransfer.files.length > 0) handleFiles(dataTransfer.files);
       return;
     }
-    Promise.all(entries.map(readEntriesRecursive)).then(function (results) {
+    Promise.all(entries.map(function (e) { return readEntriesRecursive(e, true); })).then(function (results) {
       var files = [].concat.apply([], results);
       if (files.length > 0) handleFiles(files);
       else toast('No media files found in folder');
