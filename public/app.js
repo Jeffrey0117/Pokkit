@@ -2062,6 +2062,11 @@
     }
     if ($lightboxNoteToggle) $lightboxNoteToggle.classList.toggle('has-notes', !!photo.notes);
 
+    // Reset skeleton: media fades in once loaded, so the fixed window never pops.
+    var $media = $lightboxImg.parentNode;
+    if ($media) $media.classList.remove('loaded');
+    var markLoaded = function () { if ($media) $media.classList.add('loaded'); };
+
     if (isVideoEntry(photo)) {
       // Clean up previous video before loading new one
       $lightboxVideo.pause();
@@ -2070,6 +2075,7 @@
       $lightboxVideo.hidden = false;
       // Show the thumbnail instantly as a poster instead of a black frame while buffering
       $lightboxVideo.poster = '/photos/' + photo.id + '/thumb.webp';
+      $lightboxVideo.onloadedmetadata = markLoaded;
       $lightboxVideo.src = '/photos/' + photo.id + '/video.mp4';
       $lightboxVideo.load();
     } else {
@@ -2077,7 +2083,9 @@
       $lightboxVideo.removeAttribute('src');
       $lightboxVideo.hidden = true;
       $lightboxImg.hidden = false;
+      $lightboxImg.onload = markLoaded;
       $lightboxImg.src = '/photos/' + photo.id + '/photo.webp';
+      if ($lightboxImg.complete) markLoaded();
     }
   }
 

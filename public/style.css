@@ -734,7 +734,9 @@ body.mode-dashboard .landing-only {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
 }
 
 .section-title {
@@ -1831,12 +1833,12 @@ body.mode-dashboard .landing-only {
   display: flex;
 }
 
-/* Pokkit-style card modal (instead of full-screen blackout) */
+/* Pokkit-style card modal — FIXED size so it never jumps between items */
 .lightbox-card {
   display: flex;
   flex-direction: column;
-  max-width: 92vw;
-  max-height: 92vh;
+  width: min(960px, 92vw);
+  height: min(86vh, 820px);
   background: var(--bg-secondary);
   border: 1px solid var(--border-default);
   border-radius: var(--radius);
@@ -1844,13 +1846,30 @@ body.mode-dashboard .landing-only {
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
 }
 
+/* Media viewport — fixed; the photo/video is contained + centred inside, with
+   a skeleton shimmer until it loads (so the window doesn't pop in). */
 .lightbox-media {
+  flex: 1;
+  min-height: 0;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #0a0a0a;
   overflow: hidden;
-  min-height: 0;
+}
+
+.lightbox-media::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, #0d0d0d 30%, #1c1c1c 50%, #0d0d0d 70%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.lightbox-media.loaded::before {
+  display: none;
 }
 
 .lightbox-header {
@@ -1908,11 +1927,19 @@ body.mode-dashboard .landing-only {
 }
 
 .lightbox-img {
-  max-width: 88vw;
-  max-height: 76vh;
+  position: relative;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   user-select: none;
   display: block;
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+.lightbox-media.loaded .lightbox-img,
+.lightbox-media.loaded .lightbox-video {
+  opacity: 1;
 }
 
 .lightbox-nav {
@@ -2384,11 +2411,14 @@ body.mode-dashboard .landing-only {
 }
 
 .lightbox-video {
-  max-width: 88vw;
-  max-height: 76vh;
+  position: relative;
+  max-width: 100%;
+  max-height: 100%;
   outline: none;
   background: #000;
   display: block;
+  opacity: 0;
+  transition: opacity var(--transition);
 }
 
 .swipe-card video {
