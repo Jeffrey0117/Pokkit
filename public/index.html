@@ -43,23 +43,23 @@
       <nav class="side-nav">
         <a class="side-link" href="/folders" data-route="folders">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-          <span>Folders</span>
+          <span data-i18n="Folders">Folders</span>
         </a>
         <a class="side-link" href="/photos" data-route="photos">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
-          <span>Photos</span>
+          <span data-i18n="Photos">Photos</span>
         </a>
         <a class="side-link" href="/videos" data-route="videos">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="14" height="14" rx="2"/><path d="m22 8-6 4 6 4z"/></svg>
-          <span>Videos</span>
+          <span data-i18n="Videos">Videos</span>
         </a>
         <a class="side-link" href="/files" data-route="files">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
-          <span>Files</span>
+          <span data-i18n="Files">Files</span>
         </a>
         <a class="side-link" href="/account" data-route="account">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>
-          <span>Account</span>
+          <span data-i18n="Account">Account</span>
         </a>
       </nav>
 
@@ -76,6 +76,7 @@
         </div>
         <div class="side-footer-row">
           <span class="user-name" id="userName"></span>
+          <button class="lang-toggle" type="button" title="Language">中</button>
           <div class="theme-toggle" id="themeToggle" title="Toggle theme">
             <span class="theme-toggle-option" id="themeLight">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -85,8 +86,8 @@
             </span>
           </div>
         </div>
-        <button class="btn" id="loginBtn" hidden>Login</button>
-        <button class="btn" id="logoutBtn" hidden>Logout</button>
+        <button class="btn" id="loginBtn" data-i18n="Login" hidden>Login</button>
+        <button class="btn" id="logoutBtn" data-i18n="Logout" hidden>Logout</button>
       </div>
     </aside>
     <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
@@ -104,9 +105,10 @@
         </a>
         <div class="nav-right">
           <span class="user-name" id="userNameLanding"></span>
-          <button class="btn btn-primary" id="enterDashboardBtn">Dashboard &rarr;</button>
-          <button class="btn" id="loginBtnLanding" hidden>Login</button>
-          <button class="btn" id="logoutBtnLanding" hidden>Logout</button>
+          <button class="lang-toggle" type="button" title="Language">中</button>
+          <button class="btn btn-primary" id="enterDashboardBtn" data-i18n="Dashboard →">Dashboard &rarr;</button>
+          <button class="btn" id="loginBtnLanding" data-i18n="Login" hidden>Login</button>
+          <button class="btn" id="logoutBtnLanding" data-i18n="Logout" hidden>Logout</button>
         </div>
       </nav>
 
@@ -115,13 +117,13 @@
         <button class="sidebar-toggle" id="sidebarToggle" aria-label="Menu">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
-        <a href="/" class="topbar-home" id="topbarHome" data-route="home">&larr; Home</a>
-        <button class="btn btn-primary upload-fab" id="uploadFab">&#8593; Upload</button>
+        <a href="/" class="topbar-home" id="topbarHome" data-route="home" data-i18n="← Home">&larr; Home</a>
+        <button class="btn btn-primary upload-fab" id="uploadFab" data-i18n="↑ Upload">&#8593; Upload</button>
       </div>
 
       <section class="hero landing-only">
-        <h1 class="hero-title">Drop. Share. Done.</h1>
-        <p class="hero-subtitle">Free file sharing with password protection and auto-expiry. No signup, no limits, no tracking.</p>
+        <h1 class="hero-title" data-i18n="Drop. Share. Done.">Drop. Share. Done.</h1>
+        <p class="hero-subtitle" data-i18n="Free file sharing with password protection and auto-expiry. No signup, no limits, no tracking.">Free file sharing with password protection and auto-expiry. No signup, no limits, no tracking.</p>
       </section>
 
     <section class="editor" id="dropzone" tabindex="0" role="button" aria-label="Upload files">
@@ -133,25 +135,25 @@
             <line x1="12" y1="3" x2="12" y2="15"/>
           </svg>
         </div>
-        <p class="drop-text">Drop files here to upload</p>
-        <p class="drop-hint">or click to browse &middot; supports folders</p>
+        <p class="drop-text" data-i18n="Drop files here to upload">Drop files here to upload</p>
+        <p class="drop-hint" data-i18n="or click to browse · supports folders">or click to browse &middot; supports folders</p>
       </div>
       <input type="file" id="fileInput" multiple hidden>
     </section>
 
     <section class="upload-options" id="uploadOptions">
       <div class="option-row">
-        <label class="option-label" for="passwordInput">Password</label>
-        <input type="password" id="passwordInput" class="option-input" placeholder="Optional" autocomplete="off">
+        <label class="option-label" for="passwordInput" data-i18n="Password">Password</label>
+        <input type="password" id="passwordInput" class="option-input" placeholder="Optional" data-i18n-ph="Optional" autocomplete="off">
       </div>
       <div class="option-row">
-        <label class="option-label" for="expirySelect">Expires</label>
+        <label class="option-label" for="expirySelect" data-i18n="Expires">Expires</label>
         <select id="expirySelect" class="option-select">
-          <option value="forever" selected>Never</option>
-          <option value="1h">1 hour</option>
-          <option value="1d">1 day</option>
-          <option value="7d">7 days</option>
-          <option value="30d">30 days</option>
+          <option value="forever" data-i18n-opt="Never" selected>Never</option>
+          <option value="1h" data-i18n-opt="1 hour">1 hour</option>
+          <option value="1d" data-i18n-opt="1 day">1 day</option>
+          <option value="7d" data-i18n-opt="7 days">7 days</option>
+          <option value="30d" data-i18n-opt="30 days">30 days</option>
         </select>
       </div>
     </section>
@@ -166,37 +168,37 @@
           <div class="feature-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           </div>
-          <h3 class="feature-title">Password Protected</h3>
-          <p class="feature-desc">Lock files with a password. Only people you share the password with can download.</p>
+          <h3 class="feature-title" data-i18n="Password Protected">Password Protected</h3>
+          <p class="feature-desc" data-i18n="Lock files with a password. Only people you share the password with can download.">Lock files with a password. Only people you share the password with can download.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </div>
-          <h3 class="feature-title">Auto-Expiry</h3>
-          <p class="feature-desc">Files self-destruct after your chosen time. 1 hour, 1 day, 7 days, or 30 days.</p>
+          <h3 class="feature-title" data-i18n="Auto-Expiry">Auto-Expiry</h3>
+          <p class="feature-desc" data-i18n="Files self-destruct after your chosen time. 1 hour, 1 day, 7 days, or 30 days.">Files self-destruct after your chosen time. 1 hour, 1 day, 7 days, or 30 days.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
           </div>
-          <h3 class="feature-title">No Signup</h3>
-          <p class="feature-desc">Upload instantly. No account, no email, no personal data collected. Just files.</p>
+          <h3 class="feature-title" data-i18n="No Signup">No Signup</h3>
+          <p class="feature-desc" data-i18n="Upload instantly. No account, no email, no personal data collected. Just files.">Upload instantly. No account, no email, no personal data collected. Just files.</p>
         </div>
       </div>
     </section>
 
     <section class="view-tabs landing-only" id="viewTabs">
-      <button class="tab active" data-tab="files">Files</button>
-      <button class="tab" data-tab="albums">Albums</button>
-      <button class="tab" data-tab="photos">Photos</button>
-      <button class="tab" data-tab="videos">Videos</button>
+      <button class="tab active" data-tab="files" data-i18n="Files">Files</button>
+      <button class="tab" data-tab="albums" data-i18n="Albums">Albums</button>
+      <button class="tab" data-tab="photos" data-i18n="Photos">Photos</button>
+      <button class="tab" data-tab="videos" data-i18n="Videos">Videos</button>
     </section>
 
     <section class="files-section" id="filesSection" hidden>
       <div class="section-header">
-        <h2 class="section-title">Files</h2>
-        <label class="select-all-label"><input type="checkbox" id="selectAllFiles"> Select all</label>
+        <h2 class="section-title" data-i18n="Files">Files</h2>
+        <label class="select-all-label"><input type="checkbox" id="selectAllFiles"> <span data-i18n="Select all">Select all</span></label>
       </div>
       <div id="fileList">
         <div class="empty-state" id="emptyState">
@@ -209,45 +211,45 @@
     <div class="dl-bar" id="dlBar" hidden>
       <span class="selection-count" id="dlCount">0 selected</span>
       <div class="selection-actions">
-        <button class="btn" id="dlClear">Clear</button>
-        <button class="btn btn-primary" id="dlDownload">Download</button>
+        <button class="btn" id="dlClear" data-i18n="Clear">Clear</button>
+        <button class="btn btn-primary" id="dlDownload" data-i18n="Download">Download</button>
       </div>
     </div>
 
     <section class="albums-section" id="albumsSection" hidden>
       <div class="section-header">
-        <h2 class="section-title">Albums</h2>
-        <button class="btn btn-primary" id="newAlbumBtn">+ New Album</button>
+        <h2 class="section-title" data-i18n="Folders">Albums</h2>
+        <button class="btn btn-primary" id="newAlbumBtn" data-i18n="+ New Album">+ New Album</button>
       </div>
       <div class="album-grid" id="albumGrid"></div>
     </section>
 
     <section class="photos-section" id="photosSection" hidden>
       <div class="section-header">
-        <h2 class="section-title">All Photos</h2>
-        <button class="btn" id="allPhotosSelect">Select</button>
+        <h2 class="section-title" data-i18n="All Photos">All Photos</h2>
+        <button class="btn" id="allPhotosSelect" data-i18n="Select">Select</button>
       </div>
       <div class="photo-grid" id="allPhotoGrid"></div>
     </section>
 
     <section class="photos-section" id="videosSection" hidden>
       <div class="section-header">
-        <h2 class="section-title">Videos</h2>
-        <button class="btn" id="videoSelectToggle">Select</button>
+        <h2 class="section-title" data-i18n="Videos">Videos</h2>
+        <button class="btn" id="videoSelectToggle" data-i18n="Select">Select</button>
       </div>
       <div class="photo-grid" id="videoGrid"></div>
     </section>
 
     <section class="gallery-section" id="gallerySection" hidden>
       <div class="section-header">
-        <button class="btn" id="backToAlbums">&larr; Albums</button>
+        <button class="btn" id="backToAlbums" data-i18n="← Albums">&larr; Albums</button>
         <h2 class="section-title" id="galleryTitle"></h2>
         <span class="gallery-count" id="galleryCount"></span>
         <div class="gallery-header-actions">
-          <button class="btn" id="gallerySelect">Select</button>
-          <button class="btn" id="galleryCleanup">Cleanup</button>
-          <button class="btn" id="galleryRename">Rename</button>
-          <button class="btn btn-danger" id="galleryDelete">Delete Album</button>
+          <button class="btn" id="gallerySelect" data-i18n="Select">Select</button>
+          <button class="btn" id="galleryCleanup" data-i18n="Cleanup">Cleanup</button>
+          <button class="btn" id="galleryRename" data-i18n="Rename">Rename</button>
+          <button class="btn btn-danger" id="galleryDelete" data-i18n="Delete Album">Delete Album</button>
         </div>
       </div>
       <div class="gallery-dropzone" id="galleryDropzone" tabindex="0" role="button" aria-label="Upload photos">
@@ -256,40 +258,40 @@
           <polyline points="17 8 12 3 7 8"/>
           <line x1="12" y1="3" x2="12" y2="15"/>
         </svg>
-        <span>Drop photos here or click to upload</span>
+        <span data-i18n="Drop photos here or click to upload">Drop photos here or click to upload</span>
       </div>
       <div class="photo-grid" id="photoGrid"></div>
     </section>
 
     <section class="account-section" id="accountSection" hidden>
-      <div class="section-header"><h2 class="section-title">Account</h2></div>
+      <div class="section-header"><h2 class="section-title" data-i18n="Account">Account</h2></div>
       <div class="account-grid">
         <div class="account-card">
-          <div class="account-card-label">Storage</div>
+          <div class="account-card-label" data-i18n="Storage">Storage</div>
           <div class="account-storage-text" id="acctStorageText">&mdash;</div>
           <div class="quota-bar"><div class="quota-fill" id="acctQuotaFill"></div></div>
           <div class="account-tier-row">
             <span class="quota-tier" id="acctTier"></span>
-            <button class="btn btn-upgrade" id="acctUpgrade" hidden>Upgrade</button>
+            <button class="btn btn-upgrade" id="acctUpgrade" data-i18n="Upgrade" hidden>Upgrade</button>
           </div>
         </div>
         <div class="account-card">
-          <div class="account-card-label">Library</div>
+          <div class="account-card-label" data-i18n="Library">Library</div>
           <div class="account-stats">
-            <div class="account-stat"><span class="account-stat-num" id="acctPhotos">&mdash;</span><span class="account-stat-label">Photos</span></div>
-            <div class="account-stat"><span class="account-stat-num" id="acctVideos">&mdash;</span><span class="account-stat-label">Videos</span></div>
-            <div class="account-stat"><span class="account-stat-num" id="acctFiles">&mdash;</span><span class="account-stat-label">Files</span></div>
+            <div class="account-stat"><span class="account-stat-num" id="acctPhotos">&mdash;</span><span class="account-stat-label" data-i18n="Photos">Photos</span></div>
+            <div class="account-stat"><span class="account-stat-num" id="acctVideos">&mdash;</span><span class="account-stat-label" data-i18n="Videos">Videos</span></div>
+            <div class="account-stat"><span class="account-stat-num" id="acctFiles">&mdash;</span><span class="account-stat-label" data-i18n="Files">Files</span></div>
           </div>
         </div>
         <div class="account-card">
-          <div class="account-card-label">Settings</div>
+          <div class="account-card-label" data-i18n="Settings">Settings</div>
           <div class="account-setting-row">
-            <span>Theme</span>
-            <button class="btn" id="acctThemeToggle">Toggle</button>
+            <span data-i18n="Theme">Theme</span>
+            <button class="btn" id="acctThemeToggle" data-i18n="Toggle">Toggle</button>
           </div>
           <div class="account-setting-row">
             <span class="account-email" id="acctEmail"></span>
-            <button class="btn" id="acctLogout">Logout</button>
+            <button class="btn" id="acctLogout" data-i18n="Logout">Logout</button>
           </div>
         </div>
       </div>
@@ -317,18 +319,18 @@
       <div class="lightbox-bottom">
         <div class="lightbox-info" id="lightboxInfo"></div>
         <div class="lightbox-actions">
-          <button class="lightbox-action-btn" id="lightboxNoteToggle" title="Notes">&#9998; Note</button>
-          <a class="lightbox-action-btn" id="lightboxDownload" title="Download" download>&#8595; Download</a>
-          <button class="lightbox-action-btn" id="lightboxLocate" title="Open on this machine" hidden>&#9783; Locate</button>
-          <button class="lightbox-action-btn" id="lightboxCover" title="Set as cover">&#9733; Cover</button>
-          <button class="lightbox-action-btn lightbox-action-danger" id="lightboxDelete" title="Delete photo">&#10005; Delete</button>
+          <button class="lightbox-action-btn" id="lightboxNoteToggle" title="Notes">&#9998; <span data-i18n="Note">Note</span></button>
+          <a class="lightbox-action-btn" id="lightboxDownload" title="Download" download>&#8595; <span data-i18n="Download">Download</span></a>
+          <button class="lightbox-action-btn" id="lightboxLocate" title="Open on this machine" hidden>&#9783; <span data-i18n="Locate">Locate</span></button>
+          <button class="lightbox-action-btn" id="lightboxCover" title="Set as cover">&#9733; <span data-i18n="Cover">Cover</span></button>
+          <button class="lightbox-action-btn lightbox-action-danger" id="lightboxDelete" title="Delete photo">&#10005; <span data-i18n="Delete">Delete</span></button>
         </div>
       </div>
     </div>
 
     <div class="swipe-mode" id="swipeMode">
       <div class="swipe-header">
-        <button class="btn" id="swipeClose">&larr; Back</button>
+        <button class="btn" id="swipeClose" data-i18n="← Back">&larr; Back</button>
         <span class="swipe-progress" id="swipeProgress"></span>
       </div>
       <div class="swipe-stage" id="swipeStage">
@@ -338,13 +340,13 @@
         <div class="swipe-card" id="swipeCard">
           <img id="swipeImg" alt="">
           <video id="swipeVideo" playsinline muted loop preload="metadata" hidden></video>
-          <div class="swipe-stamp swipe-stamp-keep" id="swipeStampKeep">KEEP</div>
-          <div class="swipe-stamp swipe-stamp-delete" id="swipeStampDelete">DELETE</div>
+          <div class="swipe-stamp swipe-stamp-keep" id="swipeStampKeep" data-i18n="KEEP">KEEP</div>
+          <div class="swipe-stamp swipe-stamp-delete" id="swipeStampDelete" data-i18n="DELETE">DELETE</div>
         </div>
       </div>
       <div class="swipe-hint" id="swipeHint">
-        <span class="swipe-hint-left">&larr; Delete</span>
-        <span class="swipe-hint-right">Keep &rarr;</span>
+        <span class="swipe-hint-left" data-i18n="← Delete">&larr; Delete</span>
+        <span class="swipe-hint-right" data-i18n="Keep →">Keep &rarr;</span>
       </div>
       <div class="swipe-actions" id="swipeActions">
         <button class="swipe-btn swipe-btn-delete" id="swipeBtnDelete">&#10005;</button>
@@ -352,25 +354,25 @@
       </div>
       <div class="swipe-summary" id="swipeSummary">
         <div class="swipe-summary-icon">&#10003;</div>
-        <div class="swipe-summary-title">Review Complete</div>
+        <div class="swipe-summary-title" data-i18n="Review Complete">Review Complete</div>
         <div class="swipe-summary-stats" id="swipeSummaryStats"></div>
-        <button class="btn btn-primary" id="swipeSummaryDone">Done</button>
+        <button class="btn btn-primary" id="swipeSummaryDone" data-i18n="Done">Done</button>
       </div>
     </div>
 
     <div class="selection-bar" id="selectionBar">
       <span class="selection-count" id="selectionCount">0 selected</span>
-      <button class="btn" id="selectionDownload">Download</button>
-      <button class="btn btn-primary" id="selectionMove">Move to...</button>
-      <button class="btn" id="selectionCancel">Cancel</button>
+      <button class="btn" id="selectionDownload" data-i18n="Download">Download</button>
+      <button class="btn btn-primary" id="selectionMove" data-i18n="Move to...">Move to...</button>
+      <button class="btn" id="selectionCancel" data-i18n="Cancel">Cancel</button>
     </div>
 
     <div class="album-picker" id="albumPicker">
       <div class="album-picker-overlay" id="albumPickerOverlay"></div>
       <div class="album-picker-modal">
-        <div class="album-picker-title">Move to Album</div>
+        <div class="album-picker-title" data-i18n="Move to Album">Move to Album</div>
         <div class="album-picker-list" id="albumPickerList"></div>
-        <button class="album-picker-new" id="albumPickerNew">+ Create New Album</button>
+        <button class="album-picker-new" id="albumPickerNew" data-i18n="+ Create New Album">+ Create New Album</button>
       </div>
     </div>
 
@@ -379,6 +381,7 @@
 
   <div class="toast" id="toast"></div>
 
+  <script src="/i18n.js?v=__I18N_HASH__"></script>
   <script src="/app.js?v=__JS_HASH__"></script>
 </body>
 </html>

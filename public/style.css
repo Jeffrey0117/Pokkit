@@ -185,6 +185,25 @@ body {
   font-weight: 500;
 }
 
+.lang-toggle {
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: var(--transition);
+}
+
+.lang-toggle:hover {
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+}
+
 .topbar-home:hover {
   color: var(--text-primary);
 }

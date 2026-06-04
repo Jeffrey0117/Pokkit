@@ -59,16 +59,18 @@ export async function createServer(config: PokkitConfig) {
   const indexPath = join(publicDir, 'index.html')
   const cssPath = join(publicDir, 'style.css')
   const jsPath = join(publicDir, 'app.js')
+  const i18nPath = join(publicDir, 'i18n.js')
 
   let cachedHtml = ''
   let cachedSig = ''
 
   function buildIndexHtml(): string {
-    const sig = [indexPath, cssPath, jsPath].map((p) => statSync(p).mtimeMs).join(':')
+    const sig = [indexPath, cssPath, jsPath, i18nPath].map((p) => statSync(p).mtimeMs).join(':')
     if (sig !== cachedSig) {
       cachedHtml = readFileSync(indexPath, 'utf-8')
         .replace('__CSS_HASH__', fileHash(cssPath))
         .replace('__JS_HASH__', fileHash(jsPath))
+        .replace('__I18N_HASH__', fileHash(i18nPath))
       cachedSig = sig
     }
     return cachedHtml

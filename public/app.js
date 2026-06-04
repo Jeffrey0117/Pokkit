@@ -363,7 +363,7 @@
 
   // ── Toast ───────────────────────────────────────────────
   function toast(msg, isError) {
-    $toast.textContent = msg;
+    $toast.textContent = window.t ? window.t(msg) : msg;
     $toast.className = 'toast show' + (isError ? ' error' : '');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () {
