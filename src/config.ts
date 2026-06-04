@@ -21,6 +21,10 @@ export interface PokkitConfig {
   // LetMeUse users (userId or email) allowed to use the cross-account admin
   // view. Empty = no human is admin (only the global API key / is_admin accounts).
   adminUsers: string[]
+  // 🔒 LetMeUse HS256 signing secret — 用來「驗」token 簽章 (不是只 decode)。
+  // 缺它 = 拒絕所有 LetMeUse token (fail-closed), 別讓偽造 token 闖進來。
+  letmeuseAppSecret: string
+  letmeuseAppId: string
 }
 
 function parseArgs(args: string[]): Partial<PokkitConfig> {
@@ -49,5 +53,7 @@ export function loadConfig(): PokkitConfig {
     publicUrl: (cliArgs.publicUrl ?? process.env.POKKIT_PUBLIC_URL ?? '').replace(/\/$/, ''),
     premiumUserIds: (process.env.POKKIT_PREMIUM_USERS ?? '').split(',').filter(Boolean),
     adminUsers: (process.env.POKKIT_ADMIN_USERS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+    letmeuseAppSecret: process.env.LETMEUSE_APP_SECRET ?? '',
+    letmeuseAppId: process.env.LETMEUSE_APP_ID ?? '',
   }
 }
