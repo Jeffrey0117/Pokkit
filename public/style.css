@@ -1737,78 +1737,102 @@ body.mode-dashboard .landing-only {
   position: fixed;
   inset: 0;
   z-index: 200;
-  background: rgba(0, 0, 0, 0.95);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   display: none;
   align-items: center;
   justify-content: center;
+  padding: 24px;
 }
 
 .lightbox.active {
   display: flex;
 }
 
+/* Pokkit-style card modal (instead of full-screen blackout) */
+.lightbox-card {
+  display: flex;
+  flex-direction: column;
+  max-width: 92vw;
+  max-height: 92vh;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+}
+
+.lightbox-media {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0a0a0a;
+  overflow: hidden;
+}
+
 .lightbox-header {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  padding: 16px 20px;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), transparent);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  z-index: 210;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-default);
 }
 
 .lightbox-filename {
-  color: #fff;
-  font-size: 0.875rem;
+  color: var(--text-primary);
+  font-size: 0.8125rem;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 50vw;
+  max-width: 60vw;
 }
 
 .lightbox-header-right {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .lightbox-counter {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-tertiary);
   font-size: 0.8125rem;
   font-family: 'JetBrains Mono', monospace;
   font-variant-numeric: tabular-nums;
 }
 
 .lightbox-close {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   font-size: 20px;
   cursor: pointer;
-  z-index: 210;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 
 .lightbox-close:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: var(--bg-elevated);
+  border-color: var(--border-hover);
 }
 
 .lightbox-img {
-  max-width: 90vw;
-  max-height: 85vh;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
-  border-radius: var(--radius-sm);
   user-select: none;
+  display: block;
 }
 
 .lightbox-nav {
@@ -1847,30 +1871,18 @@ body.mode-dashboard .landing-only {
 }
 
 .lightbox-bottom {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 20px;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
+  flex-shrink: 0;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-default);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  z-index: 210;
-  /* Let clicks fall through to the video's native controls; only the actual
-     buttons/notes panel capture clicks. */
-  pointer-events: none;
-}
-
-.lightbox-info,
-.lightbox-actions,
-.lightbox-notes {
-  pointer-events: auto;
 }
 
 .lightbox-info {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-tertiary);
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.6875rem;
   font-weight: 500;
@@ -1888,22 +1900,18 @@ body.mode-dashboard .landing-only {
 .lightbox.notes-open .lightbox-notes {
   display: block;
   position: absolute;
-  top: 64px;
-  right: 0;
-  bottom: 0;
-  width: min(340px, 80vw);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(440px, 90vw);
+  max-height: 70vh;
   z-index: 216;
   padding: 16px;
   overflow-y: auto;
-  background: rgba(0, 0, 0, 0.82);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-left: 1px solid rgba(255, 255, 255, 0.15);
-}
-
-/* Hide the side nav arrow while the notes panel is open (they'd overlap) */
-.lightbox.notes-open .lightbox-next {
-  display: none;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
 }
 
 /* Dot on the Note button when this item already has notes */
@@ -1920,12 +1928,12 @@ body.mode-dashboard .landing-only {
 }
 
 .lightbox-notes-display {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
   font-size: 0.8125rem;
   line-height: 1.6;
   cursor: pointer;
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   transition: background 0.2s ease;
   min-height: 28px;
   white-space: pre-wrap;
@@ -1933,23 +1941,21 @@ body.mode-dashboard .landing-only {
 }
 
 .lightbox-notes-display:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-tertiary);
 }
 
 .lightbox-notes-display.placeholder {
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-tertiary);
   font-style: italic;
 }
 
 .lightbox-notes-edit {
   width: 100%;
   padding: 8px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  color: #fff;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   font-family: inherit;
   font-size: 0.8125rem;
   line-height: 1.6;
@@ -1959,11 +1965,11 @@ body.mode-dashboard .landing-only {
 }
 
 .lightbox-notes-edit:focus {
-  border-color: rgba(255, 255, 255, 0.5);
+  border-color: var(--border-focus);
 }
 
 .lightbox-notes-edit::placeholder {
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-tertiary);
   font-style: italic;
 }
 
@@ -1975,29 +1981,28 @@ body.mode-dashboard .landing-only {
 }
 
 .lightbox-action-btn {
-  padding: 8px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  color: #fff;
+  padding: 7px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   font-size: 0.75rem;
   font-family: inherit;
   font-weight: 600;
   cursor: pointer;
+  text-decoration: none;
   transition: background 0.2s ease, border-color 0.2s ease;
 }
 
 .lightbox-action-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.4);
+  background: var(--bg-elevated);
+  border-color: var(--border-hover);
 }
 
 .lightbox-action-danger:hover {
   border-color: var(--status-failed);
-  color: #ff6b6b;
-  background: rgba(239, 68, 68, 0.2);
+  color: var(--status-failed);
+  background: transparent;
 }
 
 /* ── Swipe Cleanup Mode ────────────────────────────────── */
@@ -2299,11 +2304,11 @@ body.mode-dashboard .landing-only {
 }
 
 .lightbox-video {
-  max-width: 90vw;
-  max-height: 80vh;
-  border-radius: 8px;
+  max-width: 100%;
+  max-height: 100%;
   outline: none;
   background: #000;
+  display: block;
 }
 
 .swipe-card video {

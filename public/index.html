@@ -298,33 +298,35 @@
     </section>
 
     <div class="lightbox" id="lightbox">
-      <div class="lightbox-header">
-        <div class="lightbox-filename" id="lightboxFilename"></div>
-        <div class="lightbox-header-right">
-          <span class="lightbox-counter" id="lightboxCounter"></span>
-          <button class="lightbox-close" id="lightboxClose">&times;</button>
-        </div>
-      </div>
       <button class="lightbox-nav lightbox-prev" id="lightboxPrev">&lsaquo;</button>
       <button class="lightbox-nav lightbox-next" id="lightboxNext">&rsaquo;</button>
-      <img class="lightbox-img" id="lightboxImg" alt="">
-      <video class="lightbox-video" id="lightboxVideo" controls playsinline preload="metadata" hidden></video>
-      <!-- Notes panel: slides in on the right when opened, so it never covers
-           the video or its bottom controls -->
+      <div class="lightbox-card">
+        <div class="lightbox-header">
+          <div class="lightbox-filename" id="lightboxFilename"></div>
+          <div class="lightbox-header-right">
+            <span class="lightbox-counter" id="lightboxCounter"></span>
+            <button class="lightbox-close" id="lightboxClose">&times;</button>
+          </div>
+        </div>
+        <div class="lightbox-media">
+          <img class="lightbox-img" id="lightboxImg" alt="">
+          <video class="lightbox-video" id="lightboxVideo" controls playsinline preload="metadata" hidden></video>
+        </div>
+        <div class="lightbox-bottom">
+          <div class="lightbox-info" id="lightboxInfo"></div>
+          <div class="lightbox-actions">
+            <button class="lightbox-action-btn" id="lightboxNoteToggle" title="Notes">&#9998; <span data-i18n="Note">Note</span></button>
+            <a class="lightbox-action-btn" id="lightboxDownload" title="Download" download>&#8595; <span data-i18n="Download">Download</span></a>
+            <button class="lightbox-action-btn" id="lightboxLocate" title="Open on this machine" hidden>&#9783; <span data-i18n="Locate">Locate</span></button>
+            <button class="lightbox-action-btn" id="lightboxCover" title="Set as cover">&#9733; <span data-i18n="Cover">Cover</span></button>
+            <button class="lightbox-action-btn lightbox-action-danger" id="lightboxDelete" title="Delete photo">&#10005; <span data-i18n="Delete">Delete</span></button>
+          </div>
+        </div>
+      </div>
       <div class="lightbox-notes" id="lightboxNotes">
         <div class="lightbox-notes-display" id="lightboxNotesDisplay"></div>
         <textarea class="lightbox-notes-edit" id="lightboxNotesEdit"
           placeholder="Add notes..." rows="6" hidden></textarea>
-      </div>
-      <div class="lightbox-bottom">
-        <div class="lightbox-info" id="lightboxInfo"></div>
-        <div class="lightbox-actions">
-          <button class="lightbox-action-btn" id="lightboxNoteToggle" title="Notes">&#9998; <span data-i18n="Note">Note</span></button>
-          <a class="lightbox-action-btn" id="lightboxDownload" title="Download" download>&#8595; <span data-i18n="Download">Download</span></a>
-          <button class="lightbox-action-btn" id="lightboxLocate" title="Open on this machine" hidden>&#9783; <span data-i18n="Locate">Locate</span></button>
-          <button class="lightbox-action-btn" id="lightboxCover" title="Set as cover">&#9733; <span data-i18n="Cover">Cover</span></button>
-          <button class="lightbox-action-btn lightbox-action-danger" id="lightboxDelete" title="Delete photo">&#10005; <span data-i18n="Delete">Delete</span></button>
-        </div>
       </div>
     </div>
 
