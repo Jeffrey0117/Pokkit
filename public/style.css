@@ -82,7 +82,7 @@ body {
   padding: 0;
   margin: 0 -24px 32px;
   padding: 0 24px;
-  border-bottom: 2px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-default);
   background: var(--nav-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -130,7 +130,7 @@ body {
   letter-spacing: 0.05em;
   padding: 2px 8px;
   border-radius: var(--radius-sm);
-  border: 2px solid var(--border-strong);
+  border: 1px solid var(--border-default);
   background: transparent;
   color: var(--text-secondary);
 }
@@ -191,7 +191,7 @@ body {
 /* ── Drop Zone ─────────────────────────────────────────── */
 
 .editor {
-  border: 2px dashed var(--border-hover);
+  border: 1px dashed var(--border-hover);
   border-radius: var(--radius-sm);
   background: var(--bg-secondary);
   cursor: pointer;
@@ -257,7 +257,7 @@ body {
   gap: 8px;
   padding: 8px 12px;
   background: var(--bg-secondary);
-  border: 2px solid var(--border-strong);
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
 }
 
@@ -322,7 +322,7 @@ body {
   gap: 10px;
   padding: 10px 14px;
   background: var(--bg-secondary);
-  border: 2px solid var(--border-strong);
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
 }
 
@@ -384,7 +384,7 @@ body {
   font-family: inherit;
   color: var(--text-primary);
   background: var(--bg-secondary);
-  border: 2px solid var(--status-failed);
+  border: 1px solid var(--status-failed);
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: var(--transition);
@@ -397,7 +397,7 @@ body {
 
 .queue-summary {
   padding: 12px 16px;
-  border: 2px solid var(--border-strong);
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
   background: var(--bg-secondary);
   margin-bottom: 8px;
@@ -477,7 +477,7 @@ body {
   gap: 12px;
   padding: 12px 16px;
   background: var(--bg-secondary);
-  border: 2px solid var(--border-strong);
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
   margin-bottom: 4px;
   transition: border-color var(--transition);
@@ -633,7 +633,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 6px 14px;
-  border: 2px solid var(--border-strong);
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-secondary);
@@ -676,7 +676,7 @@ body {
   align-items: center;
   gap: 0;
   padding: 2px;
-  border: 2px solid var(--border-strong);
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
   background: var(--bg-secondary);
   cursor: pointer;
@@ -734,12 +734,16 @@ body {
   grid-template-columns: repeat(3, 1fr);
   gap: 1px;
   background: var(--border-default);
+  /* Round the whole group and clip — cards stay flush so the 1px divider
+     lines don't leave odd gaps at the rounded corners. */
+  border-radius: var(--radius);
+  overflow: hidden;
 }
 
 .feature-card {
   padding: 24px 20px;
   background: var(--bg-secondary);
-  border-radius: var(--radius-sm);
+  border-radius: 0;
   transition: background var(--transition);
 }
 
@@ -816,7 +820,7 @@ body {
 
 .result-row {
   margin-top: 16px;
-  border: 2px solid var(--border-strong);
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
   padding: 16px;
   background: var(--bg-secondary);
@@ -850,7 +854,7 @@ body {
   min-width: 0;
   background: var(--bg-tertiary);
   color: var(--text-primary);
-  border: 2px solid var(--border-strong);
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
   font-family: 'JetBrains Mono', monospace;
@@ -922,12 +926,14 @@ body {
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 1px;
   background: var(--border-default);
+  border-radius: var(--radius);
+  overflow: hidden;
 }
 
 .album-card {
   position: relative;
   background: var(--bg-secondary);
-  border-radius: var(--radius-sm);
+  border-radius: 0;
   overflow: hidden;
   cursor: pointer;
   transition: background var(--transition);
@@ -1017,7 +1023,7 @@ body {
   top: 40px;
   right: 8px;
   background: var(--bg-elevated);
-  border: 2px solid var(--border-strong);
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
   z-index: 20;
   min-width: 140px;
@@ -1360,7 +1366,7 @@ body {
 .album-picker-modal {
   position: relative;
   background: var(--bg-elevated);
-  border: 2px solid var(--border-strong);
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
   width: 320px;
   max-height: 70vh;
