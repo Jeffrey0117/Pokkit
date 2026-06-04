@@ -1,3 +1,4 @@
+import './env.js' // load .env into process.env before config is read
 import { loadConfig } from './config.js'
 import { createServer } from './server.js'
 
