@@ -22,10 +22,10 @@
   --status-ready: #22c55e;
   --status-processing: #f59e0b;
   --status-failed: #ef4444;
-  /* Accent + rounding — brings back the older "bit of colour + rounded" feel */
-  --accent: #2ecc71;
-  --accent-hover: #27ae60;
-  --accent-contrast: #ffffff;
+  /* Monochrome accent (no colour) — tracks the theme's primary text/bg */
+  --accent: var(--text-primary);
+  --accent-hover: var(--text-secondary);
+  --accent-contrast: var(--bg-primary);
   --radius: 12px;
   --radius-sm: 8px;
   /* Strong "drawn" card border — visible grey on dark, near-black on light */
@@ -47,9 +47,6 @@
   --border-focus: #18181b;
   --nav-bg: rgba(250, 249, 245, 0.85);
   --lightbox-bg: rgba(250, 249, 245, 0.96);
-  --accent: #27ae60;
-  --accent-hover: #1e8c4d;
-  --border-strong: #1a1a1a;
 }
 
 body {
