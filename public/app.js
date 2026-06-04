@@ -1394,6 +1394,7 @@
     $videosSection.hidden = tabName !== 'videos';
     $gallerySection.hidden = true;
     if ($accountSection) $accountSection.hidden = true;
+    if ($projectsSection) $projectsSection.hidden = true;
     currentAlbumId = null;
     currentAlbumName = '';
     if (tabName === 'albums') loadAlbums();
@@ -1403,9 +1404,10 @@
 
   // ── Router: home (landing) + dashboard pages with real URLs ─────
   var $accountSection = document.getElementById('accountSection');
+  var $projectsSection = document.getElementById('projectsSection');
   var $appShell = document.querySelector('.app-shell');
   var $sideLinks = document.querySelectorAll('.side-link');
-  var DASH_ROUTES = ['folders', 'photos', 'videos', 'files', 'account'];
+  var DASH_ROUTES = ['folders', 'photos', 'videos', 'files', 'account', 'projects'];
 
   function routeFromPath() {
     var seg = (location.pathname.split('/')[1] || '').toLowerCase();
@@ -1457,8 +1459,18 @@
       $photosSection.hidden = true;
       $videosSection.hidden = true;
       $gallerySection.hidden = true;
+      if ($projectsSection) $projectsSection.hidden = true;
       $accountSection.hidden = false;
       loadAccount();
+    } else if (route === 'projects') {
+      $filesSection.hidden = true;
+      $albumsSection.hidden = true;
+      $photosSection.hidden = true;
+      $videosSection.hidden = true;
+      $gallerySection.hidden = true;
+      $accountSection.hidden = true;
+      if ($projectsSection) $projectsSection.hidden = false;
+      loadProjects();
     } else {
       switchTab(route === 'folders' ? 'albums' : route);
     }
@@ -1536,6 +1548,169 @@
   if ($acctLogout) $acctLogout.addEventListener('click', function () { $logoutBtn.click(); });
   var $acctUpgrade = document.getElementById('acctUpgrade');
   if ($acctUpgrade) $acctUpgrade.addEventListener('click', function () { $upgradeBtn.click(); });
+
+  // ── Projects (multi-tenant admin) ──────────────────────
+  var $projectsList = document.getElementById('projectsList');
+  var $projectsAccountsView = document.getElementById('projectsAccountsView');
+  var $projectsFilesView = document.getElementById('projectsFilesView');
+  var $projectsGrid = document.getElementById('projectsGrid');
+  var $projectsFilesTitle = document.getElementById('projectsFilesTitle');
+
+  function fmtBytes(n) {
+    n = n || 0;
+    if (n < 1024) return n + ' B';
+    var u = ['KB', 'MB', 'GB', 'TB'], i = -1;
+    do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
+    return n.toFixed(1) + ' ' + u[i];
+  }
+
+  function showProjectsView(filesMode) {
+    if ($projectsAccountsView) $projectsAccountsView.hidden = !!filesMode;
+    if ($projectsFilesView) $projectsFilesView.hidden = !filesMode;
+  }
+
+  function loadProjects() {
+    showProjectsView(false);
+    apiRequest('GET', '/api/admin/accounts', null, function (data) {
+      if (!data) return;
+      renderAccounts(data.accounts || []);
+    });
+  }
+
+  function renderAccounts(accounts) {
+    if (!$projectsList) return;
+    $projectsList.innerHTML = '';
+    if (!accounts.length) {
+      var empty = document.createElement('div');
+      empty.className = 'projects-empty';
+      empty.textContent = window.t ? window.t('No projects yet') : 'No projects yet';
+      $projectsList.appendChild(empty);
+      return;
+    }
+    accounts.forEach(function (a) {
+      var card = document.createElement('div');
+      card.className = 'project-card';
+
+      var main = document.createElement('div');
+      main.className = 'project-main';
+      var nm = document.createElement('div');
+      nm.className = 'project-name';
+      nm.textContent = a.name;
+      var meta = document.createElement('div');
+      meta.className = 'project-meta';
+      meta.textContent = a.key_prefix + '… · ' + (a.file_count || 0) + ' · ' + fmtBytes(a.total_bytes);
+      main.appendChild(nm); main.appendChild(meta);
+
+      var actions = document.createElement('div');
+      actions.className = 'project-actions';
+      var viewBtn = document.createElement('button');
+      viewBtn.className = 'btn'; viewBtn.textContent = window.t ? window.t('Files') : 'Files';
+      viewBtn.addEventListener('click', function () { viewProjectFiles(a.id, a.name); });
+      var rotBtn = document.createElement('button');
+      rotBtn.className = 'btn'; rotBtn.textContent = window.t ? window.t('Rotate key') : 'Rotate key';
+      rotBtn.addEventListener('click', function () { rotateKey(a.id, a.name); });
+      var delBtn = document.createElement('button');
+      delBtn.className = 'btn lightbox-action-danger'; delBtn.textContent = window.t ? window.t('Delete') : 'Delete';
+      delBtn.addEventListener('click', function () { deleteProject(a.id, a.name, a.file_count || 0); });
+      actions.appendChild(viewBtn); actions.appendChild(rotBtn); actions.appendChild(delBtn);
+
+      card.appendChild(main); card.appendChild(actions);
+      $projectsList.appendChild(card);
+    });
+  }
+
+  function newProject() {
+    var name = window.prompt(window.t ? window.t('Project name') : 'Project name');
+    if (!name || !name.trim()) return;
+    apiRequest('POST', '/api/admin/accounts', { name: name.trim() }, function (data) {
+      if (!data || !data.key) return;
+      showKeyModal(data.account ? data.account.name : name.trim(), data.key);
+      loadProjects();
+    });
+  }
+
+  function rotateKey(id, name) {
+    if (!window.confirm((window.t ? window.t('Rotate key — the old key stops working.') : 'Rotate key — the old key stops working.') + '\n' + name)) return;
+    apiRequest('POST', '/api/admin/accounts/' + encodeURIComponent(id) + '/rotate', {}, function (data) {
+      if (!data || !data.key) return;
+      showKeyModal(name, data.key);
+    });
+  }
+
+  function deleteProject(id, name, fileCount) {
+    var msg = (window.t ? window.t('Delete project') : 'Delete project') + ' "' + name + '"?';
+    if (fileCount > 0) msg += '\n' + fileCount + ' ' + (window.t ? window.t('files will be permanently deleted.') : 'files will be permanently deleted.');
+    if (!window.confirm(msg)) return;
+    var url = '/api/admin/accounts/' + encodeURIComponent(id) + (fileCount > 0 ? '?force=1' : '');
+    apiRequest('DELETE', url, null, function () { loadProjects(); });
+  }
+
+  function viewProjectFiles(id, name) {
+    showProjectsView(true);
+    if ($projectsFilesTitle) $projectsFilesTitle.textContent = name;
+    if ($projectsGrid) $projectsGrid.innerHTML = '';
+    apiRequest('GET', '/api/admin/files?account=' + encodeURIComponent(id) + '&limit=500', null, function (files) {
+      if (!Array.isArray(files) || !$projectsGrid) return;
+      if (!files.length) {
+        var e = document.createElement('div'); e.className = 'projects-empty';
+        e.textContent = window.t ? window.t('No files yet') : 'No files yet';
+        $projectsGrid.appendChild(e); return;
+      }
+      files.forEach(function (f) {
+        var a = document.createElement('a');
+        a.className = 'project-file';
+        a.href = '/f/' + f.id; a.target = '_blank'; a.rel = 'noopener';
+        a.title = f.filename || '';
+        var isMedia = f.media_type === 'photo' || f.media_type === 'video';
+        if (isMedia && f.status === 'ready') {
+          var img = document.createElement('img');
+          img.loading = 'lazy'; img.src = '/photos/' + f.id + '/thumb.webp'; img.alt = f.filename || '';
+          a.appendChild(img);
+        } else {
+          var box = document.createElement('div'); box.className = 'project-file-doc';
+          box.textContent = f.filename || 'file';
+          a.appendChild(box);
+        }
+        $projectsGrid.appendChild(a);
+      });
+    });
+  }
+
+  function showKeyModal(name, key) {
+    var modal = document.getElementById('keyModal');
+    var keyEl = document.getElementById('keyModalKey');
+    var snip = document.getElementById('keyModalSnippet');
+    var title = document.getElementById('keyModalTitle');
+    if (!modal) return;
+    if (title) title.textContent = (name || '') + ' — ' + (window.t ? window.t('API key — shown once') : 'API key — shown once');
+    if (keyEl) keyEl.textContent = key;
+    if (snip) snip.textContent = 'POKKIT_URL=' + window.location.origin + '\nPOKKIT_KEY=' + key;
+    modal.hidden = false;
+  }
+
+  var $newProjectBtn = document.getElementById('newProjectBtn');
+  if ($newProjectBtn) $newProjectBtn.addEventListener('click', newProject);
+  var $projectsBack = document.getElementById('projectsBack');
+  if ($projectsBack) $projectsBack.addEventListener('click', function () { showProjectsView(false); });
+  var $keyModalClose = document.getElementById('keyModalClose');
+  if ($keyModalClose) $keyModalClose.addEventListener('click', function () {
+    var m = document.getElementById('keyModal'); if (m) m.hidden = true;
+  });
+  var $keyModalCopy = document.getElementById('keyModalCopy');
+  if ($keyModalCopy) $keyModalCopy.addEventListener('click', function () {
+    var k = document.getElementById('keyModalKey');
+    if (k && navigator.clipboard) navigator.clipboard.writeText(k.textContent).then(function () {
+      toast(window.t ? window.t('Copied!') : 'Copied!');
+    });
+  });
+
+  // Reveal the admin-only Projects nav when the signed-in caller is an admin.
+  function checkAdmin() {
+    apiRequest('GET', '/api/me', null, function (me) {
+      var nav = document.getElementById('projectsNav');
+      if (nav) nav.hidden = !(me && me.isAdmin);
+    });
+  }
 
   // ── Grid sort + size controls ──────────────────────────
   var GRID_SIZE_KEY = 'pokkit_grid_size';
@@ -2931,6 +3106,9 @@
   // Show the page matching the current URL (default: folders)
   navigate(routeFromPath(), false);
 
+  // Reveal the admin-only Projects nav (uses cached token if present).
+  if (cached) checkAdmin();
+
   // Step 2: When SDK loads, only accept LOGIN events (user truthy).
   // NEVER clear cache from onAuthChange(null) — that kills our restore.
   // Cache is only cleared by: explicit logout button + API 401 response.
@@ -2941,6 +3119,7 @@
       if (user) {
         // Login or session restored — update and save
         applyUser(user);
+        checkAdmin();
       }
       // null = SDK init or token issue — DON'T clear cache.
       // Explicit logout and 401 handler take care of that.

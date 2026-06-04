@@ -106,7 +106,20 @@
     'Cover set': '封面已設定',
     'Upgrade plans coming soon!': '升級方案即將推出!',
     'No media files found in folder': '資料夾裡沒有媒體檔案',
-    'Not logged in': '尚未登入'
+    'Not logged in': '尚未登入',
+    // ── Projects (multi-tenant admin) ──
+    'Projects': '專案',
+    '+ New Project': '+ 新增專案',
+    '← Projects': '← 專案',
+    'API key — shown once': 'API 金鑰 — 只顯示一次',
+    "Copy it now. Only its hash is stored; you can't see it again.":
+      '現在就複製。系統只儲存雜湊值,之後無法再看到。',
+    'No projects yet': '還沒有專案',
+    'Rotate key': '更換金鑰',
+    'Project name': '專案名稱',
+    'Delete project': '刪除專案',
+    'files will be permanently deleted.': '個檔案將被永久刪除。',
+    'Rotate key — the old key stops working.': '更換金鑰 — 舊金鑰會立即失效。'
   };
 
   function getLang() {

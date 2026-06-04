@@ -61,6 +61,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>
           <span data-i18n="Account">Account</span>
         </a>
+        <a class="side-link" href="/projects" data-route="projects" id="projectsNav" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h7v7H3z"/><path d="M14 3h7v7h-7z"/><path d="M14 14h7v7h-7z"/><path d="M3 14h7v7H3z"/></svg>
+          <span data-i18n="Projects">Projects</span>
+        </a>
       </nav>
 
       <div class="side-footer">
@@ -322,6 +326,36 @@
         </div>
       </div>
     </section>
+
+    <section class="projects-section" id="projectsSection" hidden>
+      <div class="projects-accounts" id="projectsAccountsView">
+        <div class="section-header">
+          <h2 class="section-title" data-i18n="Projects">Projects</h2>
+          <button class="btn" id="newProjectBtn" data-i18n="+ New Project">+ New Project</button>
+        </div>
+        <div class="projects-list" id="projectsList"></div>
+      </div>
+      <div class="projects-files" id="projectsFilesView" hidden>
+        <div class="section-header">
+          <button class="btn" id="projectsBack" data-i18n="← Projects">&larr; Projects</button>
+          <h2 class="section-title" id="projectsFilesTitle"></h2>
+        </div>
+        <div class="photos-grid" id="projectsGrid"></div>
+      </div>
+    </section>
+
+    <div class="key-modal" id="keyModal" hidden>
+      <div class="key-modal-card">
+        <div class="key-modal-title" id="keyModalTitle" data-i18n="API key — shown once">API key — shown once</div>
+        <div class="key-modal-sub" data-i18n="Copy it now. Only its hash is stored; you can't see it again.">Copy it now. Only its hash is stored; you can't see it again.</div>
+        <div class="key-modal-keyrow">
+          <code class="key-modal-key" id="keyModalKey"></code>
+          <button class="btn" id="keyModalCopy" data-i18n="Copy">Copy</button>
+        </div>
+        <pre class="key-modal-snippet" id="keyModalSnippet"></pre>
+        <button class="btn" id="keyModalClose" data-i18n="Done">Done</button>
+      </div>
+    </div>
 
     <div class="lightbox" id="lightbox">
       <button class="lightbox-nav lightbox-prev" id="lightboxPrev">&lsaquo;</button>
