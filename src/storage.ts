@@ -142,6 +142,11 @@ export class Storage {
     return entry ?? undefined
   }
 
+  // All files matching a content hash (rows carry user_id at runtime).
+  findByHash(hash: string): Array<FileEntry & { user_id?: string | null }> {
+    return this.store.findByHash(hash)
+  }
+
   list(opts?: { limit?: number; offset?: number }): FileEntry[] {
     const { limit = 50, offset = 0 } = opts || {}
     return this.store.list({ bucket: 'default', limit, offset })

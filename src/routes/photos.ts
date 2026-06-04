@@ -148,6 +148,23 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
       .send(createReadStream(filePath))
   })
 
+  // POST /api/check-hashes — given SHA-256 hashes, return which ones the current
+  // user already has. Lets the client skip re-uploading exact duplicates entirely
+  // (no transfer) instead of finding out server-side after the bytes are sent.
+  // User-scoped so it never leaks whether *another* user has a given file.
+  app.post<{ Body: { hashes?: string[] } }>('/api/check-hashes', async (request, reply) => {
+    const user = requireAuth(request, reply, config)
+    if (!user) return
+    const hashes = Array.isArray(request.body?.hashes) ? request.body!.hashes.slice(0, 2000) : []
+    const existing: Record<string, { id: string }> = {}
+    for (const h of hashes) {
+      if (typeof h !== 'string' || !h || existing[h]) continue
+      const mine = storage.findByHash(h).find((m) => m.user_id === user.userId)
+      if (mine) existing[h] = { id: mine.id }
+    }
+    return { existing }
+  })
+
   // GET /api/photos/status?ids=a,b,c — batch processing status.
   // Lets the client poll many in-flight uploads with a single request instead
   // of one request per item.

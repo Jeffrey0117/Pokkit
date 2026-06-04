@@ -664,9 +664,23 @@
   }
 
   // ── Upload ──────────────────────────────────────────────
+  var DEDUP_MAX_BYTES = 2 * 1024 * 1024 * 1024; // above 2GB skip pre-hash, just upload
+
   function handleFiles(fileList) {
     var files = Array.isArray(fileList) ? fileList : Array.from(fileList);
     if (files.length === 0) return;
+    // Skip re-uploading files the user already has (matched by content hash) —
+    // saves the whole transfer instead of finding out server-side after upload.
+    if (files.length > 20) toast('Checking ' + files.length + ' files for duplicates…');
+    dedupePreCheck(files, function (toUpload, skipped) {
+      if (skipped > 0) {
+        toast(skipped + ' duplicate' + (skipped > 1 ? 's' : '') + ' skipped — already uploaded');
+      }
+      if (toUpload.length > 0) queueFiles(toUpload);
+    });
+  }
+
+  function queueFiles(files) {
     $queueSection.hidden = false;
     // Init batch counters if starting fresh
     if (pending.length === 0 && uploading === 0) {
@@ -680,6 +694,67 @@
     for (var i = 0; i < files.length; i++) pending.push(files[i]);
     updateQueueSummary();
     processQueue();
+  }
+
+  // SHA-256 of a File as hex (matches the server's content hash). Calls cb(null)
+  // when hashing isn't possible (no Web Crypto / insecure context / file too big).
+  function sha256Hex(file, cb) {
+    if (!window.crypto || !window.crypto.subtle || !file.arrayBuffer || file.size > DEDUP_MAX_BYTES) {
+      cb(null);
+      return;
+    }
+    file.arrayBuffer()
+      .then(function (buf) { return crypto.subtle.digest('SHA-256', buf); })
+      .then(function (digest) {
+        var b = new Uint8Array(digest), hex = '';
+        for (var i = 0; i < b.length; i++) hex += b[i].toString(16).padStart(2, '0');
+        cb(hex);
+      })
+      .catch(function () { cb(null); });
+  }
+
+  // Hash all files (limited concurrency), ask the server which already exist,
+  // then split into [toUpload, skippedCount]. On any failure, upload everything.
+  function dedupePreCheck(files, done) {
+    if (!window.crypto || !window.crypto.subtle) { done(files, 0); return; }
+    var hashes = new Array(files.length);
+    var idx = 0, active = 0, completed = 0;
+    function pump() {
+      while (active < 4 && idx < files.length) {
+        (function (i) {
+          active++;
+          sha256Hex(files[i], function (h) {
+            hashes[i] = h; active--; completed++;
+            if (completed === files.length) finish();
+            else pump();
+          });
+        })(idx++);
+      }
+    }
+    function finish() {
+      var toQuery = [];
+      for (var i = 0; i < files.length; i++) if (hashes[i]) toQuery.push(hashes[i]);
+      if (toQuery.length === 0) { done(files, 0); return; }
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/check-hashes');
+      setAuthHeader(xhr);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.addEventListener('load', function () {
+        var existing = {};
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try { existing = (JSON.parse(xhr.responseText) || {}).existing || {}; } catch (_) { /* */ }
+        }
+        var toUpload = [], skipped = 0;
+        for (var i = 0; i < files.length; i++) {
+          if (hashes[i] && existing[hashes[i]]) skipped++;
+          else toUpload.push(files[i]);
+        }
+        done(toUpload, skipped);
+      });
+      xhr.addEventListener('error', function () { done(files, 0); });
+      xhr.send(JSON.stringify({ hashes: toQuery }));
+    }
+    pump();
   }
 
   function updateQueueSummary() {
