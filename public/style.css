@@ -178,7 +178,43 @@ body {
   margin-left: auto;
 }
 
+.topbar-home {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.topbar-home:hover {
+  color: var(--text-primary);
+}
+
 .sidebar-backdrop {
+  display: none;
+}
+
+/* ── Mode: landing (home) vs dashboard ─────────────────── */
+
+body.mode-landing .sidebar,
+body.mode-landing .sidebar-backdrop {
+  display: none;
+}
+
+body.mode-landing .app-shell {
+  display: block;
+}
+
+body.mode-landing .container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 24px 48px;
+}
+
+body.mode-landing .dashboard-only {
+  display: none;
+}
+
+body.mode-dashboard .landing-only {
   display: none;
 }
 

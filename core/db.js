@@ -396,7 +396,13 @@ function findAlbum(db, id) {
 
 function listAlbums(db) {
   return db.prepare(`
-    SELECT a.*,
+    SELECT a.id, a.name, a.created_at, a.updated_at,
+      COALESCE(a.cover_file_id, (
+        SELECT id FROM files
+        WHERE album_id = a.id AND status = 'ready' AND media_type IN ('photo', 'video')
+        ORDER BY COALESCE(taken_at, uploaded_at) ASC
+        LIMIT 1
+      )) as cover_file_id,
       COUNT(f.id) as photo_count,
       COALESCE(SUM(f.size), 0) as total_size
     FROM albums a

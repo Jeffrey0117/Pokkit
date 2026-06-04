@@ -272,16 +272,22 @@
   }
 
   function updateAuthUI() {
-    if (currentUser) {
-      $userName.textContent = currentUser.name || currentUser.email || '';
-      $loginBtn.hidden = true;
-      $logoutBtn.hidden = false;
+    var name = currentUser ? (currentUser.name || currentUser.email || '') : '';
+    var loggedIn = !!currentUser;
+    // Sidebar + landing nav (same state, two places)
+    var unLanding = document.getElementById('userNameLanding');
+    var loginL = document.getElementById('loginBtnLanding');
+    var logoutL = document.getElementById('logoutBtnLanding');
+    $userName.textContent = name;
+    if (unLanding) unLanding.textContent = name;
+    $loginBtn.hidden = loggedIn;
+    $logoutBtn.hidden = !loggedIn;
+    if (loginL) loginL.hidden = loggedIn;
+    if (logoutL) logoutL.hidden = !loggedIn;
+    if (loggedIn) {
       $dropzone.style.display = '';
       document.getElementById('uploadOptions').style.display = '';
     } else {
-      $userName.textContent = '';
-      $loginBtn.hidden = false;
-      $logoutBtn.hidden = true;
       $dropzone.style.display = 'none';
       document.getElementById('uploadOptions').style.display = 'none';
       $storageQuota.hidden = true;
@@ -1395,15 +1401,20 @@
     if (tabName === 'videos') loadVideos();
   }
 
-  // ── Router: sidebar → pages with real URLs ─────────────
+  // ── Router: home (landing) + dashboard pages with real URLs ─────
   var $accountSection = document.getElementById('accountSection');
   var $appShell = document.querySelector('.app-shell');
   var $sideLinks = document.querySelectorAll('.side-link');
-  var ROUTES = ['folders', 'photos', 'videos', 'files', 'account'];
+  var DASH_ROUTES = ['folders', 'photos', 'videos', 'files', 'account'];
 
   function routeFromPath() {
     var seg = (location.pathname.split('/')[1] || '').toLowerCase();
-    return ROUTES.indexOf(seg) >= 0 ? seg : 'folders';
+    return DASH_ROUTES.indexOf(seg) >= 0 ? seg : 'home';
+  }
+
+  function setMode(dashboard) {
+    document.body.classList.toggle('mode-dashboard', dashboard);
+    document.body.classList.toggle('mode-landing', !dashboard);
   }
 
   function setActiveSide(route) {
@@ -1420,12 +1431,25 @@
   }
 
   function navigate(route, push) {
-    if (ROUTES.indexOf(route) < 0) route = 'folders';
+    if ($appShell) $appShell.classList.remove('sidebar-open');
+
+    // Home = the original landing page (upload / quick browse)
+    if (route === 'home') {
+      setMode(false);
+      setActiveSide(null);
+      if (push !== false && location.pathname !== '/') history.pushState({}, '', '/');
+      toggleUploadZone(true);
+      switchTab(currentTab && currentTab !== 'account' ? currentTab : 'files');
+      return;
+    }
+
+    // Dashboard pages
+    if (DASH_ROUTES.indexOf(route) < 0) route = 'folders';
+    setMode(true);
     if (push !== false && location.pathname !== '/' + route) {
       history.pushState({ route: route }, '', '/' + route);
     }
     setActiveSide(route);
-    if ($appShell) $appShell.classList.remove('sidebar-open');
     toggleUploadZone(route !== 'account');
     if (route === 'account') {
       $filesSection.hidden = true;
@@ -1440,14 +1464,16 @@
     }
   }
 
-  for (var _si = 0; _si < $sideLinks.length; _si++) {
-    $sideLinks[_si].addEventListener('click', function (e) {
+  // Intercept all [data-route] links (side nav, logos, Home) for client-side routing
+  var $routeEls = document.querySelectorAll('[data-route]');
+  for (var _ri = 0; _ri < $routeEls.length; _ri++) {
+    $routeEls[_ri].addEventListener('click', function (e) {
       e.preventDefault();
       navigate(this.dataset.route, true);
     });
   }
-  var $navLogo = document.querySelector('.nav-logo');
-  if ($navLogo) $navLogo.addEventListener('click', function (e) { e.preventDefault(); navigate('folders', true); });
+  var $enterDash = document.getElementById('enterDashboardBtn');
+  if ($enterDash) $enterDash.addEventListener('click', function () { navigate('folders', true); });
 
   window.addEventListener('popstate', function () { navigate(routeFromPath(), false); });
 
@@ -1462,11 +1488,16 @@
   var $uploadFab = document.getElementById('uploadFab');
   if ($uploadFab) {
     $uploadFab.addEventListener('click', function () {
-      if (routeFromPath() === 'account') navigate('folders', true);
       var fi = document.getElementById('fileInput');
       if (fi) fi.click();
     });
   }
+
+  // Landing nav login/logout proxies (delegate to the canonical sidebar buttons)
+  var $loginBtnLanding = document.getElementById('loginBtnLanding');
+  var $logoutBtnLanding = document.getElementById('logoutBtnLanding');
+  if ($loginBtnLanding) $loginBtnLanding.addEventListener('click', function () { $loginBtn.click(); });
+  if ($logoutBtnLanding) $logoutBtnLanding.addEventListener('click', function () { $logoutBtn.click(); });
 
   // ── Account page ───────────────────────────────────────
   function loadAccount() {
