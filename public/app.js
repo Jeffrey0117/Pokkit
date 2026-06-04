@@ -1537,6 +1537,46 @@
   var $acctUpgrade = document.getElementById('acctUpgrade');
   if ($acctUpgrade) $acctUpgrade.addEventListener('click', function () { $upgradeBtn.click(); });
 
+  // ── Grid sort + size controls ──────────────────────────
+  var GRID_SIZE_KEY = 'pokkit_grid_size';
+  var GRID_SORT_KEY = 'pokkit_grid_sort';
+  var gridSort = localStorage.getItem(GRID_SORT_KEY) === 'asc' ? 'asc' : 'desc';
+
+  function applyGridSize(px) {
+    document.documentElement.style.setProperty('--grid-min', px + 'px');
+    localStorage.setItem(GRID_SIZE_KEY, px);
+    var btns = document.querySelectorAll('.grid-size-btn');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('active', btns[i].dataset.size === String(px));
+    }
+  }
+
+  function reloadCurrentGrid() {
+    if (currentAlbumId && !$gallerySection.hidden) { openAlbum(currentAlbumId, currentAlbumName); return; }
+    if (currentTab === 'photos') loadAllPhotos();
+    else if (currentTab === 'videos') loadVideos();
+  }
+
+  function applyGridSort(order, reload) {
+    gridSort = order === 'asc' ? 'asc' : 'desc';
+    localStorage.setItem(GRID_SORT_KEY, gridSort);
+    var sels = document.querySelectorAll('.grid-sort');
+    for (var i = 0; i < sels.length; i++) sels[i].value = gridSort;
+    if (reload) reloadCurrentGrid();
+  }
+
+  applyGridSize(parseInt(localStorage.getItem(GRID_SIZE_KEY), 10) || 150);
+  applyGridSort(gridSort, false);
+
+  var _sizeBtns = document.querySelectorAll('.grid-size-btn');
+  for (var _gz = 0; _gz < _sizeBtns.length; _gz++) {
+    _sizeBtns[_gz].addEventListener('click', function () { applyGridSize(parseInt(this.dataset.size, 10)); });
+  }
+  var _sortSels = document.querySelectorAll('.grid-sort');
+  for (var _gs = 0; _gs < _sortSels.length; _gs++) {
+    _sortSels[_gs].addEventListener('change', function () { applyGridSort(this.value, true); });
+  }
+
   // ── Albums ─────────────────────────────────────────────
   $newAlbumBtn.addEventListener('click', function () {
     var albumName = prompt('Album name:');
@@ -1701,7 +1741,7 @@
     if (galleryLoading || !galleryHasMore) return;
     galleryLoading = true;
 
-    var url = '/api/albums/' + currentAlbumId + '?limit=' + GALLERY_PAGE_SIZE + '&offset=' + galleryOffset;
+    var url = '/api/albums/' + currentAlbumId + '?limit=' + GALLERY_PAGE_SIZE + '&offset=' + galleryOffset + '&order=' + gridSort;
     var xhr = new XMLHttpRequest();
     xhr.open('GET', url);
     setAuthHeader(xhr);
@@ -2344,7 +2384,7 @@
     allPhotosLoading = true;
 
     var xhr = new XMLHttpRequest();
-    xhr.open('GET', '/api/photos?type=photo&limit=' + ALL_PHOTOS_PAGE_SIZE + '&offset=' + allPhotosOffset);
+    xhr.open('GET', '/api/photos?type=photo&limit=' + ALL_PHOTOS_PAGE_SIZE + '&offset=' + allPhotosOffset + '&order=' + gridSort);
     setAuthHeader(xhr);
     xhr.addEventListener('load', function () {
       allPhotosLoading = false;
@@ -2471,7 +2511,7 @@
     videosLoading = true;
 
     var xhr = new XMLHttpRequest();
-    xhr.open('GET', '/api/photos?type=video&limit=' + VIDEOS_PAGE_SIZE + '&offset=' + videosOffset);
+    xhr.open('GET', '/api/photos?type=video&limit=' + VIDEOS_PAGE_SIZE + '&offset=' + videosOffset + '&order=' + gridSort);
     setAuthHeader(xhr);
     xhr.addEventListener('load', function () {
       videosLoading = false;

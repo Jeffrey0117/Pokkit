@@ -231,12 +231,13 @@ function findByTag(db, tag, bucket) {
  * @returns {object[]}
  */
 function listFiles(db, opts = {}) {
-  const { bucket, limit = 100, offset = 0 } = opts;
+  const { bucket, limit = 100, offset = 0, order } = opts;
+  const dir = order === 'asc' ? 'ASC' : 'DESC';
   if (bucket) {
-    return db.prepare('SELECT * FROM files WHERE bucket = ? ORDER BY uploaded_at DESC LIMIT ? OFFSET ?')
+    return db.prepare(`SELECT * FROM files WHERE bucket = ? ORDER BY uploaded_at ${dir} LIMIT ? OFFSET ?`)
       .all(bucket, limit, offset).map(deserializeRow);
   }
-  return db.prepare('SELECT * FROM files ORDER BY uploaded_at DESC LIMIT ? OFFSET ?')
+  return db.prepare(`SELECT * FROM files ORDER BY uploaded_at ${dir} LIMIT ? OFFSET ?`)
     .all(limit, offset).map(deserializeRow);
 }
 
@@ -441,11 +442,12 @@ function deleteAlbum(db, id) {
 // ── Photo Queries ──
 
 function listPhotosByAlbum(db, albumId, opts = {}) {
-  const { limit = 200, offset = 0 } = opts;
+  const { limit = 200, offset = 0, order } = opts;
+  const dir = order === 'asc' ? 'ASC' : 'DESC';
   return db.prepare(`
     SELECT * FROM files
     WHERE album_id = ? AND status IN ('ready', 'processing')
-    ORDER BY COALESCE(taken_at, uploaded_at) ASC
+    ORDER BY COALESCE(taken_at, uploaded_at) ${dir}
     LIMIT ? OFFSET ?
   `).all(albumId, limit, offset).map(deserializeRow);
 }
@@ -495,19 +497,20 @@ function bulkMoveToAlbum(db, photoIds, albumId) {
 }
 
 function listAllPhotos(db, opts = {}) {
-  const { limit = 200, offset = 0, mediaType } = opts;
+  const { limit = 200, offset = 0, mediaType, order } = opts;
+  const dir = order === 'asc' ? 'ASC' : 'DESC';
   if (mediaType) {
     return db.prepare(`
       SELECT * FROM files
       WHERE status IN ('ready', 'processing') AND media_type = ?
-      ORDER BY COALESCE(taken_at, uploaded_at) DESC
+      ORDER BY COALESCE(taken_at, uploaded_at) ${dir}
       LIMIT ? OFFSET ?
     `).all(mediaType, limit, offset).map(deserializeRow);
   }
   return db.prepare(`
     SELECT * FROM files
     WHERE status IN ('ready', 'processing') AND media_type IN ('photo', 'video')
-    ORDER BY COALESCE(taken_at, uploaded_at) DESC
+    ORDER BY COALESCE(taken_at, uploaded_at) ${dir}
     LIMIT ? OFFSET ?
   `).all(limit, offset).map(deserializeRow);
 }

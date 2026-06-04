@@ -27,7 +27,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   })
 
   // GET /api/albums/:id — album detail + photo list
-  app.get<{ Params: { id: string }; Querystring: { limit?: string; offset?: string } }>(
+  app.get<{ Params: { id: string }; Querystring: { limit?: string; offset?: string; order?: string } }>(
     '/api/albums/:id',
     async (request, reply) => {
       const user = requireAuth(request, reply, config)
@@ -38,7 +38,8 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
       }
       const limit = Math.min(parseInt(request.query.limit || '200', 10) || 200, 1000)
       const offset = parseInt(request.query.offset || '0', 10) || 0
-      const photos = storage.listPhotosByAlbum(album.id, { limit, offset })
+      const order = request.query.order === 'asc' ? 'asc' : 'desc'
+      const photos = storage.listPhotosByAlbum(album.id, { limit, offset, order })
       return { ...album, photos }
     },
   )
@@ -199,7 +200,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   })
 
   // GET /api/photos — list all photos (across all albums)
-  app.get<{ Querystring: { limit?: string; offset?: string; type?: string } }>(
+  app.get<{ Querystring: { limit?: string; offset?: string; type?: string; order?: string } }>(
     '/api/photos',
     async (request, reply) => {
       const user = requireAuth(request, reply, config)
@@ -210,7 +211,8 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
         request.query.type === 'video' || request.query.type === 'photo'
           ? request.query.type
           : undefined
-      return storage.listAllPhotos({ limit, offset, mediaType })
+      const order = request.query.order === 'asc' ? 'asc' : 'desc'
+      return storage.listAllPhotos({ limit, offset, mediaType, order })
     },
   )
 

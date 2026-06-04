@@ -237,7 +237,7 @@ export function filesRoute(
   // GET /files — list all files (auth required, paginated). But a browser
   // navigating to /files (Accept: text/html, no pagination query) is the Files
   // *page* — serve the SPA shell in that case so the route is deep-linkable.
-  app.get<{ Querystring: { limit?: string; offset?: string } }>('/files', async (request, reply) => {
+  app.get<{ Querystring: { limit?: string; offset?: string; order?: string } }>('/files', async (request, reply) => {
     if (
       serveApp &&
       request.query.limit === undefined &&
@@ -249,7 +249,8 @@ export function filesRoute(
     if (!user) return
     const limit = Math.min(parseInt(request.query.limit || '50', 10) || 50, 200)
     const offset = parseInt(request.query.offset || '0', 10) || 0
-    return storage.list({ limit, offset })
+    const order = request.query.order === 'asc' ? 'asc' : 'desc'
+    return storage.list({ limit, offset, order })
   })
 
   // GET /files/:id/:filename — direct file download (no auth, for streaming/embedding)

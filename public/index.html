@@ -227,7 +227,20 @@
     <section class="photos-section" id="photosSection" hidden>
       <div class="section-header">
         <h2 class="section-title" data-i18n="All Photos">All Photos</h2>
-        <button class="btn" id="allPhotosSelect" data-i18n="Select">Select</button>
+        <div class="section-tools">
+          <div class="grid-toolbar">
+            <select class="grid-sort" aria-label="Sort">
+              <option value="desc" data-i18n-opt="Newest first">Newest first</option>
+              <option value="asc" data-i18n-opt="Oldest first">Oldest first</option>
+            </select>
+            <div class="grid-size">
+              <button class="grid-size-btn" data-size="220" title="Large"><svg viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="4" width="5" height="8" rx="1"/><rect x="9" y="4" width="5" height="8" rx="1"/></svg></button>
+              <button class="grid-size-btn" data-size="150" title="Medium"><svg viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="5" width="4" height="6" rx="1"/><rect x="6" y="5" width="4" height="6" rx="1"/><rect x="11" y="5" width="4" height="6" rx="1"/></svg></button>
+              <button class="grid-size-btn" data-size="105" title="Small"><svg viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="6" width="3" height="4" rx="0.5"/><rect x="5" y="6" width="3" height="4" rx="0.5"/><rect x="9" y="6" width="3" height="4" rx="0.5"/><rect x="13" y="6" width="2" height="4" rx="0.5"/></svg></button>
+            </div>
+          </div>
+          <button class="btn" id="allPhotosSelect" data-i18n="Select">Select</button>
+        </div>
       </div>
       <div class="photo-grid" id="allPhotoGrid"></div>
     </section>
@@ -235,7 +248,20 @@
     <section class="photos-section" id="videosSection" hidden>
       <div class="section-header">
         <h2 class="section-title" data-i18n="Videos">Videos</h2>
-        <button class="btn" id="videoSelectToggle" data-i18n="Select">Select</button>
+        <div class="section-tools">
+          <div class="grid-toolbar">
+            <select class="grid-sort" aria-label="Sort">
+              <option value="desc" data-i18n-opt="Newest first">Newest first</option>
+              <option value="asc" data-i18n-opt="Oldest first">Oldest first</option>
+            </select>
+            <div class="grid-size">
+              <button class="grid-size-btn" data-size="220" title="Large"><svg viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="4" width="5" height="8" rx="1"/><rect x="9" y="4" width="5" height="8" rx="1"/></svg></button>
+              <button class="grid-size-btn" data-size="150" title="Medium"><svg viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="5" width="4" height="6" rx="1"/><rect x="6" y="5" width="4" height="6" rx="1"/><rect x="11" y="5" width="4" height="6" rx="1"/></svg></button>
+              <button class="grid-size-btn" data-size="105" title="Small"><svg viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="6" width="3" height="4" rx="0.5"/><rect x="5" y="6" width="3" height="4" rx="0.5"/><rect x="9" y="6" width="3" height="4" rx="0.5"/><rect x="13" y="6" width="2" height="4" rx="0.5"/></svg></button>
+            </div>
+          </div>
+          <button class="btn" id="videoSelectToggle" data-i18n="Select">Select</button>
+        </div>
       </div>
       <div class="photo-grid" id="videoGrid"></div>
     </section>

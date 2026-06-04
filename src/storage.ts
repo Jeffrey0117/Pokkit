@@ -147,9 +147,9 @@ export class Storage {
     return this.store.findByHash(hash)
   }
 
-  list(opts?: { limit?: number; offset?: number }): FileEntry[] {
-    const { limit = 50, offset = 0 } = opts || {}
-    return this.store.list({ bucket: 'default', limit, offset })
+  list(opts?: { limit?: number; offset?: number; order?: string }): FileEntry[] {
+    const { limit = 50, offset = 0, order } = opts || {}
+    return this.store.list({ bucket: 'default', limit, offset, order })
   }
 
   async remove(id: string): Promise<boolean> {
@@ -239,7 +239,10 @@ export class Storage {
     return this.store.deleteAlbum(id)
   }
 
-  listPhotosByAlbum(albumId: string, opts?: { limit?: number; offset?: number }): PhotoEntry[] {
+  listPhotosByAlbum(
+    albumId: string,
+    opts?: { limit?: number; offset?: number; order?: string },
+  ): PhotoEntry[] {
     return this.store.listPhotosByAlbum(albumId, opts)
   }
 
@@ -251,7 +254,7 @@ export class Storage {
     return this.store.bulkMoveToAlbum(photoIds, albumId)
   }
 
-  listAllPhotos(opts?: { limit?: number; offset?: number; mediaType?: string }) {
+  listAllPhotos(opts?: { limit?: number; offset?: number; mediaType?: string; order?: string }) {
     return this.store.listAllPhotos(opts)
   }
 

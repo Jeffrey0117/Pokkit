@@ -48,6 +48,8 @@
     'Select': '選取',
     '+ New Album': '+ 新增相簿',
     'All Photos': '所有照片',
+    'Newest first': '最新在前',
+    'Oldest first': '最舊在前',
     'Drop photos here or click to upload': '拖曳照片到這裡或點擊上傳',
     '← Albums': '← 相簿',
     'Cleanup': '整理',

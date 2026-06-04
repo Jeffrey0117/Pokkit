@@ -1416,8 +1416,76 @@ body.mode-dashboard .landing-only {
 
 .photo-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--grid-min, 150px), 1fr));
   gap: 2px;
+}
+
+/* ── Grid toolbar (sort + size) ────────────────────────── */
+
+.section-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.grid-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.grid-sort {
+  padding: 5px 8px;
+  font-size: 0.6875rem;
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  outline: none;
+}
+
+.grid-size {
+  display: inline-flex;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.grid-size-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  background: var(--bg-secondary);
+  border: none;
+  border-left: 1px solid var(--border-default);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 0;
+  transition: var(--transition);
+}
+
+.grid-size-btn:first-child {
+  border-left: none;
+}
+
+.grid-size-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.grid-size-btn:hover {
+  color: var(--text-primary);
+}
+
+.grid-size-btn.active {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
 }
 
 .photo-cell {
