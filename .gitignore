@@ -7,3 +7,5 @@ data/
 # CloudPipe runtime state
 .deploy-state.json
 .pkg-hash
+.pm2-ecosystem.json
+.pm2-start.cjs
