@@ -463,6 +463,10 @@ class PokkitStore {
     return db.getUserStats(this._db, userId);
   }
 
+  userMediaCounts(userId) {
+    return db.userMediaCounts(this._db, userId);
+  }
+
   backfillUserId(userId) {
     return db.backfillUserId(this._db, userId);
   }

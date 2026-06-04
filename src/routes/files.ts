@@ -228,9 +228,23 @@ async function serveFile(
     .send(stream)
 }
 
-export function filesRoute(app: FastifyInstance, storage: Storage, config: PokkitConfig) {
-  // GET /files — list all files (auth required, paginated)
+export function filesRoute(
+  app: FastifyInstance,
+  storage: Storage,
+  config: PokkitConfig,
+  serveApp?: (reply: FastifyReply) => unknown,
+) {
+  // GET /files — list all files (auth required, paginated). But a browser
+  // navigating to /files (Accept: text/html, no pagination query) is the Files
+  // *page* — serve the SPA shell in that case so the route is deep-linkable.
   app.get<{ Querystring: { limit?: string; offset?: string } }>('/files', async (request, reply) => {
+    if (
+      serveApp &&
+      request.query.limit === undefined &&
+      (request.headers.accept || '').includes('text/html')
+    ) {
+      return serveApp(reply)
+    }
     const user = requireAuth(request, reply, config)
     if (!user) return
     const limit = Math.min(parseInt(request.query.limit || '50', 10) || 50, 200)

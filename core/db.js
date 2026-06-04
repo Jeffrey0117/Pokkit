@@ -354,6 +354,18 @@ function getUserStats(db, userId) {
 }
 
 /**
+ * Per-media-type counts for a user.
+ * @param {import('better-sqlite3').Database} db
+ * @param {string} userId
+ * @returns {Array<{ media_type: string, c: number, b: number }>}
+ */
+function userMediaCounts(db, userId) {
+  return db.prepare(
+    'SELECT media_type, COUNT(*) as c, COALESCE(SUM(size),0) as b FROM files WHERE user_id = ? GROUP BY media_type'
+  ).all(userId);
+}
+
+/**
  * @param {import('better-sqlite3').Database} db
  * @param {string} userId
  * @returns {number} number of rows updated
@@ -510,6 +522,7 @@ module.exports = {
   setTags,
   getStats,
   getUserStats,
+  userMediaCounts,
   backfillUserId,
   incrementDownloads,
   insertAlbum,

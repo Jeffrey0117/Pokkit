@@ -74,6 +74,14 @@ export async function createServer(config: PokkitConfig) {
     return cachedHtml
   }
 
+  // Serve the SPA shell (used for / and all client-routed pages).
+  function serveApp(reply: import('fastify').FastifyReply) {
+    return reply
+      .header('Content-Type', 'text/html; charset=utf-8')
+      .header('Cache-Control', 'no-store')
+      .send(buildIndexHtml())
+  }
+
   app.get('/', async (_request, reply) => {
     return reply
       .header('Content-Type', 'text/html; charset=utf-8')
@@ -100,9 +108,20 @@ export async function createServer(config: PokkitConfig) {
   app.get('/api/health', async () => ({ ok: true }))
   app.get('/api/version', async () => ({ commit: buildCommit, startedAt, pid: process.pid }))
   uploadRoute(app, storage, config)
-  filesRoute(app, storage, config)
+  filesRoute(app, storage, config, serveApp)
   statusRoute(app, storage, config)
   photosRoute(app, storage, config)
+
+  // SPA fallback: client-routed pages (/folders, /photos, /videos, /account, …)
+  // aren't real routes — when a browser navigates straight to one, serve the app
+  // shell so client-side routing can render it. Only for GET html navigations;
+  // API/XHR/asset 404s still return JSON.
+  app.setNotFoundHandler((request, reply) => {
+    if (request.method === 'GET' && (request.headers.accept || '').includes('text/html')) {
+      return serveApp(reply)
+    }
+    return reply.status(404).send({ error: 'Not found' })
+  })
 
   // Graceful shutdown: terminate workers
   app.addHook('onClose', async () => {

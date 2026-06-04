@@ -1387,12 +1387,124 @@
     $photosSection.hidden = tabName !== 'photos';
     $videosSection.hidden = tabName !== 'videos';
     $gallerySection.hidden = true;
+    if ($accountSection) $accountSection.hidden = true;
     currentAlbumId = null;
     currentAlbumName = '';
     if (tabName === 'albums') loadAlbums();
     if (tabName === 'photos') loadAllPhotos();
     if (tabName === 'videos') loadVideos();
   }
+
+  // ── Router: sidebar → pages with real URLs ─────────────
+  var $accountSection = document.getElementById('accountSection');
+  var $appShell = document.querySelector('.app-shell');
+  var $sideLinks = document.querySelectorAll('.side-link');
+  var ROUTES = ['folders', 'photos', 'videos', 'files', 'account'];
+
+  function routeFromPath() {
+    var seg = (location.pathname.split('/')[1] || '').toLowerCase();
+    return ROUTES.indexOf(seg) >= 0 ? seg : 'folders';
+  }
+
+  function setActiveSide(route) {
+    for (var i = 0; i < $sideLinks.length; i++) {
+      $sideLinks[i].classList.toggle('active', $sideLinks[i].dataset.route === route);
+    }
+  }
+
+  function toggleUploadZone(show) {
+    var dz = document.getElementById('dropzone');
+    var uo = document.getElementById('uploadOptions');
+    if (dz) dz.hidden = !show;
+    if (uo) uo.hidden = !show;
+  }
+
+  function navigate(route, push) {
+    if (ROUTES.indexOf(route) < 0) route = 'folders';
+    if (push !== false && location.pathname !== '/' + route) {
+      history.pushState({ route: route }, '', '/' + route);
+    }
+    setActiveSide(route);
+    if ($appShell) $appShell.classList.remove('sidebar-open');
+    toggleUploadZone(route !== 'account');
+    if (route === 'account') {
+      $filesSection.hidden = true;
+      $albumsSection.hidden = true;
+      $photosSection.hidden = true;
+      $videosSection.hidden = true;
+      $gallerySection.hidden = true;
+      $accountSection.hidden = false;
+      loadAccount();
+    } else {
+      switchTab(route === 'folders' ? 'albums' : route);
+    }
+  }
+
+  for (var _si = 0; _si < $sideLinks.length; _si++) {
+    $sideLinks[_si].addEventListener('click', function (e) {
+      e.preventDefault();
+      navigate(this.dataset.route, true);
+    });
+  }
+  var $navLogo = document.querySelector('.nav-logo');
+  if ($navLogo) $navLogo.addEventListener('click', function (e) { e.preventDefault(); navigate('folders', true); });
+
+  window.addEventListener('popstate', function () { navigate(routeFromPath(), false); });
+
+  var $sidebarToggle = document.getElementById('sidebarToggle');
+  var $sidebarBackdrop = document.getElementById('sidebarBackdrop');
+  if ($sidebarToggle && $appShell) {
+    $sidebarToggle.addEventListener('click', function () { $appShell.classList.toggle('sidebar-open'); });
+  }
+  if ($sidebarBackdrop && $appShell) {
+    $sidebarBackdrop.addEventListener('click', function () { $appShell.classList.remove('sidebar-open'); });
+  }
+  var $uploadFab = document.getElementById('uploadFab');
+  if ($uploadFab) {
+    $uploadFab.addEventListener('click', function () {
+      if (routeFromPath() === 'account') navigate('folders', true);
+      var fi = document.getElementById('fileInput');
+      if (fi) fi.click();
+    });
+  }
+
+  // ── Account page ───────────────────────────────────────
+  function loadAccount() {
+    var fmt = function (n) { return (n || 0).toLocaleString(); };
+    apiRequest('GET', '/api/user/storage', null, function (data) {
+      if (!data) return;
+      var t = document.getElementById('acctStorageText');
+      if (t) t.textContent = fmt(data.photoCount) + ' / ' + fmt(data.maxPhotos) + ' items';
+      var pct = Math.min(data.usedPercent || 0, 100);
+      var fill = document.getElementById('acctQuotaFill');
+      if (fill) {
+        fill.style.width = pct + '%';
+        fill.className = 'quota-fill' + (pct >= 90 ? ' critical' : pct >= 75 ? ' warning' : '');
+      }
+      var tier = document.getElementById('acctTier');
+      if (tier) { tier.textContent = data.tier; tier.className = 'quota-tier' + (data.isPremium ? ' premium' : ''); }
+      var up = document.getElementById('acctUpgrade');
+      if (up) up.hidden = !!data.isPremium;
+    });
+    apiRequest('GET', '/api/user/stats', null, function (s) {
+      if (!s) return;
+      var set = function (id, v) { var el = document.getElementById(id); if (el) el.textContent = fmt(v); };
+      set('acctPhotos', s.photos);
+      set('acctVideos', s.videos);
+      set('acctFiles', s.files);
+    });
+    var em = document.getElementById('acctEmail');
+    if (em) em.textContent = (currentUser && (currentUser.email || currentUser.name)) || 'Not logged in';
+  }
+
+  var $acctThemeToggle = document.getElementById('acctThemeToggle');
+  if ($acctThemeToggle && $themeToggle) {
+    $acctThemeToggle.addEventListener('click', function () { $themeToggle.click(); });
+  }
+  var $acctLogout = document.getElementById('acctLogout');
+  if ($acctLogout) $acctLogout.addEventListener('click', function () { $logoutBtn.click(); });
+  var $acctUpgrade = document.getElementById('acctUpgrade');
+  if ($acctUpgrade) $acctUpgrade.addEventListener('click', function () { $upgradeBtn.click(); });
 
   // ── Albums ─────────────────────────────────────────────
   $newAlbumBtn.addEventListener('click', function () {
@@ -2736,6 +2848,9 @@
     updateAuthUI();
     loadFiles();
   }
+
+  // Show the page matching the current URL (default: folders)
+  navigate(routeFromPath(), false);
 
   // Step 2: When SDK loads, only accept LOGIN events (user truthy).
   // NEVER clear cache from onAuthChange(null) — that kills our restore.

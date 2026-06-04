@@ -263,6 +263,10 @@ export class Storage {
     return this.store.userStats(userId)
   }
 
+  userMediaCounts(userId: string): Array<{ media_type: string; c: number; b: number }> {
+    return this.store.userMediaCounts(userId)
+  }
+
   backfillUserId(userId: string): number {
     return this.store.backfillUserId(userId)
   }

@@ -21,6 +21,24 @@ export function statusRoute(app: FastifyInstance, storage: Storage, config: Pokk
     return fetchPlans()
   })
 
+  // Per-media-type counts for the account page
+  app.get('/api/user/stats', async (request, reply) => {
+    const user = requireAuth(request, reply, config)
+    if (!user) return
+    const rows = storage.userMediaCounts(user.userId)
+    let photos = 0
+    let videos = 0
+    let files = 0
+    let totalBytes = 0
+    for (const r of rows) {
+      totalBytes += r.b
+      if (r.media_type === 'photo') photos = r.c
+      else if (r.media_type === 'video') videos = r.c
+      else files += r.c
+    }
+    return { photos, videos, files, totalBytes }
+  })
+
   app.get('/api/user/storage', async (request, reply) => {
     const user = requireAuth(request, reply, config)
     if (!user) return

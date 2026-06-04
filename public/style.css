@@ -66,6 +66,227 @@ body {
   padding: 0 24px 48px;
 }
 
+/* ── Dashboard shell (sidebar + content) ───────────────── */
+
+.app-shell {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  width: 230px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 14px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-default);
+}
+
+.sidebar .nav-logo {
+  padding: 6px 10px 16px;
+}
+
+.side-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.side-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  transition: background var(--transition), color var(--transition);
+}
+
+.side-link svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.side-link:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.side-link.active {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.side-footer {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-default);
+}
+
+.side-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.side-footer .storage-quota {
+  min-width: 0;
+}
+
+.app-shell .container {
+  flex: 1;
+  min-width: 0;
+  max-width: 1120px;
+  margin: 0;
+  padding: 20px 28px 64px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  min-height: 36px;
+}
+
+.sidebar-toggle {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.upload-fab {
+  margin-left: auto;
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
+/* ── Account page ──────────────────────────────────────── */
+
+.account-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.account-card {
+  padding: 18px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+}
+
+.account-card-label {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+
+.account-storage-text {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.account-tier-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.account-stats {
+  display: flex;
+  gap: 22px;
+}
+
+.account-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.account-stat-num {
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.account-stat-label {
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.account-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.account-email {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 120;
+    transform: translateX(-100%);
+    transition: transform var(--transition);
+  }
+  .app-shell.sidebar-open .sidebar {
+    transform: translateX(0);
+  }
+  .app-shell.sidebar-open .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 110;
+    background: rgba(0, 0, 0, 0.5);
+  }
+  .sidebar-toggle {
+    display: inline-flex;
+  }
+  .app-shell .container {
+    padding: 14px 16px 48px;
+  }
+}
+
 /* ── Nav / Header ──────────────────────────────────────── */
 
 .nav {

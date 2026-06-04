@@ -29,17 +29,41 @@
   <script defer src="https://umami.isnowfriend.com/script.js" data-website-id="a14ede0d-d9c7-4d7a-bca6-ef4528dd9aa5"></script>
 </head>
 <body>
-  <main class="container">
-    <nav class="nav">
-      <a href="/" class="nav-logo">
-        <svg class="nav-logo-mark" width="20" height="20" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <a href="/folders" class="nav-logo" data-route="folders">
+        <svg class="nav-logo-mark" width="22" height="22" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M9.5 12 V19.5 Q9.5 23 13 23 H19 Q22.5 23 22.5 19.5 V12"/>
           <path d="M8.5 12 H23.5"/>
           <path d="M12 12 L16 15.5 L20 12"/>
         </svg>
         Pokkit
       </a>
-      <div class="nav-right">
+
+      <nav class="side-nav">
+        <a class="side-link" href="/folders" data-route="folders">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          <span>Folders</span>
+        </a>
+        <a class="side-link" href="/photos" data-route="photos">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+          <span>Photos</span>
+        </a>
+        <a class="side-link" href="/videos" data-route="videos">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="14" height="14" rx="2"/><path d="m22 8-6 4 6 4z"/></svg>
+          <span>Videos</span>
+        </a>
+        <a class="side-link" href="/files" data-route="files">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+          <span>Files</span>
+        </a>
+        <a class="side-link" href="/account" data-route="account">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>
+          <span>Account</span>
+        </a>
+      </nav>
+
+      <div class="side-footer">
         <div class="storage-quota" id="storageQuota" hidden>
           <div class="quota-info">
             <span class="quota-text" id="quotaText"></span>
@@ -50,24 +74,38 @@
             <div class="quota-fill" id="quotaFill"></div>
           </div>
         </div>
-        <span class="user-name" id="userName"></span>
-        <div class="theme-toggle" id="themeToggle" title="Toggle theme">
-          <span class="theme-toggle-option" id="themeLight">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-          </span>
-          <span class="theme-toggle-option" id="themeDark">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-          </span>
+        <div class="side-footer-row">
+          <span class="user-name" id="userName"></span>
+          <div class="theme-toggle" id="themeToggle" title="Toggle theme">
+            <span class="theme-toggle-option" id="themeLight">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            </span>
+            <span class="theme-toggle-option" id="themeDark">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </span>
+          </div>
         </div>
         <button class="btn" id="loginBtn" hidden>Login</button>
         <button class="btn" id="logoutBtn" hidden>Logout</button>
       </div>
-    </nav>
+    </aside>
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
-    <section class="hero">
-      <h1 class="hero-title">Drop. Share. Done.</h1>
-      <p class="hero-subtitle">Free file sharing with password protection and auto-expiry. No signup, no limits, no tracking.</p>
-    </section>
+    <main class="container" id="mainContent">
+      <div class="topbar">
+        <button class="sidebar-toggle" id="sidebarToggle" aria-label="Menu">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <button class="btn btn-primary upload-fab" id="uploadFab">&#8593; Upload</button>
+      </div>
+
+      <!-- hidden: legacy tab buttons (router drives switchTab; kept so JS refs stay valid) -->
+      <section class="view-tabs" id="viewTabs" hidden>
+        <button class="tab" data-tab="files">Files</button>
+        <button class="tab" data-tab="albums">Albums</button>
+        <button class="tab" data-tab="photos">Photos</button>
+        <button class="tab" data-tab="videos">Videos</button>
+      </section>
 
     <section class="editor" id="dropzone" tabindex="0" role="button" aria-label="Upload files">
       <div class="drop-area">
@@ -105,40 +143,7 @@
       <div class="queue-list" id="queueList"></div>
     </section>
 
-    <section class="features">
-      <div class="feature-grid">
-        <div class="feature-card">
-          <div class="feature-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          </div>
-          <h3 class="feature-title">Password Protected</h3>
-          <p class="feature-desc">Lock files with a password. Only people you share the password with can download.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          </div>
-          <h3 class="feature-title">Auto-Expiry</h3>
-          <p class="feature-desc">Files self-destruct after your chosen time. 1 hour, 1 day, 7 days, or 30 days.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-          </div>
-          <h3 class="feature-title">No Signup</h3>
-          <p class="feature-desc">Upload instantly. No account, no email, no personal data collected. Just files.</p>
-        </div>
-      </div>
-    </section>
-
-    <section class="view-tabs" id="viewTabs">
-      <button class="tab active" data-tab="files">Files</button>
-      <button class="tab" data-tab="albums">Albums</button>
-      <button class="tab" data-tab="photos">Photos</button>
-      <button class="tab" data-tab="videos">Videos</button>
-    </section>
-
-    <section class="files-section" id="filesSection">
+    <section class="files-section" id="filesSection" hidden>
       <div class="section-header">
         <h2 class="section-title">Files</h2>
         <label class="select-all-label"><input type="checkbox" id="selectAllFiles"> Select all</label>
@@ -204,6 +209,40 @@
         <span>Drop photos here or click to upload</span>
       </div>
       <div class="photo-grid" id="photoGrid"></div>
+    </section>
+
+    <section class="account-section" id="accountSection" hidden>
+      <div class="section-header"><h2 class="section-title">Account</h2></div>
+      <div class="account-grid">
+        <div class="account-card">
+          <div class="account-card-label">Storage</div>
+          <div class="account-storage-text" id="acctStorageText">&mdash;</div>
+          <div class="quota-bar"><div class="quota-fill" id="acctQuotaFill"></div></div>
+          <div class="account-tier-row">
+            <span class="quota-tier" id="acctTier"></span>
+            <button class="btn btn-upgrade" id="acctUpgrade" hidden>Upgrade</button>
+          </div>
+        </div>
+        <div class="account-card">
+          <div class="account-card-label">Library</div>
+          <div class="account-stats">
+            <div class="account-stat"><span class="account-stat-num" id="acctPhotos">&mdash;</span><span class="account-stat-label">Photos</span></div>
+            <div class="account-stat"><span class="account-stat-num" id="acctVideos">&mdash;</span><span class="account-stat-label">Videos</span></div>
+            <div class="account-stat"><span class="account-stat-num" id="acctFiles">&mdash;</span><span class="account-stat-label">Files</span></div>
+          </div>
+        </div>
+        <div class="account-card">
+          <div class="account-card-label">Settings</div>
+          <div class="account-setting-row">
+            <span>Theme</span>
+            <button class="btn" id="acctThemeToggle">Toggle</button>
+          </div>
+          <div class="account-setting-row">
+            <span class="account-email" id="acctEmail"></span>
+            <button class="btn" id="acctLogout">Logout</button>
+          </div>
+        </div>
+      </div>
     </section>
 
     <div class="lightbox" id="lightbox">
@@ -285,10 +324,8 @@
       </div>
     </div>
 
-    <footer class="landing-footer">
-      <p>Pokkit &mdash; free anonymous file sharing. No tracking, no ads on upload page.</p>
-    </footer>
-  </main>
+    </main>
+  </div>
 
   <div class="toast" id="toast"></div>
 
