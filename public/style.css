@@ -1573,6 +1573,15 @@ body {
   align-items: center;
   gap: 10px;
   z-index: 210;
+  /* Let clicks fall through to the video's native controls; only the actual
+     buttons/notes panel capture clicks. */
+  pointer-events: none;
+}
+
+.lightbox-info,
+.lightbox-actions,
+.lightbox-notes {
+  pointer-events: auto;
 }
 
 .lightbox-info {
@@ -1588,6 +1597,26 @@ body {
 .lightbox-notes {
   width: 100%;
   max-width: 600px;
+  /* Collapsed by default — toggled open via the "Note" button so it never
+     covers the video controls. */
+  display: none;
+}
+
+.lightbox.notes-open .lightbox-notes {
+  display: block;
+}
+
+/* Dot on the Note button when this item already has notes */
+.lightbox-action-btn.has-notes::after {
+  content: '';
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: middle;
+  opacity: 0.8;
 }
 
 .lightbox-notes-display {

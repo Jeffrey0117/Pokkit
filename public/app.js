@@ -55,6 +55,7 @@
   var $lightboxNotes = document.getElementById('lightboxNotes');
   var $lightboxNotesDisplay = document.getElementById('lightboxNotesDisplay');
   var $lightboxNotesEdit = document.getElementById('lightboxNotesEdit');
+  var $lightboxNoteToggle = document.getElementById('lightboxNoteToggle');
   var $galleryCount = document.getElementById('galleryCount');
   var $galleryRename = document.getElementById('galleryRename');
   var $galleryDelete = document.getElementById('galleryDelete');
@@ -1827,6 +1828,7 @@
 
   function closeLightbox() {
     $lightbox.classList.remove('active');
+    $lightbox.classList.remove('notes-open');
     lightboxIndex = -1;
     // Pause and reset video when closing
     $lightboxVideo.pause();
@@ -1859,7 +1861,9 @@
       $lightboxLocate.hidden = !isLocalhost();
     }
 
-    // Notes display
+    // Notes — collapsed by default (toggled via the Note button) so they never
+    // cover the video controls. Just prime the content + flag whether any exist.
+    $lightbox.classList.remove('notes-open');
     $lightboxNotesEdit.hidden = true;
     $lightboxNotesDisplay.hidden = false;
     if (photo.notes) {
@@ -1869,6 +1873,7 @@
       $lightboxNotesDisplay.textContent = 'Add notes...';
       $lightboxNotesDisplay.classList.add('placeholder');
     }
+    if ($lightboxNoteToggle) $lightboxNoteToggle.classList.toggle('has-notes', !!photo.notes);
 
     if (isVideoEntry(photo)) {
       // Clean up previous video before loading new one
@@ -1962,6 +1967,28 @@
     $lightboxNotesEdit.hidden = false;
     $lightboxNotesEdit.focus();
   });
+
+  // "Note" button toggles the collapsed notes panel; opening an empty note
+  // jumps straight to editing.
+  if ($lightboxNoteToggle) {
+    $lightboxNoteToggle.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var opening = !$lightbox.classList.contains('notes-open');
+      $lightbox.classList.toggle('notes-open', opening);
+      if (opening) {
+        var photo = galleryPhotos[lightboxIndex];
+        if (photo && !photo.notes) {
+          notesOriginalValue = '';
+          $lightboxNotesEdit.value = '';
+          $lightboxNotesDisplay.hidden = true;
+          $lightboxNotesEdit.hidden = false;
+          $lightboxNotesEdit.focus();
+        }
+      } else {
+        cancelNotesEdit();
+      }
+    });
+  }
 
   $lightboxNotesEdit.addEventListener('keydown', function (e) {
     e.stopPropagation();
