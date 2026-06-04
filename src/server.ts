@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { readFileSync, statSync } from 'node:fs'
 import { createHash } from 'node:crypto'
+import { execSync } from 'node:child_process'
 import Fastify from 'fastify'
 import multipart from '@fastify/multipart'
 import cors from '@fastify/cors'
@@ -80,8 +81,24 @@ export async function createServer(config: PokkitConfig) {
       .send(buildIndexHtml())
   })
 
+  // Which commit is actually running — read once at boot. Lets you instantly
+  // confirm what's live (`curl /api/version`) instead of probing routes to guess.
+  let buildCommit = 'unknown'
+  try {
+    buildCommit = execSync('git rev-parse --short HEAD', {
+      cwd: join(import.meta.dirname, '..'),
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .toString()
+      .trim()
+  } catch {
+    /* not a git checkout — leave 'unknown' */
+  }
+  const startedAt = new Date().toISOString()
+
   // API routes
   app.get('/api/health', async () => ({ ok: true }))
+  app.get('/api/version', async () => ({ commit: buildCommit, startedAt, pid: process.pid }))
   uploadRoute(app, storage, config)
   filesRoute(app, storage, config)
   statusRoute(app, storage, config)
