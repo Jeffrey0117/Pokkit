@@ -22,6 +22,7 @@ export interface FileEntry {
   expires_at: number | null
   download_count: number
   media_type: string
+  user_id?: string | null
 }
 
 export interface PhotoEntry extends FileEntry {
@@ -58,6 +59,21 @@ export interface StorageStats {
   totalBytes: number
   dataDir: string
   buckets?: Record<string, { totalFiles: number; totalBytes: number }>
+}
+
+export interface Account {
+  id: string
+  name: string
+  key_prefix: string
+  is_admin: number
+  quota_files: number | null
+  created_at: number
+  last_used_at: number | null
+}
+
+export interface AccountUsage extends Account {
+  file_count: number
+  total_bytes: number
 }
 
 export class Storage {
@@ -147,9 +163,9 @@ export class Storage {
     return this.store.findByHash(hash)
   }
 
-  list(opts?: { limit?: number; offset?: number; order?: string }): FileEntry[] {
-    const { limit = 50, offset = 0, order } = opts || {}
-    return this.store.list({ bucket: 'default', limit, offset, order })
+  list(opts?: { limit?: number; offset?: number; order?: string; excludeAccounts?: boolean; userId?: string }): FileEntry[] {
+    const { limit = 50, offset = 0, order, excludeAccounts, userId } = opts || {}
+    return this.store.list({ bucket: 'default', limit, offset, order, excludeAccounts, userId })
   }
 
   async remove(id: string): Promise<boolean> {
@@ -254,7 +270,7 @@ export class Storage {
     return this.store.bulkMoveToAlbum(photoIds, albumId)
   }
 
-  listAllPhotos(opts?: { limit?: number; offset?: number; mediaType?: string; order?: string }) {
+  listAllPhotos(opts?: { limit?: number; offset?: number; mediaType?: string; order?: string; excludeAccounts?: boolean; userId?: string }) {
     return this.store.listAllPhotos(opts)
   }
 
@@ -272,6 +288,40 @@ export class Storage {
 
   backfillUserId(userId: string): number {
     return this.store.backfillUserId(userId)
+  }
+
+  // ── Accounts (multi-tenant) ──
+
+  createAccount(name: string, opts?: { isAdmin?: boolean }): { account: Account; key: string } {
+    return this.store.createAccount(name, opts)
+  }
+
+  resolveAccountByKey(key: string): Account | null {
+    return this.store.resolveAccountByKey(key)
+  }
+
+  getAccount(id: string): Account | null {
+    return this.store.getAccount(id)
+  }
+
+  listAccounts(): AccountUsage[] {
+    return this.store.listAccounts()
+  }
+
+  rotateAccountKey(id: string): { key: string } | null {
+    return this.store.rotateAccountKey(id)
+  }
+
+  countFilesByUser(userId: string): number {
+    return this.store.countFilesByUser(userId)
+  }
+
+  listFilesByUser(userId: string, opts?: { limit?: number; offset?: number; order?: string }): PhotoEntry[] {
+    return this.store.listFilesByUser(userId, opts)
+  }
+
+  deleteAccount(id: string, opts?: { wipeFiles?: boolean }): boolean {
+    return this.store.deleteAccount(id, opts)
   }
 
   close(): void {

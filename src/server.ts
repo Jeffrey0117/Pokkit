@@ -15,6 +15,7 @@ import { uploadRoute } from './routes/upload.js'
 import { filesRoute } from './routes/files.js'
 import { statusRoute } from './routes/status.js'
 import { photosRoute } from './routes/photos.js'
+import { adminRoute } from './routes/admin.js'
 import { initPhotoWorker, shutdownWorker } from './photo-worker.js'
 import { initVideoWorker, shutdownVideoWorker } from './video-worker.js'
 
@@ -113,6 +114,7 @@ export async function createServer(config: PokkitConfig) {
   filesRoute(app, storage, config, serveApp)
   statusRoute(app, storage, config)
   photosRoute(app, storage, config)
+  adminRoute(app, storage, config)
 
   // SPA fallback: client-routed pages (/folders, /photos, /videos, /account, …)
   // aren't real routes — when a browser navigates straight to one, serve the app

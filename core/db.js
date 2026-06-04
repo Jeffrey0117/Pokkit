@@ -119,6 +119,24 @@ function openDb(dbPath) {
       ON files(album_id, COALESCE(taken_at, uploaded_at));
   `);
 
+  // ── Accounts (multi-tenant) ──
+  // Each project that stores files in pokkit is an account. Its id doubles as
+  // the files.user_id, so existing per-user scoping isolates tenants for free.
+  // Only the sha-256 of the API key is stored — the plaintext is shown once.
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS accounts (
+      id           TEXT PRIMARY KEY,
+      name         TEXT NOT NULL,
+      key_hash     TEXT NOT NULL,
+      key_prefix   TEXT NOT NULL,
+      is_admin     INTEGER DEFAULT 0,
+      quota_files  INTEGER,
+      created_at   INTEGER NOT NULL,
+      last_used_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_accounts_key_hash ON accounts(key_hash);
+  `);
+
   return _db;
 }
 
@@ -231,14 +249,20 @@ function findByTag(db, tag, bucket) {
  * @returns {object[]}
  */
 function listFiles(db, opts = {}) {
-  const { bucket, limit = 100, offset = 0, order } = opts;
+  const { bucket, limit = 100, offset = 0, order, excludeAccounts, userId } = opts;
   const dir = order === 'asc' ? 'ASC' : 'DESC';
-  if (bucket) {
-    return db.prepare(`SELECT * FROM files WHERE bucket = ? ORDER BY uploaded_at ${dir} LIMIT ? OFFSET ?`)
-      .all(bucket, limit, offset).map(deserializeRow);
+  const params = [];
+  let where = '1=1';
+  if (bucket) { where += ' AND bucket = ?'; params.push(bucket); }
+  // Scope by account, or exclude project-account files from the owner's view.
+  if (userId) {
+    where += ' AND user_id = ?';
+    params.push(userId);
+  } else if (excludeAccounts) {
+    where += " AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM accounts))";
   }
-  return db.prepare(`SELECT * FROM files ORDER BY uploaded_at ${dir} LIMIT ? OFFSET ?`)
-    .all(limit, offset).map(deserializeRow);
+  return db.prepare(`SELECT * FROM files WHERE ${where} ORDER BY uploaded_at ${dir} LIMIT ? OFFSET ?`)
+    .all(...params, limit, offset).map(deserializeRow);
 }
 
 /**
@@ -497,22 +521,97 @@ function bulkMoveToAlbum(db, photoIds, albumId) {
 }
 
 function listAllPhotos(db, opts = {}) {
-  const { limit = 200, offset = 0, mediaType, order } = opts;
+  const { limit = 200, offset = 0, mediaType, order, excludeAccounts, userId } = opts;
   const dir = order === 'asc' ? 'ASC' : 'DESC';
-  if (mediaType) {
-    return db.prepare(`
-      SELECT * FROM files
-      WHERE status IN ('ready', 'processing') AND media_type = ?
-      ORDER BY COALESCE(taken_at, uploaded_at) ${dir}
-      LIMIT ? OFFSET ?
-    `).all(mediaType, limit, offset).map(deserializeRow);
+  // Scope: a specific account (userId) sees only its own; otherwise the owner's
+  // grid excludes project-account files so tenant uploads don't pollute the
+  // personal library. Null-safe: orphan (NULL) files still show for the owner.
+  const params = [];
+  let scope = '';
+  if (userId) {
+    scope = 'AND user_id = ?';
+    params.push(userId);
+  } else if (excludeAccounts) {
+    scope = "AND (user_id IS NULL OR user_id NOT IN (SELECT id FROM accounts))";
   }
+  const typeFilter = mediaType ? 'AND media_type = ?' : "AND media_type IN ('photo', 'video')";
+  if (mediaType) params.push(mediaType);
   return db.prepare(`
     SELECT * FROM files
-    WHERE status IN ('ready', 'processing') AND media_type IN ('photo', 'video')
+    WHERE status IN ('ready', 'processing') ${typeFilter} ${scope}
     ORDER BY COALESCE(taken_at, uploaded_at) ${dir}
     LIMIT ? OFFSET ?
-  `).all(limit, offset).map(deserializeRow);
+  `).all(...params, limit, offset).map(deserializeRow);
+}
+
+// ── Accounts (multi-tenant) ──
+
+function insertAccount(db, acc) {
+  db.prepare(`
+    INSERT INTO accounts (id, name, key_hash, key_prefix, is_admin, quota_files, created_at, last_used_at)
+    VALUES (@id, @name, @key_hash, @key_prefix, @is_admin, @quota_files, @created_at, @last_used_at)
+  `).run({
+    id: acc.id,
+    name: acc.name,
+    key_hash: acc.key_hash,
+    key_prefix: acc.key_prefix,
+    is_admin: acc.is_admin ? 1 : 0,
+    quota_files: acc.quota_files ?? null,
+    created_at: acc.created_at,
+    last_used_at: acc.last_used_at ?? null,
+  });
+}
+
+function findAccount(db, id) {
+  return db.prepare('SELECT * FROM accounts WHERE id = ?').get(id) || null;
+}
+
+function findAccountByKeyHash(db, keyHash) {
+  return db.prepare('SELECT * FROM accounts WHERE key_hash = ?').get(keyHash) || null;
+}
+
+/** List accounts with per-account usage (file count + bytes). */
+function listAccounts(db) {
+  return db.prepare(`
+    SELECT a.id, a.name, a.key_prefix, a.is_admin, a.quota_files, a.created_at, a.last_used_at,
+      (SELECT COUNT(*) FROM files f WHERE f.user_id = a.id) AS file_count,
+      (SELECT COALESCE(SUM(size), 0) FROM files f WHERE f.user_id = a.id) AS total_bytes
+    FROM accounts a
+    ORDER BY a.created_at DESC
+  `).all();
+}
+
+function updateAccountKey(db, id, keyHash, keyPrefix) {
+  return db.prepare('UPDATE accounts SET key_hash = ?, key_prefix = ? WHERE id = ?')
+    .run(keyHash, keyPrefix, id).changes > 0;
+}
+
+function touchAccount(db, id, ts) {
+  db.prepare('UPDATE accounts SET last_used_at = ? WHERE id = ?').run(ts, id);
+}
+
+function deleteAccount(db, id) {
+  return db.prepare('DELETE FROM accounts WHERE id = ?').run(id).changes > 0;
+}
+
+function countFilesByUser(db, userId) {
+  return db.prepare('SELECT COUNT(*) AS c FROM files WHERE user_id = ?').get(userId).c;
+}
+
+function listFileIdsByUser(db, userId) {
+  return db.prepare('SELECT id FROM files WHERE user_id = ?').all(userId).map(r => r.id);
+}
+
+/** Browse one account's files (admin view), newest first by default. */
+function listFilesByUser(db, userId, opts = {}) {
+  const { limit = 200, offset = 0, order } = opts;
+  const dir = order === 'asc' ? 'ASC' : 'DESC';
+  return db.prepare(`
+    SELECT * FROM files
+    WHERE user_id = ?
+    ORDER BY COALESCE(taken_at, uploaded_at) ${dir}
+    LIMIT ? OFFSET ?
+  `).all(userId, limit, offset).map(deserializeRow);
 }
 
 module.exports = {
@@ -545,4 +644,14 @@ module.exports = {
   listStuckProcessing,
   bulkMoveToAlbum,
   listAllPhotos,
+  insertAccount,
+  findAccount,
+  findAccountByKeyHash,
+  listAccounts,
+  updateAccountKey,
+  touchAccount,
+  deleteAccount,
+  countFilesByUser,
+  listFileIdsByUser,
+  listFilesByUser,
 };

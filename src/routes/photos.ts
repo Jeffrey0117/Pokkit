@@ -9,7 +9,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
 
   // POST /api/albums — create album
   app.post<{ Body: { name: string } }>('/api/albums', async (request, reply) => {
-    const user = requireAuth(request, reply, config)
+    const user = requireAuth(request, reply, config, storage)
     if (!user) return
     const { name } = request.body || {}
     if (!name || typeof name !== 'string') {
@@ -21,7 +21,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
 
   // GET /api/albums — list albums
   app.get('/api/albums', async (request, reply) => {
-    const user = requireAuth(request, reply, config)
+    const user = requireAuth(request, reply, config, storage)
     if (!user) return
     return storage.listAlbums()
   })
@@ -30,7 +30,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   app.get<{ Params: { id: string }; Querystring: { limit?: string; offset?: string; order?: string } }>(
     '/api/albums/:id',
     async (request, reply) => {
-      const user = requireAuth(request, reply, config)
+      const user = requireAuth(request, reply, config, storage)
       if (!user) return
       const album = storage.getAlbum(request.params.id)
       if (!album) {
@@ -48,7 +48,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   app.put<{ Params: { id: string }; Body: { name?: string; cover_file_id?: string } }>(
     '/api/albums/:id',
     async (request, reply) => {
-      const user = requireAuth(request, reply, config)
+      const user = requireAuth(request, reply, config, storage)
       if (!user) return
       const updates: { name?: string; cover_file_id?: string } = {}
       if (request.body?.name) updates.name = request.body.name.trim()
@@ -63,7 +63,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
 
   // DELETE /api/albums/:id — delete album (photos kept)
   app.delete<{ Params: { id: string } }>('/api/albums/:id', async (request, reply) => {
-    const user = requireAuth(request, reply, config)
+    const user = requireAuth(request, reply, config, storage)
     if (!user) return
     const ok = storage.deleteAlbum(request.params.id)
     if (!ok) {
@@ -154,7 +154,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   // (no transfer) instead of finding out server-side after the bytes are sent.
   // User-scoped so it never leaks whether *another* user has a given file.
   app.post<{ Body: { hashes?: string[] } }>('/api/check-hashes', async (request, reply) => {
-    const user = requireAuth(request, reply, config)
+    const user = requireAuth(request, reply, config, storage)
     if (!user) return
     const hashes = Array.isArray(request.body?.hashes) ? request.body!.hashes.slice(0, 2000) : []
     const existing: Record<string, { id: string }> = {}
@@ -170,7 +170,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   // Lets the client poll many in-flight uploads with a single request instead
   // of one request per item.
   app.get<{ Querystring: { ids?: string } }>('/api/photos/status', async (request, reply) => {
-    const user = requireAuth(request, reply, config)
+    const user = requireAuth(request, reply, config, storage)
     if (!user) return
     const ids = (request.query.ids || '')
       .split(',')
@@ -190,7 +190,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
 
   // GET /api/photos/:id/status — processing status
   app.get<{ Params: { id: string } }>('/api/photos/:id/status', async (request, reply) => {
-    const user = requireAuth(request, reply, config)
+    const user = requireAuth(request, reply, config, storage)
     if (!user) return
     const status = storage.getPhotoStatus(request.params.id)
     if (!status) {
@@ -203,7 +203,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   app.get<{ Querystring: { limit?: string; offset?: string; type?: string; order?: string } }>(
     '/api/photos',
     async (request, reply) => {
-      const user = requireAuth(request, reply, config)
+      const user = requireAuth(request, reply, config, storage)
       if (!user) return
       const limit = Math.min(parseInt(request.query.limit || '200', 10) || 200, 1000)
       const offset = parseInt(request.query.offset || '0', 10) || 0
@@ -212,7 +212,10 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
           ? request.query.type
           : undefined
       const order = request.query.order === 'asc' ? 'asc' : 'desc'
-      return storage.listAllPhotos({ limit, offset, mediaType, order })
+      // Admin/owner sees the personal library (project files excluded); a project
+      // account sees only its own media.
+      const scope = user.isAdmin ? { excludeAccounts: true } : { userId: user.userId }
+      return storage.listAllPhotos({ limit, offset, mediaType, order, ...scope })
     },
   )
 
@@ -220,7 +223,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   app.put<{ Params: { id: string }; Body: { notes?: string } }>(
     '/api/photos/:id',
     async (request, reply) => {
-      const user = requireAuth(request, reply, config)
+      const user = requireAuth(request, reply, config, storage)
       if (!user) return
       const entry = storage.find(request.params.id)
       if (!entry) {
@@ -244,7 +247,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   app.put<{ Body: { photo_ids: string[]; album_id: string } }>(
     '/api/photos/bulk-move',
     async (request, reply) => {
-      const user = requireAuth(request, reply, config)
+      const user = requireAuth(request, reply, config, storage)
       if (!user) return
       const { photo_ids, album_id } = request.body || {}
       if (!Array.isArray(photo_ids) || photo_ids.length === 0) {
@@ -266,7 +269,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   app.put<{ Params: { id: string }; Body: { album_id: string | null } }>(
     '/api/photos/:id/album',
     async (request, reply) => {
-      const user = requireAuth(request, reply, config)
+      const user = requireAuth(request, reply, config, storage)
       if (!user) return
       const entry = storage.find(request.params.id)
       if (!entry) {

@@ -5,7 +5,7 @@ import { execFile } from 'node:child_process'
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import type { Storage, FileEntry } from '../storage.js'
 import type { PokkitConfig } from '../config.js'
-import { requireAuth } from '../auth.js'
+import { requireAuth, canAccessEntry } from '../auth.js'
 
 // Cache-bust: compute hash at startup so download.css changes are picked up on restart
 const cssHash = createHash('md5')
@@ -245,12 +245,15 @@ export function filesRoute(
     ) {
       return serveApp(reply)
     }
-    const user = requireAuth(request, reply, config)
+    const user = requireAuth(request, reply, config, storage)
     if (!user) return
     const limit = Math.min(parseInt(request.query.limit || '50', 10) || 50, 200)
     const offset = parseInt(request.query.offset || '0', 10) || 0
     const order = request.query.order === 'asc' ? 'asc' : 'desc'
-    return storage.list({ limit, offset, order })
+    // Admin/owner sees the personal library (project files excluded); a project
+    // account sees only its own files.
+    const scope = user.isAdmin ? { excludeAccounts: true } : { userId: user.userId }
+    return storage.list({ limit, offset, order, ...scope })
   })
 
   // GET /files/:id/:filename — direct file download (no auth, for streaming/embedding)
@@ -379,8 +382,16 @@ export function filesRoute(
   app.delete<{ Params: { id: string } }>(
     '/files/:id',
     async (request, reply) => {
-      const user = requireAuth(request, reply, config)
+      const user = requireAuth(request, reply, config, storage)
       if (!user) return
+
+      const entry = storage.find(request.params.id)
+      if (!entry) {
+        return reply.status(404).send({ error: 'File not found' })
+      }
+      if (!canAccessEntry(user, entry)) {
+        return reply.status(403).send({ error: 'Not your file' })
+      }
 
       const removed = await storage.remove(request.params.id)
       if (!removed) {
@@ -395,7 +406,7 @@ export function filesRoute(
   app.get<{ Params: { id: string } }>(
     '/files/:id/local-path',
     async (request, reply) => {
-      const user = requireAuth(request, reply, config)
+      const user = requireAuth(request, reply, config, storage)
       if (!user) return
       if (!isLocalRequest(request)) {
         return reply.status(403).send({ error: 'Local access only' })
@@ -403,6 +414,9 @@ export function filesRoute(
       const entry = storage.find(request.params.id)
       if (!entry) {
         return reply.status(404).send({ error: 'File not found' })
+      }
+      if (!canAccessEntry(user, entry)) {
+        return reply.status(403).send({ error: 'Not your file' })
       }
       const filePath = storage.getPath(entry.id)
       if (!filePath) {
@@ -417,7 +431,7 @@ export function filesRoute(
   app.post<{ Params: { id: string } }>(
     '/files/:id/reveal',
     async (request, reply) => {
-      const user = requireAuth(request, reply, config)
+      const user = requireAuth(request, reply, config, storage)
       if (!user) return
       if (!isLocalRequest(request)) {
         return reply.status(403).send({ error: 'Local access only' })
@@ -425,6 +439,9 @@ export function filesRoute(
       const entry = storage.find(request.params.id)
       if (!entry) {
         return reply.status(404).send({ error: 'File not found' })
+      }
+      if (!canAccessEntry(user, entry)) {
+        return reply.status(403).send({ error: 'Not your file' })
       }
       const filePath = storage.getPath(entry.id)
       if (!filePath) {

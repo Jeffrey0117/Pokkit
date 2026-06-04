@@ -10,7 +10,7 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
   app.post('/upload', {
     config: { rateLimit: { max: 200, timeWindow: '1 minute' } },
   }, async (request, reply) => {
-    const user = requireAuth(request, reply, config)
+    const user = requireAuth(request, reply, config, storage)
     if (!user) return
 
     const file = await request.file()

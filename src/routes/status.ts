@@ -11,7 +11,7 @@ const backfilledUsers = new Set<string>()
 
 export function statusRoute(app: FastifyInstance, storage: Storage, config: PokkitConfig) {
   app.get('/status', async (request, reply) => {
-    const user = requireAuth(request, reply, config)
+    const user = requireAuth(request, reply, config, storage)
     if (!user) return
     return storage.stats()
   })
@@ -23,7 +23,7 @@ export function statusRoute(app: FastifyInstance, storage: Storage, config: Pokk
 
   // Per-media-type counts for the account page
   app.get('/api/user/stats', async (request, reply) => {
-    const user = requireAuth(request, reply, config)
+    const user = requireAuth(request, reply, config, storage)
     if (!user) return
     const rows = storage.userMediaCounts(user.userId)
     let photos = 0
@@ -40,7 +40,7 @@ export function statusRoute(app: FastifyInstance, storage: Storage, config: Pokk
   })
 
   app.get('/api/user/storage', async (request, reply) => {
-    const user = requireAuth(request, reply, config)
+    const user = requireAuth(request, reply, config, storage)
     if (!user) return
 
     // Auto-backfill: assign orphaned files (user_id IS NULL) to current user.

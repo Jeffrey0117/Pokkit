@@ -2,11 +2,27 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { randomBytes } = require('node:crypto');
+const { randomBytes, createHash } = require('node:crypto');
 
 /** Generate a short URL-safe ID (8 chars, ~48 bits of entropy) */
 function shortId() {
   return randomBytes(6).toString('base64url');
+}
+
+/** Slugify a project name into a stable account id (lowercase, a-z0-9-). */
+function slugify(name) {
+  const s = String(name || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+  return s || 'project';
+}
+
+/** sha-256 hex of an API key — only the hash is ever persisted. */
+function hashKey(key) {
+  return createHash('sha256').update(String(key)).digest('hex');
 }
 const db = require('./db');
 const { hashBuffer, hashFile } = require('./hash');
@@ -469,6 +485,87 @@ class PokkitStore {
 
   backfillUserId(userId) {
     return db.backfillUserId(this._db, userId);
+  }
+
+  // ══════════════════════════════════════════
+  //  Accounts (multi-tenant)
+  // ══════════════════════════════════════════
+
+  /**
+   * Create a project account. The account id is a slug of the name (uniqued).
+   * Returns the account plus the plaintext key — the key is shown ONCE and only
+   * its hash is stored.
+   * @param {string} name
+   * @param {{ isAdmin?: boolean }} [opts]
+   * @returns {{ account: object, key: string }}
+   */
+  createAccount(name, opts = {}) {
+    const base = slugify(name);
+    let id = base;
+    let n = 2;
+    while (db.findAccount(this._db, id)) {
+      id = `${base}-${n++}`;
+    }
+
+    const key = `pk_${id}_${randomBytes(16).toString('hex')}`;
+    const account = {
+      id,
+      name: String(name),
+      key_hash: hashKey(key),
+      key_prefix: key.slice(0, 14),
+      is_admin: opts.isAdmin ? 1 : 0,
+      quota_files: null,
+      created_at: Date.now(),
+      last_used_at: null,
+    };
+    db.insertAccount(this._db, account);
+    return { account, key };
+  }
+
+  /** Resolve an API key to its account, bumping last_used_at. Null if unknown. */
+  resolveAccountByKey(key) {
+    if (!key) return null;
+    const account = db.findAccountByKeyHash(this._db, hashKey(key));
+    if (account) db.touchAccount(this._db, account.id, Date.now());
+    return account;
+  }
+
+  getAccount(id) {
+    return db.findAccount(this._db, id);
+  }
+
+  listAccounts() {
+    return db.listAccounts(this._db);
+  }
+
+  /** Issue a fresh key for an account (invalidates the old one). Returns { key }. */
+  rotateAccountKey(id) {
+    const account = db.findAccount(this._db, id);
+    if (!account) return null;
+    const key = `pk_${id}_${randomBytes(16).toString('hex')}`;
+    db.updateAccountKey(this._db, id, hashKey(key), key.slice(0, 14));
+    return { key };
+  }
+
+  countFilesByUser(userId) {
+    return db.countFilesByUser(this._db, userId);
+  }
+
+  listFilesByUser(userId, opts) {
+    return db.listFilesByUser(this._db, userId, opts);
+  }
+
+  /**
+   * Delete an account. When wipeFiles is set, every file owned by the account is
+   * removed from disk + DB first; otherwise the account's files are left intact.
+   */
+  deleteAccount(id, opts = {}) {
+    if (opts.wipeFiles) {
+      for (const fid of db.listFileIdsByUser(this._db, id)) {
+        this.remove(fid);
+      }
+    }
+    return db.deleteAccount(this._db, id);
   }
 
   // ══════════════════════════════════════════

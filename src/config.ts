@@ -18,6 +18,9 @@ export interface PokkitConfig {
   maxFileSize: number
   publicUrl: string
   premiumUserIds: string[]
+  // LetMeUse users (userId or email) allowed to use the cross-account admin
+  // view. Empty = no human is admin (only the global API key / is_admin accounts).
+  adminUsers: string[]
 }
 
 function parseArgs(args: string[]): Partial<PokkitConfig> {
@@ -45,5 +48,6 @@ export function loadConfig(): PokkitConfig {
     maxFileSize: cliArgs.maxFileSize ?? (Number(process.env.POKKIT_MAX_FILE_SIZE) || 500 * 1024 * 1024),
     publicUrl: (cliArgs.publicUrl ?? process.env.POKKIT_PUBLIC_URL ?? '').replace(/\/$/, ''),
     premiumUserIds: (process.env.POKKIT_PREMIUM_USERS ?? '').split(',').filter(Boolean),
+    adminUsers: (process.env.POKKIT_ADMIN_USERS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
   }
 }
