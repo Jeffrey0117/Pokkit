@@ -1833,14 +1833,13 @@ body.mode-dashboard .landing-only {
   display: flex;
 }
 
-/* Pokkit-style card modal — fixed HEIGHT (no vertical jump), width hugs the
-   media so portrait gets a tall narrow window and landscape a wide one. */
+/* Pokkit-style card modal — FIXED size. The media fills it via object-fit so
+   loading/playing never changes the layout (no jumping, no pop-to-real-size). */
 .lightbox-card {
   display: flex;
   flex-direction: column;
-  width: auto;
-  max-width: 94vw;
-  height: min(86vh, 820px);
+  width: min(880px, 92vw);
+  height: min(84vh, 800px);
   background: var(--bg-secondary);
   border: 1px solid var(--border-default);
   border-radius: var(--radius);
@@ -1853,7 +1852,6 @@ body.mode-dashboard .landing-only {
 .lightbox-media {
   flex: 1;
   min-height: 0;
-  min-width: 260px;
   position: relative;
   display: flex;
   align-items: center;
@@ -1931,10 +1929,8 @@ body.mode-dashboard .landing-only {
 
 .lightbox-img {
   position: relative;
-  max-width: 94vw;
-  max-height: 100%;
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   user-select: none;
   opacity: 0;
@@ -2422,12 +2418,11 @@ body.mode-dashboard .landing-only {
 
 .lightbox-video {
   position: relative;
-  max-width: 94vw;
-  max-height: 100%;
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
   outline: none;
-  background: #000;
+  background: transparent;
   opacity: 0;
   transition: opacity var(--transition);
 }
