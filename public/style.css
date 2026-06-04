@@ -86,12 +86,19 @@ body {
 }
 
 .nav-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 16px;
   font-weight: 700;
   color: var(--text-primary);
   text-decoration: none;
   text-transform: uppercase;
   letter-spacing: 0.1em;
+}
+
+.nav-logo-mark {
+  flex-shrink: 0;
 }
 
 .nav-right {

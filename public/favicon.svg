@@ -1,0 +1,12 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <!-- Pokkit — a pocket. Rounded dark tile so it reads on any browser tab. -->
+  <rect width="32" height="32" rx="7" fill="#18181b"/>
+  <g fill="none" stroke="#faf9f5" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+    <!-- pocket pouch (rounded bottom) -->
+    <path d="M9.5 12 V19.5 Q9.5 23 13 23 H19 Q22.5 23 22.5 19.5 V12"/>
+    <!-- top hem -->
+    <path d="M8.5 12 H23.5"/>
+    <!-- flap -->
+    <path d="M12 12 L16 15.5 L20 12"/>
+  </g>
+</svg>
