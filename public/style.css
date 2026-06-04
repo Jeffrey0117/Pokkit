@@ -1603,16 +1603,22 @@ body {
 .lightbox.notes-open .lightbox-notes {
   display: block;
   position: absolute;
-  top: 72px;
-  left: 16px;
-  right: 140px; /* clear the right action rail */
-  max-width: 600px;
+  top: 64px;
+  right: 0;
+  bottom: 0;
+  width: min(340px, 80vw);
   z-index: 216;
-  padding: 10px;
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.66);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  padding: 16px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Hide the side nav arrow while the notes panel is open (they'd overlap) */
+.lightbox.notes-open .lightbox-next {
+  display: none;
 }
 
 /* Dot on the Note button when this item already has notes */
@@ -1677,19 +1683,13 @@ body {
 }
 
 .lightbox-actions {
-  position: absolute;
-  top: 72px;
-  right: 16px;
-  z-index: 215;
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .lightbox-action-btn {
-  text-align: left;
-  white-space: nowrap;
   padding: 8px 16px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;

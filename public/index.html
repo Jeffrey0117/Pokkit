@@ -209,23 +209,22 @@
       <button class="lightbox-nav lightbox-next" id="lightboxNext">&rsaquo;</button>
       <img class="lightbox-img" id="lightboxImg" alt="">
       <video class="lightbox-video" id="lightboxVideo" controls playsinline preload="metadata" hidden></video>
-      <!-- Action rail: vertical, right side — off the bottom so it never
-           collides with the video's native controls -->
-      <div class="lightbox-actions">
-        <button class="lightbox-action-btn" id="lightboxNoteToggle" title="Notes">&#9998; Note</button>
-        <a class="lightbox-action-btn" id="lightboxDownload" title="Download" download>&#8595; Download</a>
-        <button class="lightbox-action-btn" id="lightboxLocate" title="Open on this machine" hidden>&#9783; Locate</button>
-        <button class="lightbox-action-btn" id="lightboxCover" title="Set as cover">&#9733; Cover</button>
-        <button class="lightbox-action-btn lightbox-action-danger" id="lightboxDelete" title="Delete photo">&#10005; Delete</button>
-      </div>
-      <!-- Notes panel: floats top-centre when opened (never over bottom controls) -->
+      <!-- Notes panel: slides in on the right when opened, so it never covers
+           the video or its bottom controls -->
       <div class="lightbox-notes" id="lightboxNotes">
         <div class="lightbox-notes-display" id="lightboxNotesDisplay"></div>
         <textarea class="lightbox-notes-edit" id="lightboxNotesEdit"
-          placeholder="Add notes..." rows="3" hidden></textarea>
+          placeholder="Add notes..." rows="6" hidden></textarea>
       </div>
       <div class="lightbox-bottom">
         <div class="lightbox-info" id="lightboxInfo"></div>
+        <div class="lightbox-actions">
+          <button class="lightbox-action-btn" id="lightboxNoteToggle" title="Notes">&#9998; Note</button>
+          <a class="lightbox-action-btn" id="lightboxDownload" title="Download" download>&#8595; Download</a>
+          <button class="lightbox-action-btn" id="lightboxLocate" title="Open on this machine" hidden>&#9783; Locate</button>
+          <button class="lightbox-action-btn" id="lightboxCover" title="Set as cover">&#9733; Cover</button>
+          <button class="lightbox-action-btn lightbox-action-danger" id="lightboxDelete" title="Delete photo">&#10005; Delete</button>
+        </div>
       </div>
     </div>
 
