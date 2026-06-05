@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import { getJwksPublicKey } from './jwks-cache.js'
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import type { PokkitConfig } from './config.js'
 import type { Storage } from './storage.js'
@@ -19,16 +20,30 @@ export interface AuthUser {
  */
 export function verifyLetMeUseToken(token: string, secret: string, appId: string): AuthUser | null {
   try {
-    if (!secret) return null // 沒 secret 無法驗 → 拒絕 (不 fail-open 留洞)
     const [headerB64, payloadB64, sigB64] = token.split('.')
     if (!headerB64 || !payloadB64 || !sigB64) return null
-
-    // 1. 驗簽章 (HS256, constant-time)
     const header = JSON.parse(Buffer.from(headerB64, 'base64url').toString('utf-8'))
-    if (header.alg !== 'HS256') return null // 防 alg confusion / none
-    const expected = crypto.createHmac('sha256', secret).update(`${headerB64}.${payloadB64}`).digest()
-    const actual = Buffer.from(sigB64, 'base64url')
-    if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) return null
+
+    // 1. 依 alg 驗簽章 (過渡期 ES256/JWKS 與 HS256 都收)
+    if (header.alg === 'ES256') {
+      // 🔑 JWKS 公鑰驗 (LetMeUse Phase 2 翻 ES256 後走這條; 不再需要共用 secret)
+      const pub = getJwksPublicKey(header.kid)
+      if (!pub) return null
+      const ok = crypto.verify(
+        'sha256',
+        Buffer.from(`${headerB64}.${payloadB64}`),
+        { key: pub, dsaEncoding: 'ieee-p1363' },
+        Buffer.from(sigB64, 'base64url'),
+      )
+      if (!ok) return null
+    } else if (header.alg === 'HS256') {
+      if (!secret) return null
+      const expected = crypto.createHmac('sha256', secret).update(`${headerB64}.${payloadB64}`).digest()
+      const actual = Buffer.from(sigB64, 'base64url')
+      if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) return null
+    } else {
+      return null // 不認的 alg (none 等) → 擋
+    }
 
     // 2. payload 檢查
     const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf-8'))
