@@ -221,6 +221,13 @@ body {
   color: var(--text-primary);
 }
 
+/* Desktop "/" is the dashboard itself — there is no landing page to go back to */
+@media (min-width: 761px) {
+  .topbar-home {
+    display: none;
+  }
+}
+
 .sidebar-backdrop {
   display: none;
 }
