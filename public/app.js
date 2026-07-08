@@ -1435,11 +1435,18 @@
   function navigate(route, push) {
     if ($appShell) $appShell.classList.remove('sidebar-open');
 
-    // Home = the original landing page (upload / quick browse)
+    // Home: desktop gets the dashboard (Folders) at "/"; mobile keeps the landing page
     if (route === 'home') {
+      if (push !== false && location.pathname !== '/') history.pushState({}, '', '/');
+      if (window.matchMedia('(min-width: 761px)').matches) {
+        setMode(true);
+        setActiveSide('folders');
+        toggleUploadZone(true);
+        switchTab('albums');
+        return;
+      }
       setMode(false);
       setActiveSide(null);
-      if (push !== false && location.pathname !== '/') history.pushState({}, '', '/');
       toggleUploadZone(true);
       switchTab(currentTab && currentTab !== 'account' ? currentTab : 'files');
       return;
