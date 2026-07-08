@@ -3,6 +3,8 @@ dist/
 data/
 *.log
 .env
+.env.production
+.env.local
 
 # CloudPipe runtime state
 .deploy-state.json
