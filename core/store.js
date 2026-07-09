@@ -447,6 +447,21 @@ class PokkitStore {
   }
 
   /**
+   * Delete every file whose expiry has passed (disk + DB). Called periodically
+   * so expired shares stop being served AND stop occupying disk/quota.
+   * @returns {number} how many were removed
+   */
+  sweepExpired(now = Date.now()) {
+    let removed = 0;
+    for (const id of db.listExpiredIds(this._db, now)) {
+      try {
+        if (this.remove(id)) removed++;
+      } catch (_) { /* keep sweeping the rest */ }
+    }
+    return removed;
+  }
+
+  /**
    * Remove all files with a given tag (deletes from disk + DB)
    * @param {string} tag
    * @param {string} [bucket]

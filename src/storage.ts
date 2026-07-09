@@ -173,6 +173,11 @@ export class Storage {
     return this.store.remove(id)
   }
 
+  /** Delete all files past their expiry (disk + DB). Returns count removed. */
+  sweepExpired(now: number = Date.now()): number {
+    return this.store.sweepExpired(now)
+  }
+
   stats(): StorageStats {
     const s = this.store.stats('default')
     return {

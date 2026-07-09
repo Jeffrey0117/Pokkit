@@ -43,13 +43,15 @@ export function statusRoute(app: FastifyInstance, storage: Storage, config: Pokk
     const user = requireAuth(request, reply, config, storage)
     if (!user) return
 
-    // Auto-backfill: assign orphaned files (user_id IS NULL) to current user.
-    // Runs at most once per user per server session (see backfilledUsers above).
-    if (!backfilledUsers.has(user.userId)) {
+    // Auto-backfill legacy orphan files (user_id IS NULL) to the OWNER only.
+    // 🔒 Never let a project account (pk_) or arbitrary JWT user vacuum every
+    // unowned file into itself — orphans are pre-multi-tenant owner data.
+    // Runs at most once per admin per server session (see backfilledUsers).
+    if (user.isAdmin && !backfilledUsers.has(user.userId)) {
       backfilledUsers.add(user.userId)
       const backfilled = storage.backfillUserId(user.userId)
       if (backfilled > 0) {
-        console.log(`[Pokkit] Auto-backfilled ${backfilled} files to user ${user.userId}`)
+        console.log(`[Pokkit] Auto-backfilled ${backfilled} files to owner ${user.userId}`)
       }
     }
 

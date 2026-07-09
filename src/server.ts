@@ -127,8 +127,26 @@ export async function createServer(config: PokkitConfig) {
     return reply.status(404).send({ error: 'Not found' })
   })
 
-  // Graceful shutdown: terminate workers
+  // Expired-file sweep: delete shares past their expiry so they stop being
+  // served and stop occupying disk/quota. Runs shortly after boot, then hourly.
+  // .unref() so it never keeps the process alive on shutdown.
+  const runSweep = () => {
+    try {
+      const n = storage.sweepExpired()
+      if (n > 0) console.log(`[Pokkit] Swept ${n} expired file(s)`)
+    } catch (err) {
+      console.error('[Pokkit] Expired sweep failed:', err)
+    }
+  }
+  const bootSweep = setTimeout(runSweep, 60_000)
+  bootSweep.unref?.()
+  const sweepTimer = setInterval(runSweep, 60 * 60 * 1000)
+  sweepTimer.unref?.()
+
+  // Graceful shutdown: stop the sweep, terminate workers, close the DB
   app.addHook('onClose', async () => {
+    clearTimeout(bootSweep)
+    clearInterval(sweepTimer)
     await shutdownWorker()
     await shutdownVideoWorker()
     storage.close()

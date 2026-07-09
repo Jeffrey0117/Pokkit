@@ -377,8 +377,11 @@ export function filesRoute(
   )
 
   // POST /f/:id/verify — password verification
+  // 🔒 Strict rate limit (per IP) so a shared link's password can't be brute
+  // forced — bcrypt slows each guess, this caps the guess rate on top.
   app.post<{ Params: { id: string } }>(
     '/f/:id/verify',
+    { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
     async (request, reply) => {
       const entry = storage.find(request.params.id)
       if (!entry) {
@@ -451,7 +454,11 @@ export function filesRoute(
     async (request, reply) => {
       const user = requireAuth(request, reply, config, storage)
       if (!user) return
-      if (!isLocalRequest(request)) {
+      // 🔒 Owner only. Behind the CloudPipe tunnel request.ip is always loopback,
+      // so isLocalRequest can't be trusted alone — require the owner/global key
+      // so a pk_ tenant or JWT user can never read host paths / pop the file
+      // manager on the server.
+      if (!user.isAdmin || !isLocalRequest(request)) {
         return reply.status(403).send({ error: 'Local access only' })
       }
       const entry = storage.find(request.params.id)
@@ -476,7 +483,11 @@ export function filesRoute(
     async (request, reply) => {
       const user = requireAuth(request, reply, config, storage)
       if (!user) return
-      if (!isLocalRequest(request)) {
+      // 🔒 Owner only. Behind the CloudPipe tunnel request.ip is always loopback,
+      // so isLocalRequest can't be trusted alone — require the owner/global key
+      // so a pk_ tenant or JWT user can never read host paths / pop the file
+      // manager on the server.
+      if (!user.isAdmin || !isLocalRequest(request)) {
         return reply.status(403).send({ error: 'Local access only' })
       }
       const entry = storage.find(request.params.id)

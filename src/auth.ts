@@ -57,6 +57,14 @@ export function verifyLetMeUseToken(token: string, secret: string, appId: string
   }
 }
 
+/** Constant-time string compare (length-safe): false fast on length mismatch. */
+function timingSafeEqualStr(a: string, b: string): boolean {
+  const bufA = Buffer.from(a)
+  const bufB = Buffer.from(b)
+  if (bufA.length !== bufB.length) return false
+  return crypto.timingSafeEqual(bufA, bufB)
+}
+
 /** Extract the bearer/X-Pokkit-Key token from a request, if any. */
 function extractToken(request: FastifyRequest): string | null {
   const auth = request.headers.authorization
@@ -83,8 +91,9 @@ export function requireAuth(
     return null
   }
 
-  // Global API key → admin (unchanged, back-compat)
-  if (config.apiKey && config.apiKey.length > 0 && token === config.apiKey) {
+  // Global API key → admin (constant-time compare so response timing can't be
+  // used to recover the key byte-by-byte).
+  if (config.apiKey && config.apiKey.length > 0 && timingSafeEqualStr(token, config.apiKey)) {
     return { userId: 'admin', email: 'admin', isAdmin: true }
   }
 

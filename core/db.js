@@ -521,6 +521,13 @@ function listStuckProcessing(db) {
   return db.prepare("SELECT * FROM files WHERE status = 'processing'").all().map(deserializeRow);
 }
 
+/** Ids of files whose expiry has passed (for the periodic sweep). */
+function listExpiredIds(db, now) {
+  return db.prepare(
+    'SELECT id FROM files WHERE expires_at IS NOT NULL AND expires_at < ?'
+  ).all(now).map((r) => r.id);
+}
+
 // ── Helpers ──
 
 function deserializeRow(row) {
@@ -663,6 +670,7 @@ module.exports = {
   updateFilePhoto,
   countByAlbum,
   listStuckProcessing,
+  listExpiredIds,
   bulkMoveToAlbum,
   listAllPhotos,
   insertAccount,
