@@ -134,11 +134,17 @@ export async function createServer(config: PokkitConfig) {
     storage.close()
   })
 
-  // Static frontend (fallback, index: false so our route handles /)
+  // Static frontend (fallback, index: false so our route handles /).
+  // Every linked asset is hash-busted (?v=…), and index.html is served no-store
+  // by our own "/" route, so a long immutable cache is safe here and lets CF +
+  // the browser skip re-fetching app.js/style.css/i18n.js over the home uplink.
   await app.register(staticPlugin, {
     root: publicDir,
     prefix: '/',
     index: false,
+    cacheControl: true,
+    maxAge: 31536000000,
+    immutable: true,
   })
 
   return app

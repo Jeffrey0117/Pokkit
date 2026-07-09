@@ -1185,12 +1185,31 @@
     });
     row.appendChild(checkbox);
 
-    if (entry.mime && entry.mime.startsWith('image/')) {
+    if (entry.media_type === 'video') {
+      // Videos have a generated poster at /photos/:id/thumb.webp (same one the
+      // Videos tab uses) — show it here instead of a grey "VID" text badge.
+      var vwrap = document.createElement('div');
+      vwrap.className = 'file-thumb-wrap';
+      var vimg = document.createElement('img');
+      vimg.className = 'file-thumb';
+      vimg.src = '/photos/' + entry.id + '/thumb.webp';
+      vimg.alt = entry.filename;
+      vimg.loading = 'lazy';
+      vimg.decoding = 'async';
+      vwrap.appendChild(vimg);
+      var play = document.createElement('span');
+      play.className = 'file-thumb-play';
+      play.setAttribute('aria-hidden', 'true');
+      play.textContent = '▶';
+      vwrap.appendChild(play);
+      row.appendChild(vwrap);
+    } else if (entry.mime && entry.mime.startsWith('image/')) {
       var img = document.createElement('img');
       img.className = 'file-thumb';
       img.src = '/files/' + entry.id + '/' + encodeURIComponent(entry.filename);
       img.alt = entry.filename;
       img.loading = 'lazy';
+      img.decoding = 'async';
       row.appendChild(img);
     } else {
       var icon = document.createElement('div');

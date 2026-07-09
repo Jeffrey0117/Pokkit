@@ -7,6 +7,16 @@ import type { Storage, FileEntry } from '../storage.js'
 import type { PokkitConfig } from '../config.js'
 import { requireAuth, canAccessEntry } from '../auth.js'
 
+// 🔒 Types safe to render inline on our own origin. Everything else (HTML, SVG,
+// scripts, unknown) is served as an attachment so uploads can't run scripts in
+// the pokkit origin. Keep this list inert-only — no text/html, no image/svg+xml.
+const INLINE_SAFE_TYPES = new Set([
+  'image/webp', 'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/avif',
+  'video/mp4', 'video/webm', 'video/ogg',
+  'audio/mpeg', 'audio/mp4', 'audio/webm', 'audio/ogg', 'audio/wav',
+  'application/pdf', 'text/plain',
+])
+
 // Cache-bust: compute hash at startup so download.css changes are picked up on restart
 const cssHash = createHash('md5')
   .update(readFileSync(join(import.meta.dirname, '../../public/download.css')))
@@ -179,12 +189,51 @@ async function serveFile(
   const filePath = storage.getPath(entry.id)
   if (!filePath) return reply.status(404).send({ error: 'File not found on disk' })
 
+  // 🔒 Only ever render a small allow-list of inert types inline on our own
+  // origin. Anything else (esp. text/html, image/svg+xml) is forced to download
+  // so uploaded content can't run scripts in the pokkit origin (stored XSS).
+  const baseMime = (entry.mime || 'application/octet-stream').toLowerCase().split(';')[0].trim()
+  const inlineSafe = INLINE_SAFE_TYPES.has(baseMime)
+  const disposition = opts?.forceDownload || !inlineSafe ? 'attachment' : 'inline'
+
+  // Cache policy: content is immutable (content-addressed), so a normal file can
+  // be edge/browser-cached forever — turns Cloudflare into a CDN for the media.
+  // Password-protected files are never cached; expiring files cache only until
+  // they expire.
+  let cacheControl = 'public, max-age=31536000, immutable'
+  const etag = entry.hash ? `"${entry.hash}"` : undefined
+  if (entry.password_hash) {
+    cacheControl = 'private, no-store'
+  } else if (entry.expires_at) {
+    const secs = Math.max(0, Math.floor((entry.expires_at - Date.now()) / 1000))
+    cacheControl = `private, max-age=${secs}`
+  }
+
+  // Cheap conditional GET: matching ETag ⇒ 304, no body over the home uplink.
+  if (etag && request.headers['if-none-match'] === etag && !entry.password_hash) {
+    return reply
+      .status(304)
+      .header('ETag', etag)
+      .header('Cache-Control', cacheControl)
+      .header('X-Content-Type-Options', 'nosniff')
+      .send()
+  }
+
   if (opts?.incrementDownloads) {
     storage.incrementDownloads(entry.id)
   }
 
   const total = entry.size
   const rangeHeader = request.headers.range
+
+  const commonHeaders = (r: typeof reply) => {
+    r.header('X-Content-Type-Options', 'nosniff')
+      .header('Cache-Control', cacheControl)
+      .header('Accept-Ranges', 'bytes')
+      .header('Content-Disposition', `${disposition}; filename="${encodeURIComponent(entry.filename)}"`)
+    if (etag) r.header('ETag', etag)
+    return r
+  }
 
   if (rangeHeader) {
     const match = /bytes=(\d*)-(\d*)/.exec(rangeHeader)
@@ -205,26 +254,20 @@ async function serveFile(
 
     const chunkSize = end - start + 1
     const stream = createReadStream(filePath, { start, end })
-    const disposition = opts?.forceDownload ? 'attachment' : 'inline'
 
-    return reply
+    return commonHeaders(reply)
       .status(206)
       .header('Content-Type', entry.mime)
       .header('Content-Length', chunkSize)
       .header('Content-Range', `bytes ${start}-${end}/${total}`)
-      .header('Accept-Ranges', 'bytes')
-      .header('Content-Disposition', `${disposition}; filename="${encodeURIComponent(entry.filename)}"`)
       .send(stream)
   }
 
   // No range — full file
-  const disposition = opts?.forceDownload ? 'attachment' : 'inline'
   const stream = createReadStream(filePath)
-  return reply
+  return commonHeaders(reply)
     .header('Content-Type', entry.mime)
     .header('Content-Length', total)
-    .header('Accept-Ranges', 'bytes')
-    .header('Content-Disposition', `${disposition}; filename="${encodeURIComponent(entry.filename)}"`)
     .send(stream)
 }
 

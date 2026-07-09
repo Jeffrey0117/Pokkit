@@ -23,6 +23,14 @@ function createAtomicWriteStream(destPath, opts = {}) {
   const stream = fs.createWriteStream(tmpPath);
   const hash = opts.computeHash !== false ? crypto.createHash('sha256') : null;
   let size = 0;
+  let streamError = null;
+
+  // A stream 'error' (ENOSPC/EACCES/…) with no listener crashes the process.
+  // Capture it so finalize() can reject cleanly and the temp file is unlinked.
+  stream.on('error', (err) => {
+    streamError = err;
+    try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch (_) { /* best effort */ }
+  });
 
   stream.on('data', () => {}); // keep flowing
 
@@ -41,8 +49,13 @@ function createAtomicWriteStream(destPath, opts = {}) {
 
   async function finalize() {
     return new Promise((resolve, reject) => {
+      if (streamError) return reject(streamError);
+      stream.on('error', reject);
       stream.end(() => {
+        if (streamError) return reject(streamError);
         try {
+          const fd = fs.openSync(tmpPath, 'r+');
+          try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
           const stats = fs.statSync(tmpPath);
           fs.renameSync(tmpPath, destPath);
           resolve({

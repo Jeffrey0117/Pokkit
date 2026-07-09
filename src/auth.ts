@@ -125,6 +125,16 @@ export function canAccessEntry(user: AuthUser, entry: { user_id?: string | null 
   return !!entry.user_id && entry.user_id === user.userId
 }
 
+/**
+ * Whether a caller may act on a specific album. Admins/owner touch anything;
+ * a tenant is limited to albums it owns. Legacy NULL-owner albums belong to the
+ * owner, so a non-admin caller can never reach them.
+ */
+export function canAccessAlbum(user: AuthUser, album: { user_id?: string | null }): boolean {
+  if (user.isAdmin) return true
+  return !!album.user_id && album.user_id === user.userId
+}
+
 /** Like requireAuth, but 403s non-admin callers. Returns null if not admin. */
 export function requireAdmin(
   request: FastifyRequest,

@@ -21,6 +21,10 @@ function openDb(dbPath) {
   _db.pragma('journal_mode = WAL');
   _db.pragma('busy_timeout = 5000');
   _db.pragma('foreign_keys = ON');
+  // Under WAL, NORMAL is safe (only a power-loss can drop the last txn — never
+  // corruption) and skips an fsync on every commit: big win on the write-heavy
+  // upload-finalize / download-count / touchAccount paths.
+  _db.pragma('synchronous = NORMAL');
 
   _db.exec(`
     CREATE TABLE IF NOT EXISTS files (
@@ -106,6 +110,13 @@ function openDb(dbPath) {
     );
     CREATE INDEX IF NOT EXISTS idx_albums_created ON albums(created_at);
   `);
+  // Albums are per-tenant: user_id scopes them the same way files.user_id does.
+  // Legacy albums (created before this column) are user_id NULL → owner-only.
+  const albumCols = _db.prepare('PRAGMA table_info(albums)').all().map(c => c.name);
+  if (!albumCols.includes('user_id')) {
+    _db.exec('ALTER TABLE albums ADD COLUMN user_id TEXT');
+    _db.exec('CREATE INDEX IF NOT EXISTS idx_albums_user ON albums(user_id)');
+  }
 
   // ── Timeline indexes ──
   // The photo/video grids sort by COALESCE(taken_at, uploaded_at). Without an
@@ -117,6 +128,8 @@ function openDb(dbPath) {
       ON files(media_type, COALESCE(taken_at, uploaded_at));
     CREATE INDEX IF NOT EXISTS idx_files_album_time
       ON files(album_id, COALESCE(taken_at, uploaded_at));
+    CREATE INDEX IF NOT EXISTS idx_files_user_uploaded
+      ON files(user_id, uploaded_at);
   `);
 
   // ── Accounts (multi-tenant) ──
@@ -404,14 +417,15 @@ function backfillUserId(db, userId) {
 
 function insertAlbum(db, album) {
   db.prepare(`
-    INSERT INTO albums (id, name, cover_file_id, created_at, updated_at)
-    VALUES (@id, @name, @cover_file_id, @created_at, @updated_at)
+    INSERT INTO albums (id, name, cover_file_id, created_at, updated_at, user_id)
+    VALUES (@id, @name, @cover_file_id, @created_at, @updated_at, @user_id)
   `).run({
     id: album.id,
     name: album.name,
     cover_file_id: album.cover_file_id || null,
     created_at: album.created_at,
     updated_at: album.updated_at,
+    user_id: album.user_id || null,
   });
 }
 
@@ -419,7 +433,10 @@ function findAlbum(db, id) {
   return db.prepare('SELECT * FROM albums WHERE id = ?').get(id) || null;
 }
 
-function listAlbums(db) {
+// A tenant (userId set) sees only its own albums; the owner/admin (userId
+// undefined) sees all. Legacy NULL-owner albums surface only for the owner.
+function listAlbums(db, opts = {}) {
+  const scoped = opts.userId != null;
   return db.prepare(`
     SELECT a.id, a.name, a.created_at, a.updated_at,
       COALESCE(a.cover_file_id, (
@@ -432,9 +449,10 @@ function listAlbums(db) {
       COALESCE(SUM(f.size), 0) as total_size
     FROM albums a
     LEFT JOIN files f ON f.album_id = a.id AND f.status = 'ready'
+    ${scoped ? 'WHERE a.user_id = @userId' : ''}
     GROUP BY a.id
     ORDER BY a.created_at DESC
-  `).all();
+  `).all(scoped ? { userId: opts.userId } : {});
 }
 
 function updateAlbum(db, id, updates) {
@@ -513,11 +531,14 @@ function deserializeRow(row) {
   };
 }
 
-function bulkMoveToAlbum(db, photoIds, albumId) {
+// A tenant (userId set) can only move photos it owns; the owner/admin can move
+// any. The user_id filter stops a project account relocating another's photos.
+function bulkMoveToAlbum(db, photoIds, albumId, opts = {}) {
   const placeholders = photoIds.map(() => '?').join(',');
+  const scoped = opts.userId != null;
   return db.prepare(
-    `UPDATE files SET album_id = ? WHERE id IN (${placeholders})`
-  ).run(albumId, ...photoIds);
+    `UPDATE files SET album_id = ? WHERE id IN (${placeholders})${scoped ? ' AND user_id = ?' : ''}`
+  ).run(albumId, ...photoIds, ...(scoped ? [opts.userId] : []));
 }
 
 function listAllPhotos(db, opts = {}) {

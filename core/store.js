@@ -24,6 +24,44 @@ function slugify(name) {
 function hashKey(key) {
   return createHash('sha256').update(String(key)).digest('hex');
 }
+
+/**
+ * Atomically persist a buffer: write to a sibling temp file, fsync, then rename
+ * into place (rename within a dir is atomic on POSIX + NTFS). A crash / ENOSPC
+ * mid-write leaves only the temp file — never a truncated file at the canonical
+ * path that a DB row already marks "ready".
+ */
+function atomicWriteFileSync(destPath, buffer) {
+  const tmp = `${destPath}.tmp-${randomBytes(4).toString('hex')}`;
+  let fd;
+  try {
+    fd = fs.openSync(tmp, 'w');
+    fs.writeSync(fd, buffer, 0, buffer.length, 0);
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fd = undefined;
+    fs.renameSync(tmp, destPath);
+  } catch (err) {
+    if (fd !== undefined) { try { fs.closeSync(fd); } catch {} }
+    try { fs.unlinkSync(tmp); } catch {}
+    throw err;
+  }
+}
+
+/** Atomically move a file already on disk into place (same volume). */
+function atomicMoveSync(srcPath, destPath) {
+  const tmp = `${destPath}.tmp-${randomBytes(4).toString('hex')}`;
+  try {
+    fs.copyFileSync(srcPath, tmp);
+    const fd = fs.openSync(tmp, 'r+');
+    try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+    fs.renameSync(tmp, destPath);
+    try { fs.unlinkSync(srcPath); } catch {}
+  } catch (err) {
+    try { fs.unlinkSync(tmp); } catch {}
+    throw err;
+  }
+}
 const db = require('./db');
 const { hashBuffer, hashFile } = require('./hash');
 const { createAtomicWriteStream } = require('./streams');
@@ -124,7 +162,7 @@ class PokkitStore {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    fs.writeFileSync(destPath, buffer);
+    atomicWriteFileSync(destPath, buffer);
 
     const entry = {
       id,
@@ -576,19 +614,31 @@ class PokkitStore {
    * Resolve stored_name based on bucket mode
    */
   _resolveStoredName(bucket, id, filename) {
+    // 🔒 Never let a caller-supplied filename influence the directory: strip any
+    // path separators/traversal so `../../public/app.js` can't escape the bucket.
+    // The original (display) name is stored separately in entry.filename.
+    const safe = path.basename(String(filename || '')).replace(/^\.+/, '') || 'file';
     const mode = this.buckets[bucket].mode;
     if (mode === 'flat') {
-      return filename;
+      return safe;
     }
     // uuid-dir: {uuid}/{filename}
-    return `${id}/${filename}`;
+    return `${id}/${safe}`;
   }
 
   /**
-   * Resolve absolute file path from bucket + stored_name
+   * Resolve absolute file path from bucket + stored_name.
+   * 🔒 Defense-in-depth: assert the resolved path stays inside the bucket dir so
+   * a crafted stored_name (or legacy bad row) can never read/write outside data/.
    */
   _resolveFilePath(bucket, storedName) {
-    return path.join(this.dataDir, bucket, storedName);
+    const base = path.join(this.dataDir, bucket);
+    const full = path.join(base, storedName);
+    const rel = path.relative(base, full);
+    if (rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) {
+      throw new Error(`PokkitStore: path escapes bucket "${bucket}": ${storedName}`);
+    }
+    return full;
   }
 
   /**
@@ -648,7 +698,7 @@ class PokkitStore {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(destPath, buffer);
+    atomicWriteFileSync(destPath, buffer);
 
     const mediaType = opts.media_type || 'photo';
     const entry = {
@@ -692,8 +742,8 @@ class PokkitStore {
     const photoPath = this._resolveFilePath(bucket, photoName);
     const thumbPath = this._resolveFilePath(bucket, thumbName);
 
-    fs.writeFileSync(photoPath, webpBuffer);
-    fs.writeFileSync(thumbPath, thumbBuffer);
+    atomicWriteFileSync(photoPath, webpBuffer);
+    atomicWriteFileSync(thumbPath, thumbBuffer);
 
     // Keep raw file — user can access originals at data/{bucket}/{id}/_raw.*
 
@@ -726,10 +776,9 @@ class PokkitStore {
     const destVideoPath = this._resolveFilePath(bucket, videoName);
     const thumbPath = this._resolveFilePath(bucket, thumbName);
 
-    // Move compressed video (already on disk from ffmpeg)
-    fs.copyFileSync(compressedPath, destVideoPath);
-    try { fs.unlinkSync(compressedPath); } catch {}
-    fs.writeFileSync(thumbPath, thumbBuffer);
+    // Move compressed video (already on disk from ffmpeg) into place atomically
+    atomicMoveSync(compressedPath, destVideoPath);
+    atomicWriteFileSync(thumbPath, thumbBuffer);
 
     // Keep raw file — user can access originals at data/{bucket}/{id}/_raw.*
 
@@ -780,10 +829,10 @@ class PokkitStore {
   //  Album Operations
   // ══════════════════════════════════════════
 
-  createAlbum(name) {
+  createAlbum(name, userId = null) {
     const id = shortId();
     const now = Date.now();
-    const album = { id, name, created_at: now, updated_at: now };
+    const album = { id, name, created_at: now, updated_at: now, user_id: userId };
     db.insertAlbum(this._db, album);
     return album;
   }
@@ -792,8 +841,8 @@ class PokkitStore {
     return db.findAlbum(this._db, id);
   }
 
-  listAlbums() {
-    return db.listAlbums(this._db);
+  listAlbums(opts = {}) {
+    return db.listAlbums(this._db, opts);
   }
 
   updateAlbum(id, updates) {
@@ -812,8 +861,8 @@ class PokkitStore {
     return db.updateFilePhoto(this._db, fileId, { album_id: albumId });
   }
 
-  bulkMoveToAlbum(photoIds, albumId) {
-    return db.bulkMoveToAlbum(this._db, photoIds, albumId);
+  bulkMoveToAlbum(photoIds, albumId, opts = {}) {
+    return db.bulkMoveToAlbum(this._db, photoIds, albumId, opts);
   }
 
   listAllPhotos(opts) {

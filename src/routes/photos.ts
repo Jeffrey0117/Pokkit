@@ -2,7 +2,7 @@ import { createReadStream, statSync } from 'node:fs'
 import type { FastifyInstance } from 'fastify'
 import type { Storage } from '../storage.js'
 import type { PokkitConfig } from '../config.js'
-import { requireAuth } from '../auth.js'
+import { requireAuth, canAccessAlbum, canAccessEntry } from '../auth.js'
 
 export function photosRoute(app: FastifyInstance, storage: Storage, config: PokkitConfig) {
   // ── Albums ──
@@ -15,15 +15,15 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
     if (!name || typeof name !== 'string') {
       return reply.status(400).send({ error: 'name is required' })
     }
-    const album = storage.createAlbum(name.trim())
+    const album = storage.createAlbum(name.trim(), user.userId)
     return reply.status(201).send(album)
   })
 
-  // GET /api/albums — list albums
+  // GET /api/albums — list albums (tenant sees only its own; admin sees all)
   app.get('/api/albums', async (request, reply) => {
     const user = requireAuth(request, reply, config, storage)
     if (!user) return
-    return storage.listAlbums()
+    return storage.listAlbums(user.isAdmin ? {} : { userId: user.userId })
   })
 
   // GET /api/albums/:id — album detail + photo list
@@ -33,7 +33,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
       const user = requireAuth(request, reply, config, storage)
       if (!user) return
       const album = storage.getAlbum(request.params.id)
-      if (!album) {
+      if (!album || !canAccessAlbum(user, album)) {
         return reply.status(404).send({ error: 'Album not found' })
       }
       const limit = Math.min(parseInt(request.query.limit || '200', 10) || 200, 1000)
@@ -50,6 +50,10 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
     async (request, reply) => {
       const user = requireAuth(request, reply, config, storage)
       if (!user) return
+      const album = storage.getAlbum(request.params.id)
+      if (!album || !canAccessAlbum(user, album)) {
+        return reply.status(404).send({ error: 'Album not found' })
+      }
       const updates: { name?: string; cover_file_id?: string } = {}
       if (request.body?.name) updates.name = request.body.name.trim()
       if (request.body?.cover_file_id) updates.cover_file_id = request.body.cover_file_id
@@ -65,6 +69,10 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   app.delete<{ Params: { id: string } }>('/api/albums/:id', async (request, reply) => {
     const user = requireAuth(request, reply, config, storage)
     if (!user) return
+    const existing = storage.getAlbum(request.params.id)
+    if (!existing || !canAccessAlbum(user, existing)) {
+      return reply.status(404).send({ error: 'Album not found' })
+    }
     const ok = storage.deleteAlbum(request.params.id)
     if (!ok) {
       return reply.status(404).send({ error: 'Album not found' })
@@ -84,22 +92,24 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
     if (!filePath) {
       return reply.status(404).send({ error: 'File not found on disk' })
     }
-    return reply
+    const reply2 = reply
       .header('Content-Type', 'image/webp')
       .header('Cache-Control', 'public, max-age=31536000, immutable')
-      .send(createReadStream(filePath))
+    try { reply2.header('Content-Length', statSync(filePath).size) } catch { /* streamed */ }
+    return reply2.send(createReadStream(filePath))
   })
 
-  // GET /photos/:id/thumb.webp — serve thumbnail
+  // GET /photos/:id/thumb.webp — serve thumbnail (highest-frequency response)
   app.get<{ Params: { id: string } }>('/photos/:id/thumb.webp', async (request, reply) => {
     const thumbPath = storage.getThumbPath(request.params.id)
     if (!thumbPath) {
       return reply.status(404).send({ error: 'Thumbnail not found' })
     }
-    return reply
+    const reply2 = reply
       .header('Content-Type', 'image/webp')
       .header('Cache-Control', 'public, max-age=31536000, immutable')
-      .send(createReadStream(thumbPath))
+    try { reply2.header('Content-Length', statSync(thumbPath).size) } catch { /* streamed */ }
+    return reply2.send(createReadStream(thumbPath))
   })
 
   // GET /photos/:id/video.mp4 — serve video with Range support
@@ -226,7 +236,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
       const user = requireAuth(request, reply, config, storage)
       if (!user) return
       const entry = storage.find(request.params.id)
-      if (!entry) {
+      if (!entry || !canAccessEntry(user, entry)) {
         return reply.status(404).send({ error: 'Photo not found' })
       }
 
@@ -257,10 +267,15 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
         return reply.status(400).send({ error: 'album_id is required' })
       }
       const album = storage.getAlbum(album_id)
-      if (!album) {
+      if (!album || !canAccessAlbum(user, album)) {
         return reply.status(404).send({ error: 'Album not found' })
       }
-      const result = storage.bulkMoveToAlbum(photo_ids, album_id)
+      // Non-admin callers can only move photos they own (enforced in SQL).
+      const result = storage.bulkMoveToAlbum(
+        photo_ids,
+        album_id,
+        user.isAdmin ? {} : { userId: user.userId },
+      )
       return { ok: true, moved: result.changes }
     },
   )
@@ -272,13 +287,13 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
       const user = requireAuth(request, reply, config, storage)
       if (!user) return
       const entry = storage.find(request.params.id)
-      if (!entry) {
+      if (!entry || !canAccessEntry(user, entry)) {
         return reply.status(404).send({ error: 'Photo not found' })
       }
       const albumId = request.body?.album_id ?? null
       if (albumId) {
         const album = storage.getAlbum(albumId)
-        if (!album) {
+        if (!album || !canAccessAlbum(user, album)) {
           return reply.status(404).send({ error: 'Album not found' })
         }
       }

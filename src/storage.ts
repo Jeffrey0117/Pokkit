@@ -44,6 +44,7 @@ export interface Album {
   cover_file_id: string | null
   created_at: number
   updated_at: number
+  user_id?: string | null
   photo_count?: number
   total_size?: number
 }
@@ -235,16 +236,16 @@ export class Storage {
 
   // ── Album Operations ──
 
-  createAlbum(name: string): Album {
-    return this.store.createAlbum(name)
+  createAlbum(name: string, userId: string | null = null): Album {
+    return this.store.createAlbum(name, userId)
   }
 
   getAlbum(id: string): Album | null {
     return this.store.getAlbum(id)
   }
 
-  listAlbums(): Album[] {
-    return this.store.listAlbums()
+  listAlbums(opts?: { userId?: string }): Album[] {
+    return this.store.listAlbums(opts || {})
   }
 
   updateAlbum(id: string, updates: { name?: string; cover_file_id?: string }): boolean {
@@ -266,8 +267,12 @@ export class Storage {
     return this.store.moveToAlbum(fileId, albumId)
   }
 
-  bulkMoveToAlbum(photoIds: string[], albumId: string): { changes: number } {
-    return this.store.bulkMoveToAlbum(photoIds, albumId)
+  bulkMoveToAlbum(
+    photoIds: string[],
+    albumId: string,
+    opts?: { userId?: string },
+  ): { changes: number } {
+    return this.store.bulkMoveToAlbum(photoIds, albumId, opts || {})
   }
 
   listAllPhotos(opts?: { limit?: number; offset?: number; mediaType?: string; order?: string; excludeAccounts?: boolean; userId?: string }) {
