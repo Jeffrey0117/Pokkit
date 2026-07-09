@@ -24,7 +24,8 @@ function fileHash(filePath: string): string {
 }
 
 export async function createServer(config: PokkitConfig) {
-  const app = Fastify({ logger: true })
+  // Quiet request logging when POKKIT_LOG=silent (tests) — prod stays verbose.
+  const app = Fastify({ logger: process.env.POKKIT_LOG !== 'silent' })
 
   // gzip/brotli for text responses (JSON API, JS, CSS, HTML). Already-compressed
   // media (webp thumbnails, mp4 video) is flagged non-compressible in mime-db and

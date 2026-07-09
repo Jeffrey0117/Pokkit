@@ -54,11 +54,12 @@ docs/                 ← Design specs (e.g. multi-tenant storage)
 |---------|-------------|
 | `npm run dev` | Dev server with watch (`tsx watch src/index.ts`) |
 | `npm start` | Run server (`tsx src/index.ts`) |
+| `npm test` | Run the test suite (Node built-in `node:test` via tsx) |
 | `pm2 start ecosystem.config.cjs` | Production (port 4009, autorestart) |
 | `node scripts/create-account.cjs` | Provision a new project account + key |
 | `node scripts/backup.cjs` | Back up the data dir |
 
-No test suite is configured.
+**Tests** live in `test/*.test.mjs`, run on Node's built-in runner (`node --import tsx --test`, no extra deps). `storage.test.mjs` covers the core engine (path-traversal containment, atomic writes, tenant isolation, expired sweep, dedup); `auth.test.mjs` covers JWT verification + access helpers; `http.test.mjs` boots the Fastify app via `app.inject()` (no port) for request-path checks. `--test-force-exit` is required because the worker pools keep the loop alive; set `POKKIT_LOG=silent` to quiet request logs.
 
 ## Config (env / CLI)
 
