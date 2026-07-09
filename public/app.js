@@ -238,8 +238,26 @@
   var STORAGE_TOKEN_KEY = 'pokkit_token';
   var STORAGE_USER_KEY = 'pokkit_user';
 
+  // Decode a JWT's exp (ms) without a library, so the client can tell a dead
+  // token from a live one instead of waiting for the server to 401.
+  function b64urlDecode(s) {
+    s = String(s).replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    return atob(s);
+  }
+  function tokenExpMs(token) {
+    try {
+      var payload = JSON.parse(b64urlDecode(token.split('.')[1]));
+      return typeof payload.exp === 'number' ? payload.exp * 1000 : null;
+    } catch (_) { return null; }
+  }
+  function isTokenExpired(token) {
+    var exp = tokenExpMs(token);
+    return exp !== null && Date.now() >= exp;
+  }
+
   function getToken() {
-    // Prefer SDK token (freshest), fallback to our cached copy
+    // Prefer SDK token (freshest — the SDK silently refreshes it)
     if (typeof letmeuse !== 'undefined') {
       var sdkToken = letmeuse.getToken();
       if (sdkToken) {
@@ -247,7 +265,11 @@
         return sdkToken;
       }
     }
-    return localStorage.getItem(STORAGE_TOKEN_KEY);
+    // Fallback to our cached copy — but never hand back a known-expired token
+    // (that's what caused the "still looks logged in" limbo).
+    var cached = localStorage.getItem(STORAGE_TOKEN_KEY);
+    if (cached && isTokenExpired(cached)) return null;
+    return cached;
   }
 
   function saveAuthLocally(user) {
@@ -302,13 +324,29 @@
     }
   });
 
+  // Single source of "you are logged out": clears state, cache, admin nav, AND
+  // resets the view back to the landing page. Used by the logout button and by
+  // every 401 handler, so stale logged-in content never lingers on screen.
+  function applyLoggedOut() {
+    currentUser = null;
+    saveAuthLocally(null);
+    updateAuthUI();
+    var nav = document.getElementById('projectsNav');
+    if (nav) nav.hidden = true;
+    setMode(false);       // leave dashboard mode → show the landing front door
+    setActiveSide(null);
+    if (window.history && history.pushState && location.pathname !== '/') {
+      history.pushState({}, '', '/');
+    }
+    switchTab('files');
+    loadFiles();          // re-renders the "Login to manage files" empty state
+  }
+
   $logoutBtn.addEventListener('click', function () {
     if (typeof letmeuse !== 'undefined') {
       letmeuse.logout();
     }
-    currentUser = null;
-    saveAuthLocally(null);
-    updateAuthUI();
+    applyLoggedOut();
     toast('Logged out');
   });
 
@@ -964,9 +1002,7 @@
 
       if (xhr.status === 401) {
         // Auth expired — not transient; needs re-login. Offer manual retry.
-        currentUser = null;
-        saveAuthLocally(null);
-        updateAuthUI();
+        applyLoggedOut();
         if (Date.now() - lastAuthToast > 5000) {
           lastAuthToast = Date.now();
           toast('Session expired, please log in again', true);
@@ -2845,10 +2881,8 @@
           if (callback) callback(null);
         }
       } else if (xhr.status === 401) {
-        // Token expired — update UI, show toast once (not per-request spam)
-        currentUser = null;
-        saveAuthLocally(null);
-        updateAuthUI();
+        // Token expired — reset to logged-out view, show toast once (no spam)
+        applyLoggedOut();
         if (Date.now() - lastAuthToast > 5000) {
           lastAuthToast = Date.now();
           toast('Session expired, please log in again', true);
@@ -3116,15 +3150,42 @@
     if (currentUser) loadStats();
   }
 
-  // Step 1: Instantly restore from our own localStorage cache
-  // This gives ZERO-delay login state on Ctrl+R
+  // Confirm the cached/optimistic session against the server. /api/me re-verifies
+  // the token and returns the REAL identity (or 401, which applyLoggedOut handles
+  // via apiRequest). This collapses the three sources of truth — SDK, our cache,
+  // and the server — into one, and fixes "cache says A but the token is B/dead".
+  function reconcileAuth() {
+    if (!getToken()) { applyLoggedOut(); return; }
+    apiRequest('GET', '/api/me', null, function (me) {
+      if (!me) return; // 401 already reset state via apiRequest's handler
+      var changed = !currentUser || currentUser.userId !== me.userId;
+      currentUser = {
+        userId: me.userId,
+        email: me.email,
+        name: (currentUser && currentUser.name) || me.email,
+        isAdmin: me.isAdmin,
+        isProject: me.isProject,
+      };
+      saveAuthLocally(currentUser);
+      updateAuthUI();
+      var nav = document.getElementById('projectsNav');
+      if (nav) nav.hidden = !me.isAdmin;
+      if (changed) { loadFiles(); loadStats(); }
+    });
+  }
+
+  // Step 1: Instantly restore from our own localStorage cache for ZERO-delay
+  // login state on Ctrl+R — but only if the cached token isn't already expired,
+  // so we never flash a logged-in UI for a dead session.
   var cached = loadCachedUser();
-  if (cached) {
+  var haveLiveToken = !!getToken();
+  if (cached && haveLiveToken) {
     currentUser = cached;
     updateAuthUI();
     loadFiles();
     loadStats();
   } else {
+    if (cached && !haveLiveToken) saveAuthLocally(null); // drop stale session
     updateAuthUI();
     loadFiles();
   }
@@ -3132,23 +3193,24 @@
   // Show the page matching the current URL (default: folders)
   navigate(routeFromPath(), false);
 
-  // Reveal the admin-only Projects nav (uses cached token if present).
-  if (cached) checkAdmin();
+  // Step 2: Always reconcile with the server (validates the token, corrects the
+  // cache). Runs whether or not we had a cache — this is the authoritative check.
+  reconcileAuth();
 
-  // Step 2: When SDK loads, only accept LOGIN events (user truthy).
-  // NEVER clear cache from onAuthChange(null) — that kills our restore.
-  // Cache is only cleared by: explicit logout button + API 401 response.
+  // Step 3: React to SDK auth changes. A truthy user = login/restore. A null
+  // event only logs us out if our token is ALSO gone/expired (getToken() null),
+  // so the SDK's transient init-null doesn't wipe a still-valid session — but a
+  // real SDK logout now propagates instead of being silently ignored.
   waitForLetMeUse().then(function () {
     if (typeof letmeuse === 'undefined') return;
 
     letmeuse.onAuthChange(function (user) {
       if (user) {
-        // Login or session restored — update and save
         applyUser(user);
         checkAdmin();
+      } else if (!getToken()) {
+        applyLoggedOut();
       }
-      // null = SDK init or token issue — DON'T clear cache.
-      // Explicit logout and 401 handler take care of that.
     });
   });
 })();
