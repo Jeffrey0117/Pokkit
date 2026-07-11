@@ -489,7 +489,7 @@ function listPhotosByAlbum(db, albumId, opts = {}) {
   return db.prepare(`
     SELECT * FROM files
     WHERE album_id = ? AND status IN ('ready', 'processing')
-    ORDER BY COALESCE(taken_at, uploaded_at) ${dir}
+    ORDER BY uploaded_at ${dir}
     LIMIT ? OFFSET ?
   `).all(albumId, limit, offset).map(deserializeRow);
 }
@@ -567,7 +567,7 @@ function listAllPhotos(db, opts = {}) {
   return db.prepare(`
     SELECT * FROM files
     WHERE status IN ('ready', 'processing') ${typeFilter} ${scope}
-    ORDER BY COALESCE(taken_at, uploaded_at) ${dir}
+    ORDER BY uploaded_at ${dir}
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset).map(deserializeRow);
 }
@@ -637,7 +637,7 @@ function listFilesByUser(db, userId, opts = {}) {
   return db.prepare(`
     SELECT * FROM files
     WHERE user_id = ?
-    ORDER BY COALESCE(taken_at, uploaded_at) ${dir}
+    ORDER BY uploaded_at ${dir}
     LIMIT ? OFFSET ?
   `).all(userId, limit, offset).map(deserializeRow);
 }
