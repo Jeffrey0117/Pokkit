@@ -86,11 +86,13 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   app.get<{ Params: { id: string } }>('/photos/:id/photo.webp', async (request, reply) => {
     const entry = storage.find(request.params.id)
     if (!entry) {
-      return reply.status(404).send({ error: 'Photo not found' })
+      // no-store: 處理中/尚未生成時瀏覽器絕不能記住這個負面結果
+      // (實案:佇列堵塞期間 404 被瀏覽器咬住,縮圖好了還顯示破圖要強制刷新)
+      return reply.status(404).header('Cache-Control', 'no-store').send({ error: 'Photo not found' })
     }
     const filePath = storage.getPath(entry.id)
     if (!filePath) {
-      return reply.status(404).send({ error: 'File not found on disk' })
+      return reply.status(404).header('Cache-Control', 'no-store').send({ error: 'File not found on disk' })
     }
     const reply2 = reply
       .header('Content-Type', 'image/webp')
@@ -103,7 +105,8 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   app.get<{ Params: { id: string } }>('/photos/:id/thumb.webp', async (request, reply) => {
     const thumbPath = storage.getThumbPath(request.params.id)
     if (!thumbPath) {
-      return reply.status(404).send({ error: 'Thumbnail not found' })
+      // no-store: 縮圖還在生成時的 404 不能被快取(見上)
+      return reply.status(404).header('Cache-Control', 'no-store').send({ error: 'Thumbnail not found' })
     }
     const reply2 = reply
       .header('Content-Type', 'image/webp')
@@ -116,11 +119,11 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   app.get<{ Params: { id: string } }>('/photos/:id/video.mp4', async (request, reply) => {
     const entry = storage.find(request.params.id)
     if (!entry || entry.media_type !== 'video') {
-      return reply.status(404).send({ error: 'Video not found' })
+      return reply.status(404).header('Cache-Control', 'no-store').send({ error: 'Video not found' })
     }
     const filePath = storage.getPath(entry.id)
     if (!filePath) {
-      return reply.status(404).send({ error: 'Video file not found on disk' })
+      return reply.status(404).header('Cache-Control', 'no-store').send({ error: 'Video file not found on disk' })
     }
 
     const stat = statSync(filePath)
