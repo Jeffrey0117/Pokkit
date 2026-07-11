@@ -718,6 +718,10 @@
   function handleFiles(fileList) {
     var files = Array.isArray(fileList) ? fileList : Array.from(fileList);
     if (files.length === 0) return;
+    // 大批次(尤其 iOS Safari)在裝置端把每個檔讀進記憶體算 SHA-256 會爆記憶體/卡死,
+    // 導致整批都不進佇列(「按加入沒東西」)。檔案多時就跳過裝置端預查重,直接上傳 ——
+    // 伺服器 savePhoto 本來就會依內容雜湊去重,不會存到重複檔,只是多傳一點點。
+    if (files.length > 12) { queueFiles(files); return; }
     // Skip re-uploading files the user already has (matched by content hash) —
     // saves the whole transfer instead of finding out server-side after upload.
     if (files.length > 20) toast('Checking ' + files.length + ' files for duplicates…');
