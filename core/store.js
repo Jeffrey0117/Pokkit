@@ -696,11 +696,17 @@ class PokkitStore {
 
     const hash = hashBuffer(buffer);
 
-    // Dedup: check if identical photo already exists
+    // Dedup: check if identical photo/video already exists.
+    // 也要認 'processing' — 佇列堵塞時第一份還沒 ready,正是使用者最容易重傳的時刻
+    // (2026-07-11 實案:IMG_5902.mov 在 452MB 佇列堵塞期間被重傳成兩份)。
+    // failed 不算重複(讓重新上傳能重試)。以 user 隔離,租戶之間不共用條目。
     const existing = db.findByHash(this._db, hash, bucket);
-    const ready = existing.find(e => e.status === 'ready');
-    if (ready) {
-      return { ...ready, deduplicated: true };
+    const owner = opts.user_id || null;
+    const match = existing.find(e =>
+      (e.status === 'ready' || e.status === 'processing') && (e.user_id || null) === owner
+    );
+    if (match) {
+      return { ...match, deduplicated: true };
     }
 
     const id = shortId();
