@@ -59,7 +59,7 @@ parentPort.on('message', async (msg) => {
       .webp({ quality: 75 })
       .toBuffer();
 
-    // 5. Finalize: write files, delete raw, update DB
+    // 5. Finalize: write files, update DB (raw is kept as the original-quality copy)
     store.finalizePhoto(id, {
       webpBuffer,
       thumbBuffer,
@@ -67,6 +67,35 @@ parentPort.on('message', async (msg) => {
       height: origHeight,
       takenAt,
     });
+
+    // 6. Archival recompress (POKKIT_ARCHIVE_RECOMPRESS=off to disable):
+    //    replace the bulky raw with a FULL-RESOLUTION AVIF — every pixel kept,
+    //    EXIF kept, typically 60-99% smaller. Guards: decodable, same dimensions,
+    //    meaningfully smaller. Any doubt → keep the original raw untouched.
+    //    DB hash/dedup is untouched (hash refers to the uploaded bytes).
+    if (process.env.POKKIT_ARCHIVE_RECOMPRESS !== 'off' && !/\.avif$/i.test(rawPath) && /\.(jpe?g|png|webp)$/i.test(rawPath)) {
+      try {
+        const fs = require('node:fs');
+        const rawSize = fs.statSync(rawPath).size;
+        const avifBuffer = await sharp(rawPath, { failOn: 'none' })
+          .keepMetadata()
+          .avif({ quality: 50 })
+          .toBuffer();
+        const chk = await sharp(avifBuffer).metadata();
+        const dimsOk = chk.width === origWidth && chk.height === origHeight;
+        if (dimsOk && avifBuffer.length < rawSize * 0.95) {
+          const avifPath = path.join(path.dirname(rawPath), '_raw.avif');
+          const tmpPath = avifPath + '.tmp';
+          fs.writeFileSync(tmpPath, avifBuffer);
+          fs.renameSync(tmpPath, avifPath);
+          fs.unlinkSync(rawPath);
+          console.log(`[PhotoWorker] Archived ${id}: raw ${(rawSize / 1048576).toFixed(2)}MB -> avif ${(avifBuffer.length / 1048576).toFixed(2)}MB`);
+        }
+      } catch (archiveErr) {
+        // Never fail the photo over archival — original raw stays.
+        console.error(`[PhotoWorker] Archive skip ${id}: ${archiveErr.message}`);
+      }
+    }
 
     parentPort.postMessage({ type: 'done', id });
   } catch (err) {
