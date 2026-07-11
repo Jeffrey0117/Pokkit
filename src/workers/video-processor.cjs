@@ -85,14 +85,34 @@ parentPort.on('message', async (msg) => {
     //    小於目標的輸入仍會被放大(360p 源被吹成 1080p 的實案就是這裡)。
     //    Commas inside if()/min() are escaped (\\,) so ffmpeg's filtergraph parser
     //    doesn't read them as filter separators.
-    await exec('ffmpeg', [
+    //    NVENC first: GPU H.264 (h264_nvenc cq23 ≈ x264 crf23 品質) 快 10-50 倍,
+    //    大檔不再堵住整條佇列(2026-07-11 實案:452MB 影片 libx264 以 0.13x 爬,
+    //    後面的影片全卡 processing、縮圖出不來)。沒有 NVIDIA 卡 / 驅動不支援時
+    //    自動退回 libx264 —— 別台機器部署不會壞。
+    const SCALE_VF = "scale=w='if(gt(iw\\,ih)\\,min(1920\\,iw)\\,min(1080\\,iw))':h='if(gt(iw\\,ih)\\,min(1080\\,ih)\\,min(1920\\,ih))':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2";
+    const NVENC_ARGS = ['-c:v', 'h264_nvenc', '-preset', 'p6', '-rc', 'vbr', '-cq', '23', '-b:v', '0'];
+    const X264_ARGS = ['-c:v', 'libx264', '-crf', '23', '-preset', 'medium'];
+    const buildArgs = (videoArgs) => [
       '-y', '-i', rawPath,
-      '-c:v', 'libx264', '-crf', '23', '-preset', 'medium',
+      ...videoArgs,
       '-c:a', 'aac', '-b:a', '128k',
       '-movflags', '+faststart',
-      '-vf', "scale=w='if(gt(iw\\,ih)\\,min(1920\\,iw)\\,min(1080\\,iw))':h='if(gt(iw\\,ih)\\,min(1080\\,ih)\\,min(1920\\,ih))':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2",
+      '-vf', SCALE_VF,
       compressedPath,
-    ]);
+    ];
+    // NVENC 偶發 "incompatible client key" 在多支影片同時開 session 時出現(暫時性,
+    // 2026-07-11 requeue burst 實案) — 重試一次(帶抖動)再退回 libx264。
+    try {
+      await exec('ffmpeg', buildArgs(NVENC_ARGS));
+    } catch (nvencErr1) {
+      await new Promise((r) => setTimeout(r, 1500 + Math.random() * 2000));
+      try {
+        await exec('ffmpeg', buildArgs(NVENC_ARGS));
+      } catch (nvencErr2) {
+        console.log(`[VideoWorker] NVENC unavailable for ${id} (after retry), falling back to libx264: ${String(nvencErr2).slice(0, 80)}`);
+        await exec('ffmpeg', buildArgs(X264_ARGS));
+      }
+    }
 
     // 5. Finalize: write files, update DB
     store.finalizeVideo(id, {
