@@ -521,6 +521,13 @@ function listStuckProcessing(db) {
   return db.prepare("SELECT * FROM files WHERE status = 'processing'").all().map(deserializeRow);
 }
 
+/** 轉檔失敗的影片(_raw 還在就能重跑)——ffmpeg 缺席那批 failed 不會自己復活,開機時撿回來。 */
+function listFailedVideos(db) {
+  return db.prepare(
+    "SELECT * FROM files WHERE status = 'failed' AND (media_type = 'video' OR mime LIKE 'video/%')"
+  ).all().map(deserializeRow);
+}
+
 /** Ids of files whose expiry has passed (for the periodic sweep). */
 function listExpiredIds(db, now) {
   return db.prepare(
@@ -670,6 +677,7 @@ module.exports = {
   updateFilePhoto,
   countByAlbum,
   listStuckProcessing,
+  listFailedVideos,
   listExpiredIds,
   bulkMoveToAlbum,
   listAllPhotos,

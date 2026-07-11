@@ -76,17 +76,21 @@ parentPort.on('message', async (msg) => {
       .toBuffer();
     try { fs.unlinkSync(thumbRawPath); } catch {}
 
-    // 4. Compress video (H.264 CRF 30, medium preset, AAC 128k, faststart)
+    // 4. Compress video (H.264 CRF 23, medium preset, AAC 128k, faststart)
     //    + cap to ~1080p (orientation-aware): landscape fits 1920x1080,
-    //    portrait fits 1080x1920, only downscales, preserves aspect, even dims.
-    //    Commas inside if() are escaped (\\,) so ffmpeg's filtergraph parser
+    //    portrait fits 1080x1920, preserves aspect, even dims.
+    //    CRF 23(原 30):螢幕錄影/教學片的小字在 CRF 30 會糊掉(2026-07-11 蝦皮課實案,
+    //    1080p 只剩 132kbps)——檔案約大 2-2.5 倍,但文字可讀性是底線。
+    //    min(target, i?) 擋放大:force_original_aspect_ratio=decrease 只保證「不超過目標」,
+    //    小於目標的輸入仍會被放大(360p 源被吹成 1080p 的實案就是這裡)。
+    //    Commas inside if()/min() are escaped (\\,) so ffmpeg's filtergraph parser
     //    doesn't read them as filter separators.
     await exec('ffmpeg', [
       '-y', '-i', rawPath,
-      '-c:v', 'libx264', '-crf', '30', '-preset', 'medium',
+      '-c:v', 'libx264', '-crf', '23', '-preset', 'medium',
       '-c:a', 'aac', '-b:a', '128k',
       '-movflags', '+faststart',
-      '-vf', "scale=w='if(gt(iw\\,ih)\\,1920\\,1080)':h='if(gt(iw\\,ih)\\,1080\\,1920)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2",
+      '-vf', "scale=w='if(gt(iw\\,ih)\\,min(1920\\,iw)\\,min(1080\\,iw))':h='if(gt(iw\\,ih)\\,min(1080\\,ih)\\,min(1920\\,ih))':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2",
       compressedPath,
     ]);
 

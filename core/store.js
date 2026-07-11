@@ -840,6 +840,13 @@ class PokkitStore {
     return db.listStuckProcessing(this._db);
   }
 
+  /**
+   * 轉檔失敗的影片(_raw 還在就能重跑)——供開機恢復撿回 ffmpeg 缺席時期的 failed。
+   */
+  listFailedVideos() {
+    return db.listFailedVideos(this._db);
+  }
+
   // ══════════════════════════════════════════
   //  Album Operations
   // ══════════════════════════════════════════
