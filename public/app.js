@@ -3,6 +3,10 @@
 
   var MAX_CONCURRENT = 10;
   var MAX_UPLOAD_RETRIES = 3; // auto-retry transient failures (network / 5xx) before giving up
+  // Files above this go through the chunked route (chunked-upload-kit) so no single
+  // request exceeds Cloudflare's 100MB body cap. Smaller files keep the one-shot /upload.
+  var CHUNK_THRESHOLD = 64 * 1024 * 1024;
+  var CHUNKED_ENDPOINT = '/api/upload/chunked';
 
   // ── DOM ─────────────────────────────────────────────────
   var $storageQuota = document.getElementById('storageQuota');
@@ -928,6 +932,91 @@
       processQueue();
     }
 
+    // Success path shared by both transports (response JSON has the same shape).
+    function handleSuccess(data) {
+      batchDone++;
+      batchBytes += file.size;
+      bar.style.width = '100%';
+      bar.classList.add('done');
+      pct.textContent = '';
+      try {
+        if (data && data.status) {
+          // Photo/video upload response
+          if (data.deduplicated) {
+            toast('Already backed up');
+          } else if (data.status === 'processing') {
+            pollPhotoStatus(data.id);
+          }
+          if (currentAlbumId && !$gallerySection.hidden) {
+            openAlbum(currentAlbumId, currentAlbumName);
+          }
+        } else if (data) {
+          showResult(data);
+          addFileRow(data);
+          filesOffset++;
+          $emptyState.style.display = 'none';
+        }
+      } catch (_) { /* */ }
+      $passwordInput.value = '';
+      uploading--;
+      updateQueueSummary();
+      processQueue();
+      scheduleStatsRefresh();
+      setTimeout(function () {
+        row.style.opacity = '0';
+        row.style.transition = 'opacity 0.3s';
+        setTimeout(function () {
+          row.remove();
+          if ($queueList.children.length === 0) $queueSection.hidden = true;
+        }, 300);
+      }, 2000);
+    }
+
+    // Large files: chunked transport. Keeps every request far below the edge
+    // proxy body cap; failed chunks retry inside the client, and a failed upload
+    // keeps its uploadId so the manual Retry only re-sends what is missing.
+    if (file.size > CHUNK_THRESHOLD && window.ChunkedUpload) {
+      var meta = {};
+      var cpw = $passwordInput.value.trim();
+      if (cpw) meta.password = cpw;
+      var cexp = $expirySelect.value;
+      if (cexp && cexp !== 'forever') meta.expiresIn = cexp;
+      if (currentAlbumId) meta.album_id = currentAlbumId;
+      pct.textContent = file.__chunkUploadId ? 'resume' : pct.textContent;
+      window.ChunkedUpload.uploadChunked(file, {
+        endpoint: CHUNKED_ENDPOINT,
+        getHeaders: function () {
+          var token = getToken();
+          return token ? { Authorization: 'Bearer ' + token } : {};
+        },
+        meta: meta,
+        uploadId: file.__chunkUploadId || undefined,
+        onProgress: function (p) {
+          bar.style.width = p.percent + '%';
+          pct.textContent = p.percent + '%';
+        }
+      }).then(function (data) {
+        file.__chunkUploadId = null;
+        handleSuccess(data);
+      }).catch(function (err) {
+        if (err && err.uploadId) file.__chunkUploadId = err.uploadId; // resume on retry
+        if (err && err.status === 401) {
+          applyLoggedOut();
+          if (Date.now() - lastAuthToast > 5000) {
+            lastAuthToast = Date.now();
+            toast('Session expired, please log in again', true);
+          }
+          failPermanently(null);
+          return;
+        }
+        if (err && (err.code === 'network' || err.code === 'timeout' || err.status >= 500)) {
+          if (autoRetry()) return;
+        }
+        failPermanently((err && err.message) || 'Upload failed');
+      });
+      return;
+    }
+
     var xhr = new XMLHttpRequest();
     var fd = new FormData();
 
@@ -958,49 +1047,9 @@
       }
 
       if (xhr.status >= 200 && xhr.status < 300) {
-        batchDone++;
-        batchBytes += file.size;
-        bar.style.width = '100%';
-        bar.classList.add('done');
-        pct.textContent = '';
-
-        try {
-          var data = JSON.parse(xhr.responseText);
-          if (data.status) {
-            // Photo upload response
-            if (data.deduplicated) {
-              toast('Already backed up');
-            } else if (data.status === 'processing') {
-              pollPhotoStatus(data.id);
-            }
-            // Refresh gallery if we're in album view
-            if (currentAlbumId && !$gallerySection.hidden) {
-              openAlbum(currentAlbumId, currentAlbumName);
-            }
-          } else {
-            showResult(data);
-            addFileRow(data);
-            filesOffset++;
-            $emptyState.style.display = 'none';
-          }
-        } catch (_) { /* */ }
-
-        // Clear password after successful upload
-        $passwordInput.value = '';
-
-        uploading--;
-        updateQueueSummary();
-        processQueue();
-        scheduleStatsRefresh();
-
-        setTimeout(function () {
-          row.style.opacity = '0';
-          row.style.transition = 'opacity 0.3s';
-          setTimeout(function () {
-            row.remove();
-            if ($queueList.children.length === 0) $queueSection.hidden = true;
-          }, 300);
-        }, 2000);
+        var okData = null;
+        try { okData = JSON.parse(xhr.responseText); } catch (_) { /* */ }
+        handleSuccess(okData);
         return;
       }
 

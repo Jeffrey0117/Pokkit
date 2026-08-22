@@ -16,6 +16,7 @@ import { filesRoute } from './routes/files.js'
 import { statusRoute } from './routes/status.js'
 import { photosRoute } from './routes/photos.js'
 import { adminRoute } from './routes/admin.js'
+import { chunkedUploadRoute } from './routes/chunked-upload.js'
 import { initPhotoWorker, shutdownWorker } from './photo-worker.js'
 import { initVideoWorker, shutdownVideoWorker } from './video-worker.js'
 
@@ -62,17 +63,19 @@ export async function createServer(config: PokkitConfig) {
   const cssPath = join(publicDir, 'style.css')
   const jsPath = join(publicDir, 'app.js')
   const i18nPath = join(publicDir, 'i18n.js')
+  const chunkClientPath = join(publicDir, 'vendor', 'chunked-upload-client.mjs')
 
   let cachedHtml = ''
   let cachedSig = ''
 
   function buildIndexHtml(): string {
-    const sig = [indexPath, cssPath, jsPath, i18nPath].map((p) => statSync(p).mtimeMs).join(':')
+    const sig = [indexPath, cssPath, jsPath, i18nPath, chunkClientPath].map((p) => statSync(p).mtimeMs).join(':')
     if (sig !== cachedSig) {
       cachedHtml = readFileSync(indexPath, 'utf-8')
         .replace('__CSS_HASH__', fileHash(cssPath))
         .replace('__JS_HASH__', fileHash(jsPath))
         .replace('__I18N_HASH__', fileHash(i18nPath))
+        .replace('__CHUNK_HASH__', fileHash(chunkClientPath))
       cachedSig = sig
     }
     return cachedHtml
@@ -112,6 +115,7 @@ export async function createServer(config: PokkitConfig) {
   app.get('/api/health', async () => ({ ok: true }))
   app.get('/api/version', async () => ({ commit: buildCommit, startedAt, pid: process.pid }))
   uploadRoute(app, storage, config)
+  chunkedUploadRoute(app, storage, config)
   filesRoute(app, storage, config, serveApp)
   statusRoute(app, storage, config)
   photosRoute(app, storage, config)

@@ -25,11 +25,13 @@ src/                  ← TypeScript app (Fastify)
   photo-worker.ts     ← Worker-thread pool (4) for image processing
   video-worker.ts     ← Video transcode (ffmpeg) worker
   workers/            ← *.cjs worker thread scripts (photo-processor, video-processor)
-  routes/             ← upload, files (download + range), photos/albums, status, admin
+  upload-finalize.ts  ← Shared last mile for every upload path (quota → photo/video/file branch → JSON)
+  routes/             ← upload, chunked-upload, files (download + range), photos/albums, status, admin
 core/                 ← CommonJS storage engine (its own node_modules)
   index.js → store.js ← PokkitStore: save/list/find, SQLite schema, accounts, albums
   db.js, hash.js, streams.js  ← SQLite handle, content hashing, atomic write streams
 public/               ← Front-end SPA shell (index.html + app.js + i18n.js + style.css)
+  vendor/             ← chunked-upload-client.mjs (copy of chunked-upload-kit/client; re-copy when the kit updates)
 sdk/pokkit-client.mjs ← ~40-line drop-in client for consuming projects
 scripts/              ← backup, create-account, recompress-videos (.cjs)
 data/                 ← Runtime storage: data/<bucket>/<id>/{photo,thumb,video,_raw}
@@ -45,6 +47,7 @@ docs/                 ← Design specs (e.g. multi-tenant storage)
 - **Auth precedence** (`auth.ts`): global `POKKIT_API_KEY` ⇒ admin; `pk_`-prefixed key ⇒ project account (sees only its own `user_id`); LetMeUse JWT ⇒ human user. `canAccessEntry` enforces per-file ownership; admins bypass.
 - **SPA fallback**: `setNotFoundHandler` serves the app shell for GET html navigations so client-side routes (`/photos`, `/account`, …) work on direct load; API/XHR 404s return JSON.
 - **Cache-busting**: `index.html` is rebuilt on disk-mtime change, injecting content-hash `?v=` for css/js/i18n; HTML served `no-store`.
+- **Two upload transports, one result shape**: `POST /upload` (single multipart, files ≤ 64MB in the SPA) and `/api/upload/chunked` (chunked-upload-kit: init → PUT chunks → complete) both end in `finalizeUpload()` and return identical JSON. Chunked exists because Cloudflare rejects any single request body > 100MB at the edge; keep `maxChunkSize` (32MB) well under that. In-flight sessions live in `data/chunks/<uploadId>/` and are swept after 24h.
 - **HTTP range support**: `routes/files.ts` honours the `Range` header for video/large-file streaming.
 - **JSON→SQLite migration**: on init, an existing `data/index.json` is migrated into SQLite then renamed `.bak`.
 

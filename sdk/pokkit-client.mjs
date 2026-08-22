@@ -11,10 +11,33 @@
  *
  * The key authenticates as one project account; you only ever see your own files.
  */
-export function createPokkit({ baseUrl, key } = {}) {
+export function createPokkit({ baseUrl, key, chunkThreshold = 64 * 1024 * 1024 } = {}) {
   if (!baseUrl) throw new Error('pokkit: baseUrl required')
   if (!key) throw new Error('pokkit: key required')
   const base = baseUrl.replace(/\/$/, '')
+
+  // Files above `chunkThreshold` go through the chunked route so no single request
+  // exceeds an edge proxy's body cap (Cloudflare: 100MB). Needs the kit client:
+  //   npm i github:Jeffrey0117/chunked-upload-kit
+  // Set chunkThreshold: Infinity to always use the one-shot /upload.
+  async function uploadChunked(blob, name, type) {
+    let mod
+    try {
+      mod = await import('chunked-upload-kit/client')
+    } catch (err) {
+      throw new Error(`pokkit: file is ${blob.size} bytes (> chunkThreshold ${chunkThreshold}); install chunked-upload-kit to upload large files (npm i github:Jeffrey0117/chunked-upload-kit): ${err.message}`)
+    }
+    try {
+      return await mod.uploadChunked(blob, {
+        endpoint: `${base}/api/upload/chunked`,
+        headers: { 'X-Pokkit-Key': key },
+        filename: name,
+        mime: type || blob.type || 'application/octet-stream',
+      })
+    } catch (err) {
+      throw new Error(`pokkit ${err.status || 0}: ${err.message}`)
+    }
+  }
 
   async function req(path, opts = {}) {
     const res = await fetch(base + path, {
@@ -49,6 +72,7 @@ export function createPokkit({ baseUrl, key } = {}) {
         blob = file
         name = filename || file.name || 'file'
       }
+      if (blob.size > chunkThreshold) return uploadChunked(blob, name, type)
       form.append('file', blob, name)
       return (await req('/upload', { method: 'POST', body: form })).json()
     },
