@@ -975,10 +975,16 @@
     // Large files: chunked transport. Keeps every request far below the edge
     // proxy body cap; failed chunks retry inside the client, and a failed upload
     // keeps its uploadId so the manual Retry only re-sends what is missing.
-    if (file.size > CHUNK_THRESHOLD && window.ChunkedUpload) {
+    if (file.size > CHUNK_THRESHOLD) {
+      if (!window.ChunkedUpload) {
+        // never fall back to the one-shot POST: the edge proxy would 413 it after the whole upload
+        failPermanently('Large-file uploader failed to load — please reload the page');
+        return;
+      }
       var meta = {};
+      var completeBody = {};
       var cpw = $passwordInput.value.trim();
-      if (cpw) meta.password = cpw;
+      if (cpw) completeBody.password = cpw; // secrets go with the final request only, never into session meta
       var cexp = $expirySelect.value;
       if (cexp && cexp !== 'forever') meta.expiresIn = cexp;
       if (currentAlbumId) meta.album_id = currentAlbumId;
@@ -990,6 +996,7 @@
           return token ? { Authorization: 'Bearer ' + token } : {};
         },
         meta: meta,
+        completeBody: completeBody,
         uploadId: file.__chunkUploadId || undefined,
         onProgress: function (p) {
           bar.style.width = p.percent + '%';
@@ -998,8 +1005,10 @@
       }).then(function (data) {
         file.__chunkUploadId = null;
         handleSuccess(data);
-      }).catch(function (err) {
-        if (err && err.uploadId) file.__chunkUploadId = err.uploadId; // resume on retry
+      }, function (err) {
+        // Only a transient failure leaves a session worth resuming; a 4xx means the
+        // server dropped it, so forget the id or Retry would 404 forever.
+        file.__chunkUploadId = (err && err.resumable && err.uploadId) ? err.uploadId : null;
         if (err && err.status === 401) {
           applyLoggedOut();
           if (Date.now() - lastAuthToast > 5000) {

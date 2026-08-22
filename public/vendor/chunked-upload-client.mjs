@@ -8,19 +8,19 @@
 //     onProgress: ({ loaded, total, percent }) => …,
 //   })
 // Browser uses XHR for chunk PUTs (real upload progress); Node uses fetch.
-// Throws UploadError { status, code, body, uploadId } — keep `uploadId` to resume.
+// Throws UploadError { status, code, body, uploadId, resumable } — keep
+// `uploadId` when `resumable` is true to continue later.
 // ============================================================================
 
-const MB = 1024 * 1024;
-
 export class UploadError extends Error {
-  constructor(message, { status = 0, code = 'upload_failed', body = null, uploadId = null, cause } = {}) {
+  constructor(message, { status = 0, code = 'upload_failed', body = null, uploadId = null, resumable = false, cause } = {}) {
     super(message);
     this.name = 'UploadError';
     this.status = status;
     this.code = code;
     this.body = body;
     this.uploadId = uploadId;
+    this.resumable = resumable;
     if (cause) this.cause = cause;
   }
 }
@@ -59,10 +59,30 @@ async function request(fetchImpl, method, url, { headers, body, signal, uploadId
   return parseBody(text);
 }
 
-function putWithXhr(url, blob, { headers, signal, onProgress, uploadId }) {
+// Always send a JSON body on POSTs: proxies re-frame body-less requests in ways
+// some servers reject (415 "content-type: undefined").
+async function postJson(fetchImpl, url, payload, { headers, signal, uploadId, retries = 0, retryDelayMs = 500 }) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await request(fetchImpl, 'POST', url, {
+        headers: { ...headers, 'content-type': 'application/json' },
+        body: JSON.stringify(payload ?? {}),
+        signal,
+        uploadId,
+      });
+    } catch (err) {
+      if (err.code === 'aborted' || !isRetryable(err) || attempt >= retries) throw err;
+      await sleep(retryDelayMs * 2 ** attempt, signal);
+    }
+  }
+}
+
+function putWithXhr(url, blob, { headers, signal, onProgress, uploadId, timeoutMs }) {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(abortError()); return; }
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', url);
+    if (timeoutMs > 0) xhr.timeout = timeoutMs;
     for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
     xhr.upload.addEventListener('progress', (e) => { if (e.lengthComputable) onProgress(e.loaded); });
     xhr.addEventListener('load', () => {
@@ -72,10 +92,7 @@ function putWithXhr(url, blob, { headers, signal, onProgress, uploadId }) {
     xhr.addEventListener('error', () => reject(new UploadError('Network error', { status: 0, code: 'network', uploadId })));
     xhr.addEventListener('timeout', () => reject(new UploadError('Timed out', { status: 0, code: 'timeout', uploadId })));
     xhr.addEventListener('abort', () => reject(abortError()));
-    if (signal) {
-      if (signal.aborted) { xhr.abort(); return; }
-      signal.addEventListener('abort', () => xhr.abort(), { once: true });
-    }
+    signal?.addEventListener('abort', () => xhr.abort(), { once: true });
     xhr.send(blob);
   });
 }
@@ -92,9 +109,11 @@ export async function uploadChunked(file, opts = {}) {
     concurrency = 3,
     retries = 3,
     retryDelayMs = 500,
+    chunkTimeoutMs = 120_000,
     onProgress,
     signal,
     meta,
+    completeBody,
     sha256,
     filename,
     mime,
@@ -112,37 +131,40 @@ export async function uploadChunked(file, opts = {}) {
 
   const base = endpoint.replace(/\/$/, '');
   const hdrs = async () => ({ ...(typeof getHeaders === 'function' ? await getHeaders() : headers) });
-  const jsonHdrs = async () => ({ ...(await hdrs()), 'content-type': 'application/json' });
+  const name = filename || file.name || 'upload.bin';
 
   // ── 1. init or resume ──
   let session;
   if (resumeId) {
     session = await request(fetchImpl, 'GET', `${base}/${encodeURIComponent(resumeId)}`, { headers: await hdrs(), signal, uploadId: resumeId });
-    if (session.size !== file.size) {
+    if (session.size !== file.size || (session.filename && session.filename !== name)) {
       throw new UploadError('Resume target does not match this file', { code: 'resume_mismatch', uploadId: resumeId });
     }
   } else {
-    const body = JSON.stringify({
-      filename: filename || file.name || 'upload.bin',
+    session = await postJson(fetchImpl, `${base}/init`, {
+      filename: name,
       size: file.size,
       mime: mime || file.type || 'application/octet-stream',
       chunkSize,
       sha256,
       meta,
-    });
-    session = await request(fetchImpl, 'POST', `${base}/init`, { headers: await jsonHdrs(), body, signal });
+    }, { headers: await hdrs(), signal, retries, retryDelayMs });
   }
 
   const { uploadId, totalChunks } = session;
   const size = session.chunkSize;
   const done = new Set(session.received || []);
+  const withId = (err) => {
+    if (!err.uploadId) err.uploadId = uploadId;
+    // the session only survives transient failures; 4xx from the server means it is gone or refused
+    err.resumable = err.code !== 'aborted' ? isRetryable(err) : true;
+    return err;
+  };
 
   // ── 2. progress accounting ──
+  const chunkLength = (i) => (i < totalChunks - 1 ? size : file.size - size * (totalChunks - 1));
   const loadedByChunk = new Map();
   for (const i of done) loadedByChunk.set(i, chunkLength(i));
-  function chunkLength(i) {
-    return i < totalChunks - 1 ? size : file.size - size * (totalChunks - 1);
-  }
   let lastLoaded = -1;
   function emit() {
     if (typeof onProgress !== 'function') return;
@@ -167,7 +189,7 @@ export async function uploadChunked(file, opts = {}) {
       const h = { ...(await hdrs()), 'content-type': 'application/octet-stream' };
       try {
         const onChunkProgress = (n) => { loadedByChunk.set(i, n); emit(); };
-        if (useXhr) await putWithXhr(url, blob, { headers: h, signal, onProgress: onChunkProgress, uploadId });
+        if (useXhr) await putWithXhr(url, blob, { headers: h, signal, onProgress: onChunkProgress, uploadId, timeoutMs: chunkTimeoutMs });
         else await request(fetchImpl, 'PUT', url, { headers: h, body: blob, signal, uploadId });
         loadedByChunk.set(i, blob.size);
         emit();
@@ -175,10 +197,7 @@ export async function uploadChunked(file, opts = {}) {
       } catch (err) {
         loadedByChunk.set(i, 0);
         emit();
-        if (err.code === 'aborted' || !isRetryable(err) || attempt >= retries) {
-          if (!err.uploadId) err.uploadId = uploadId;
-          throw err;
-        }
+        if (err.code === 'aborted' || !isRetryable(err) || attempt >= retries) throw withId(err);
         await sleep(retryDelayMs * 2 ** attempt, signal);
       }
     }
@@ -196,14 +215,15 @@ export async function uploadChunked(file, opts = {}) {
   }
 
   await Promise.all(Array.from({ length: Math.max(1, Math.min(concurrency, queue.length || 1)) }, worker));
-  if (failure) throw failure;
+  if (failure) throw withId(failure);
 
-  // ── 4. complete ──
+  // ── 4. complete (retried: the server makes it single-flight/idempotent) ──
   try {
-    return await request(fetchImpl, 'POST', `${base}/${encodeURIComponent(uploadId)}/complete`, { headers: await hdrs(), signal, uploadId });
+    return await postJson(fetchImpl, `${base}/${encodeURIComponent(uploadId)}/complete`, completeBody, {
+      headers: await hdrs(), signal, uploadId, retries, retryDelayMs,
+    });
   } catch (err) {
-    if (!err.uploadId) err.uploadId = uploadId;
-    throw err;
+    throw withId(err);
   }
 }
 

@@ -20,7 +20,7 @@ export function createPokkit({ baseUrl, key, chunkThreshold = 64 * 1024 * 1024 }
   // exceeds an edge proxy's body cap (Cloudflare: 100MB). Needs the kit client:
   //   npm i github:Jeffrey0117/chunked-upload-kit
   // Set chunkThreshold: Infinity to always use the one-shot /upload.
-  async function uploadChunked(blob, name, type) {
+  async function uploadChunked(blob, name, type, uploadId) {
     let mod
     try {
       mod = await import('chunked-upload-kit/client')
@@ -33,9 +33,16 @@ export function createPokkit({ baseUrl, key, chunkThreshold = 64 * 1024 * 1024 }
         headers: { 'X-Pokkit-Key': key },
         filename: name,
         mime: type || blob.type || 'application/octet-stream',
+        uploadId,
       })
     } catch (err) {
-      throw new Error(`pokkit ${err.status || 0}: ${err.message}`)
+      const wrapped = new Error(`pokkit ${err.status || 0}: ${err.message}`)
+      // keep what a caller needs to resume: pokkit.upload(file, { uploadId: err.uploadId })
+      wrapped.status = err.status
+      wrapped.code = err.code
+      wrapped.uploadId = err.resumable ? err.uploadId : null
+      wrapped.resumable = !!err.resumable
+      throw wrapped
     }
   }
 
@@ -55,15 +62,21 @@ export function createPokkit({ baseUrl, key, chunkThreshold = 64 * 1024 * 1024 }
   return {
     /**
      * Upload a file. Accepts a filesystem path (string), a Buffer, or a Blob/File.
+     * Files above chunkThreshold go chunked; a failed chunked upload throws an error
+     * carrying { uploadId, resumable } — pass { uploadId } back in to resume.
      * @returns server response incl. { id, filename, size, ... }
      */
-    async upload(file, { filename, type } = {}) {
+    async upload(file, { filename, type, uploadId } = {}) {
       const form = new FormData()
       let blob, name
       if (typeof file === 'string') {
-        const { readFile } = await import('node:fs/promises')
+        const fsMod = await import('node:fs')
         const { basename } = await import('node:path')
-        blob = new Blob([await readFile(file)], type ? { type } : {})
+        // openAsBlob (Node 20+) reads lazily, so a 500MB video is never held in RAM;
+        // older Node falls back to a one-shot read.
+        blob = typeof fsMod.openAsBlob === 'function'
+          ? await fsMod.openAsBlob(file, type ? { type } : {})
+          : new Blob([await fsMod.promises.readFile(file)], type ? { type } : {})
         name = filename || basename(file)
       } else if (typeof Buffer !== 'undefined' && Buffer.isBuffer(file)) {
         blob = new Blob([file], type ? { type } : {})
@@ -72,7 +85,7 @@ export function createPokkit({ baseUrl, key, chunkThreshold = 64 * 1024 * 1024 }
         blob = file
         name = filename || file.name || 'file'
       }
-      if (blob.size > chunkThreshold) return uploadChunked(blob, name, type)
+      if (uploadId || blob.size > chunkThreshold) return uploadChunked(blob, name, type, uploadId)
       form.append('file', blob, name)
       return (await req('/upload', { method: 'POST', body: form })).json()
     },

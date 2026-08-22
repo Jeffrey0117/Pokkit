@@ -1,7 +1,7 @@
 import type { FastifyRequest } from 'fastify'
 import type { Storage } from './storage.js'
 import type { PokkitConfig } from './config.js'
-import type { AuthUser } from './auth.js'
+import { canAccessAlbum, type AuthUser } from './auth.js'
 import { processPhoto } from './photo-worker.js'
 import { processVideo, hasFfmpeg } from './video-worker.js'
 import { checkPremium } from './subscription.js'
@@ -44,6 +44,28 @@ export function resolveBaseUrl(request: FastifyRequest, config: PokkitConfig): s
   return `${proto}://${host}`
 }
 
+// Count-based quota via PayGate subscription. Returns a ready-made 413 when the
+// user is at their limit, null when they may upload. Shared by /upload (at
+// finalize) and the chunked route (at init, before any byte lands).
+export async function checkQuota(
+  user: AuthUser,
+  storage: Storage,
+  config: PokkitConfig,
+): Promise<{ status: number; body: Record<string, unknown> } | null> {
+  const sub = await checkPremium(user.email, user.userId, config.premiumUserIds)
+  const userStats = storage.userStats(user.userId)
+  if (userStats.totalFiles < sub.maxPhotos) return null
+  return {
+    status: 413,
+    body: {
+      error: `Photo limit reached. ${sub.tier} plan: ${sub.maxPhotos.toLocaleString()} photos. Upgrade for more.`,
+      tier: sub.tier,
+      photoCount: userStats.totalFiles,
+      maxPhotos: sub.maxPhotos,
+    },
+  }
+}
+
 export async function finalizeUpload(
   input: FinalizeInput,
   user: AuthUser,
@@ -56,24 +78,13 @@ export async function finalizeUpload(
   let albumId: string | undefined
   if (fields.album_id) {
     const album = storage.getAlbum(fields.album_id)
-    if (!album) return { status: 400, body: { error: 'Album not found' } }
+    // Tenants may only file into their own albums (admins anywhere).
+    if (!album || !canAccessAlbum(user, album)) return { status: 400, body: { error: 'Album not found' } }
     albumId = fields.album_id
   }
 
-  // Quota check (count-based) via PayGate subscription
-  const sub = await checkPremium(user.email, user.userId, config.premiumUserIds)
-  const userStats = storage.userStats(user.userId)
-  if (userStats.totalFiles >= sub.maxPhotos) {
-    return {
-      status: 413,
-      body: {
-        error: `Photo limit reached. ${sub.tier} plan: ${sub.maxPhotos.toLocaleString()} photos. Upgrade for more.`,
-        tier: sub.tier,
-        photoCount: userStats.totalFiles,
-        maxPhotos: sub.maxPhotos,
-      },
-    }
-  }
+  const quota = await checkQuota(user, storage, config)
+  if (quota) return quota
 
   const baseUrl = resolveBaseUrl(request, config)
 

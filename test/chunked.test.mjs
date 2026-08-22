@@ -105,13 +105,29 @@ test('protocol errors: wrong chunk length 400, missing chunks 409, other owner 4
   const other = await status(s.uploadId, { authorization: 'Bearer pk_nope' })
   assert.ok([401, 403].includes(other.statusCode))
 
-  const s2 = (await init({ filename: 'y.bin', size: 4, chunkSize: 1024, meta: { album_id: 'no-such-album' } })).json()
-  await put(s2.uploadId, 0, Buffer.from('abcd'))
-  const c2 = await complete(s2.uploadId)
-  assert.equal(c2.statusCode, 400)
-  assert.match(c2.json().error, /Album not found/)
-  // a rejected finalize still releases the session
-  assert.equal((await status(s2.uploadId)).statusCode, 404)
+  // album ownership / existence is refused at init, before any byte is stored
+  const r2 = await init({ filename: 'y.bin', size: 4, chunkSize: 1024, meta: { album_id: 'no-such-album' } })
+  assert.equal(r2.statusCode, 400)
+  assert.equal(r2.json().code, 'album_not_found')
+  assert.ok(!fs.existsSync(path.join(dataDir, 'chunks')) || fs.readdirSync(path.join(dataDir, 'chunks')).every((d) => d !== r2.json().uploadId))
+  const s2 = null
+  void s2
+})
+
+test('password rides on /complete (completeBody), never in session meta', async () => {
+  const data = Buffer.from('secret-file')
+  const s = (await init({ filename: 'p.txt', size: data.length, chunkSize: 1024 })).json()
+  const metaOnDisk = JSON.parse(fs.readFileSync(path.join(dataDir, 'chunks', s.uploadId, 'meta.json'), 'utf8'))
+  assert.equal(metaOnDisk.meta, null)
+  await put(s.uploadId, 0, data)
+  const c = await app.inject({ method: 'POST', url: `${PREFIX}/${s.uploadId}/complete`, headers: { ...auth, 'content-type': 'application/json' }, payload: JSON.stringify({ password: 'hunter2' }) })
+  assert.equal(c.statusCode, 200, c.body)
+  assert.equal(c.json().has_password, true)
+  // a proxy-style body-less POST /complete (no content-type) must not 415
+  const s3 = (await init({ filename: 'q.txt', size: 3, chunkSize: 1024 })).json()
+  await put(s3.uploadId, 0, Buffer.from('abc'))
+  const c3 = await app.inject({ method: 'POST', url: `${PREFIX}/${s3.uploadId}/complete`, headers: { ...auth, 'transfer-encoding': 'chunked' }, payload: '' })
+  assert.equal(c3.statusCode, 200, c3.body)
 })
 
 test('file above POKKIT_MAX_FILE_SIZE is rejected at init (413)', async () => {
