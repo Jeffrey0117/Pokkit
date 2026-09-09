@@ -717,7 +717,12 @@
   }
 
   // ── Upload ──────────────────────────────────────────────
-  var DEDUP_MAX_BYTES = 2 * 1024 * 1024 * 1024; // above 2GB skip pre-hash, just upload
+  // 裝置端預查重的單檔上限。sha256Hex 得把整個檔用 arrayBuffer() 讀進記憶體,
+  // 手機(iOS Safari 尤甚)遇到 1 分鐘影片(100~300MB)會卡死或 promise 永遠不 resolve
+  // → dedupePreCheck 的 finish() 不會跑 → 檔案進不了佇列,上傳「完全沒反應」
+  // (2026-09-10 實案;同一坑的大批次版本見 handleFiles 的 >12 檔跳過)。
+  // 超過上限就跳過預查直接上傳 —— 伺服器 savePhoto 本來就依內容雜湊去重。
+  var DEDUP_MAX_BYTES = 64 * 1024 * 1024;
 
   function handleFiles(fileList) {
     var files = Array.isArray(fileList) ? fileList : Array.from(fileList);
@@ -726,6 +731,10 @@
     // 導致整批都不進佇列(「按加入沒東西」)。檔案多時就跳過裝置端預查重,直接上傳 ——
     // 伺服器 savePhoto 本來就會依內容雜湊去重,不會存到重複檔,只是多傳一點點。
     if (files.length > 12) { queueFiles(files); return; }
+    // 同理:單檔都不大但「加總」太大,逐檔 arrayBuffer() 一樣會把手機記憶體吃死。
+    var totalBytes = 0;
+    for (var ti = 0; ti < files.length; ti++) totalBytes += files[ti].size || 0;
+    if (totalBytes > 256 * 1024 * 1024) { queueFiles(files); return; }
     // Skip re-uploading files the user already has (matched by content hash) —
     // saves the whole transfer instead of finding out server-side after upload.
     if (files.length > 20) toast('Checking ' + files.length + ' files for duplicates…');
