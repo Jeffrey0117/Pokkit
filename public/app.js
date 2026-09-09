@@ -8,6 +8,25 @@
   var CHUNK_THRESHOLD = 64 * 1024 * 1024;
   var CHUNKED_ENDPOINT = '/api/upload/chunked';
 
+  // ── 客戶端黑盒子 ────────────────────────────────────────
+  // 手機上「上傳完全沒反應」這種純前端死亡在伺服器 log 完全隱形(2026-09-10
+  // 影片實案),把關鍵步驟與 JS 錯誤打回 /api/client-log 讓它可遠端定位。
+  function beacon(evt, data) {
+    try {
+      var x = new XMLHttpRequest();
+      x.open('POST', '/api/client-log');
+      x.setRequestHeader('Content-Type', 'application/json');
+      x.send(JSON.stringify({ evt: evt, data: data, ua: navigator.userAgent.slice(0, 140), t: Date.now() }));
+    } catch (_) { /* 黑盒子自己不准出事 */ }
+  }
+  window.addEventListener('error', function (e) {
+    beacon('jserror', { msg: String(e.message), src: String(e.filename || '') + ':' + (e.lineno || 0) });
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e.reason;
+    beacon('rejection', { msg: String((r && r.message) || r), code: r && r.code, status: r && r.status });
+  });
+
   // ── DOM ─────────────────────────────────────────────────
   var $storageQuota = document.getElementById('storageQuota');
   var $quotaText = document.getElementById('quotaText');
@@ -726,6 +745,10 @@
 
   function handleFiles(fileList) {
     var files = Array.isArray(fileList) ? fileList : Array.from(fileList);
+    beacon('files-selected', {
+      count: files.length,
+      files: files.slice(0, 5).map(function (f) { return { name: f.name, size: f.size, type: f.type }; })
+    });
     if (files.length === 0) return;
     // 大批次(尤其 iOS Safari)在裝置端把每個檔讀進記憶體算 SHA-256 會爆記憶體/卡死,
     // 導致整批都不進佇列(「按加入沒東西」)。檔案多時就跳過裝置端預查重,直接上傳 ——
@@ -986,10 +1009,12 @@
     // keeps its uploadId so the manual Retry only re-sends what is missing.
     if (file.size > CHUNK_THRESHOLD) {
       if (!window.ChunkedUpload) {
+        beacon('chunked-client-missing', { name: file.name, size: file.size });
         // never fall back to the one-shot POST: the edge proxy would 413 it after the whole upload
         failPermanently('Large-file uploader failed to load — please reload the page');
         return;
       }
+      beacon('chunked-start', { name: file.name, size: file.size });
       var meta = {};
       var completeBody = {};
       var cpw = $passwordInput.value.trim();
@@ -1017,6 +1042,7 @@
       }, function (err) {
         // Only a transient failure leaves a session worth resuming; a 4xx means the
         // server dropped it, so forget the id or Retry would 404 forever.
+        beacon('chunked-fail', { name: file.name, size: file.size, msg: String((err && err.message) || err), code: err && err.code, status: err && err.status });
         file.__chunkUploadId = (err && err.resumable && err.uploadId) ? err.uploadId : null;
         if (err && err.status === 401) {
           applyLoggedOut();

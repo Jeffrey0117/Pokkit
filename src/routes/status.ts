@@ -21,6 +21,17 @@ export function statusRoute(app: FastifyInstance, storage: Storage, config: Pokk
     return fetchPlans()
   })
 
+  // 客戶端黑盒子:SPA 把選檔/上傳啟動/JS 錯誤打回來進 server log,
+  // 讓「手機上傳完全沒反應」這種純前端死亡可以遠端定位(2026-09-10 影片實案)。
+  // 無敏感資料、無需登入;內容截斷防灌爆。
+  app.post('/api/client-log', async (request) => {
+    try {
+      const raw = typeof request.body === 'string' ? request.body : JSON.stringify(request.body)
+      console.error('[ClientLog]', raw.slice(0, 2000))
+    } catch { /* 格式再爛也不能影響主服務 */ }
+    return { ok: true }
+  })
+
   // Per-media-type counts for the account page
   app.get('/api/user/stats', async (request, reply) => {
     const user = requireAuth(request, reply, config, storage)
