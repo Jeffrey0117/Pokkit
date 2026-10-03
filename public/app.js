@@ -283,16 +283,30 @@
     // Prefer SDK token (freshest — the SDK silently refreshes it)
     if (typeof letmeuse !== 'undefined') {
       var sdkToken = letmeuse.getToken();
-      if (sdkToken) {
+      if (sdkToken && !isTokenExpired(sdkToken)) {
         localStorage.setItem(STORAGE_TOKEN_KEY, sdkToken);
         return sdkToken;
       }
+      // SDK still initializing = the silent refresh hasn't landed yet. No live
+      // token to hand out, but that's NOT "logged out" — and never give callers
+      // the stale one (an expired token on the wire is what caused the bogus
+      // "Session expired" on every return visit).
+      if (!letmeuse.ready) return null;
+      // SDK finished init with no live token = definitively logged out
+      localStorage.removeItem(STORAGE_TOKEN_KEY);
+      return null;
     }
     // Fallback to our cached copy — but never hand back a known-expired token
     // (that's what caused the "still looks logged in" limbo).
     var cached = localStorage.getItem(STORAGE_TOKEN_KEY);
     if (cached && isTokenExpired(cached)) return null;
     return cached;
+  }
+
+  // True while the SDK is mid-init (refresh token being exchanged). During this
+  // window a 401 means "new token not ready yet", not "session dead".
+  function sdkBusy() {
+    return typeof letmeuse !== 'undefined' && !letmeuse.ready;
   }
 
   function saveAuthLocally(user) {
@@ -1045,11 +1059,7 @@
         beacon('chunked-fail', { name: file.name, size: file.size, msg: String((err && err.message) || err), code: err && err.code, status: err && err.status });
         file.__chunkUploadId = (err && err.resumable && err.uploadId) ? err.uploadId : null;
         if (err && err.status === 401) {
-          applyLoggedOut();
-          if (Date.now() - lastAuthToast > 5000) {
-            lastAuthToast = Date.now();
-            toast('Session expired, please log in again', true);
-          }
+          authExpired();
           failPermanently(null);
           return;
         }
@@ -1099,11 +1109,7 @@
 
       if (xhr.status === 401) {
         // Auth expired — not transient; needs re-login. Offer manual retry.
-        applyLoggedOut();
-        if (Date.now() - lastAuthToast > 5000) {
-          lastAuthToast = Date.now();
-          toast('Session expired, please log in again', true);
-        }
+        authExpired();
         failPermanently(null);
         return;
       }
@@ -1280,6 +1286,9 @@
           }
         } catch (_) { /* */ }
       } else if (xhr.status === 401) {
+        // Mid-init race: reconcileAuth reloads the list once the fresh token
+        // lands, so don't flash "expired" at someone who's still logged in.
+        if (sdkBusy()) return;
         $fileList.innerHTML = '';
         $emptyState.style.display = '';
         $emptyState.querySelector('.empty-state-text').textContent = 'Session expired, please login again';
@@ -2963,6 +2972,18 @@
 
   // ── API Helper ────────────────────────────────────────
   var lastAuthToast = 0;
+  // Every 401 funnels through here. While the SDK is still swapping the refresh
+  // token for a fresh access token, a 401 is a race, not a verdict — swallow it
+  // and let onAuthChange/reconcileAuth settle the real state. Logged in stays
+  // logged in; only a post-init 401 means the session is actually dead.
+  function authExpired() {
+    if (sdkBusy()) return;
+    applyLoggedOut();
+    if (Date.now() - lastAuthToast > 5000) {
+      lastAuthToast = Date.now();
+      toast('Session expired, please log in again', true);
+    }
+  }
   function apiRequest(method, url, body, callback) {
     var xhr = new XMLHttpRequest();
     xhr.open(method, url);
@@ -2978,12 +2999,7 @@
           if (callback) callback(null);
         }
       } else if (xhr.status === 401) {
-        // Token expired — reset to logged-out view, show toast once (no spam)
-        applyLoggedOut();
-        if (Date.now() - lastAuthToast > 5000) {
-          lastAuthToast = Date.now();
-          toast('Session expired, please log in again', true);
-        }
+        authExpired();
       } else if (xhr.status === 429) {
         toast('Too many requests, please wait a moment', true);
       } else {
@@ -3272,11 +3288,15 @@
   }
 
   // Step 1: Instantly restore from our own localStorage cache for ZERO-delay
-  // login state on Ctrl+R — but only if the cached token isn't already expired,
-  // so we never flash a logged-in UI for a dead session.
+  // login state on Ctrl+R. While the SDK is still mid-refresh there is no live
+  // token YET — that's the normal return-visit path (access tokens only live
+  // 4h, the refresh token lives 30 days), so keep painting the cached user and
+  // let reconcileAuth/onAuthChange deliver the verdict instead of bouncing a
+  // logged-in person to the landing page. Only a definitive "no session"
+  // (SDK done, no token) drops the cache.
   var cached = loadCachedUser();
   var haveLiveToken = !!getToken();
-  if (cached && haveLiveToken) {
+  if (cached && (haveLiveToken || sdkBusy())) {
     currentUser = cached;
     updateAuthUI();
     loadFiles();
@@ -3292,7 +3312,14 @@
 
   // Step 2: Always reconcile with the server (validates the token, corrects the
   // cache). Runs whether or not we had a cache — this is the authoritative check.
-  reconcileAuth();
+  // But judge the session on the FRESH token, not the one mid-renewal: wait out
+  // the SDK's silent refresh first, or every return visit after the 4h access
+  // token dies gets a bogus logout+login bounce.
+  if (sdkBusy() && typeof letmeuse.whenReady === 'function') {
+    letmeuse.whenReady().then(reconcileAuth);
+  } else {
+    reconcileAuth();
+  }
 
   // Step 3: React to SDK auth changes. A truthy user = login/restore. A null
   // event only logs us out if our token is ALSO gone/expired (getToken() null),
