@@ -227,3 +227,17 @@ test('album share: mint token → public /a/ page works → revoke → 404', asy
 test('album share endpoints require auth', async () => {
   assert.equal((await app.inject({ method: 'POST', url: '/api/albums/whatever/share' })).statusCode, 401)
 })
+
+test('PATCH /files/:id renames (display name only, separators sanitized)', async () => {
+  const mp = multipart([{ name: 'file', filename: 'old-name.txt', contentType: 'text/plain', value: 'rn' }])
+  const up = await app.inject({ method: 'POST', url: '/upload', headers: { authorization: `Bearer ${API_KEY}`, 'content-type': mp.contentType }, payload: mp.body })
+  const id = up.json().id
+  const res = await app.inject({
+    method: 'PATCH', url: `/files/${id}`,
+    headers: { authorization: `Bearer ${API_KEY}`, 'content-type': 'application/json' },
+    payload: JSON.stringify({ filename: '../evil/new name.txt' }),
+  })
+  assert.equal(res.statusCode, 200)
+  assert.equal(res.json().filename, '..-evil-new name.txt', 'path separators flattened')
+  assert.equal((await app.inject({ method: 'PATCH', url: `/files/${id}`, headers: { authorization: `Bearer ${API_KEY}`, 'content-type': 'application/json' }, payload: JSON.stringify({ filename: '   ' }) })).statusCode, 400)
+})

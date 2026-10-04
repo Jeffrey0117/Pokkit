@@ -2882,3 +2882,11 @@ body.mode-dashboard .landing-only {
 .trash-section { padding-bottom: 40px; }
 .trash-note { color: var(--text-tertiary); font-size: 0.8125rem; margin: -6px 0 16px; }
 .trash-list { display: flex; flex-direction: column; gap: 6px; }
+
+
+/* ── Polish round (2026-10-04 feedback) ── */
+/* 側欄容量: 數字自己一整行不換行, tier/升級鈕退到第二行 — 不再出現 "2.0\nGB" 斷行 */
+.quota-info { flex-wrap: wrap; }
+.quota-text { white-space: nowrap; flex-basis: 100%; }
+/* 上傳選項列和下方區塊之間留口氣 (之前貼死) */
+.upload-options { margin-bottom: 20px; }

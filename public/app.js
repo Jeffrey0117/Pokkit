@@ -1439,6 +1439,23 @@
     cpBtn.textContent = 'Copy';
     cpBtn.addEventListener('click', function () { copyUrl(fullUrl); });
 
+    var rnBtn = document.createElement('button');
+    rnBtn.className = 'btn';
+    rnBtn.textContent = window.t ? window.t('Rename') : 'Rename';
+    rnBtn.addEventListener('click', function () {
+      var next = window.prompt(window.t ? window.t('New filename') : 'New filename', link.textContent);
+      if (next === null) return;
+      next = next.trim();
+      if (!next || next === link.textContent) return;
+      apiRequest('PATCH', '/files/' + entry.id, { filename: next }, function (r) {
+        if (r && r.ok) {
+          link.textContent = r.filename;
+          dlBtn.setAttribute('download', r.filename);
+          toast(window.t ? window.t('Renamed') : 'Renamed');
+        }
+      });
+    });
+
     var dlBtn = document.createElement('a');
     dlBtn.className = 'btn';
     dlBtn.textContent = 'Download';
@@ -1451,6 +1468,7 @@
     delBtn.addEventListener('click', function () { deleteFile(entry.id, row); });
 
     actions.appendChild(cpBtn);
+    actions.appendChild(rnBtn);
     actions.appendChild(dlBtn);
 
     // Host-only: locate the real file on disk (no download, no duplicate)
@@ -1520,9 +1538,12 @@
     apiRequest('GET', '/api/user/storage', null, function (data) {
       if (!data) return;
       $storageQuota.hidden = false;
-      $quotaText.textContent = data.maxBytes
-        ? formatBytes(data.usedBytes || 0) + ' / ' + formatBytes(data.maxBytes)
-        : data.photoCount.toLocaleString() + ' / ' + data.maxPhotos.toLocaleString() + ' photos';
+      var fmtQ = function (b) { return formatBytes(b).replace('.0 ', ' '); };
+      $quotaText.textContent = data.unlimited
+        ? fmtQ(data.usedBytes || 0) + ' / \u221e'
+        : data.maxBytes
+          ? fmtQ(data.usedBytes || 0) + ' / ' + fmtQ(data.maxBytes)
+          : data.photoCount.toLocaleString() + ' / ' + data.maxPhotos.toLocaleString() + ' photos';
       $quotaTier.textContent = data.tier;
       $quotaTier.className = 'quota-tier' + (data.isPremium ? ' premium' : '');
       $upgradeBtn.hidden = !!data.isPremium;
@@ -1753,9 +1774,12 @@
     apiRequest('GET', '/api/user/storage', null, function (data) {
       if (!data) return;
       var t = document.getElementById('acctStorageText');
-      if (t) t.textContent = data.maxBytes
-        ? formatBytes(data.usedBytes || 0) + ' / ' + formatBytes(data.maxBytes)
-        : fmt(data.photoCount) + ' / ' + fmt(data.maxPhotos) + ' items';
+      var fmtQ = function (b) { return formatBytes(b).replace('.0 ', ' '); };
+      if (t) t.textContent = data.unlimited
+        ? fmtQ(data.usedBytes || 0) + ' / \u221e'
+        : data.maxBytes
+          ? fmtQ(data.usedBytes || 0) + ' / ' + fmtQ(data.maxBytes)
+          : fmt(data.photoCount) + ' / ' + fmt(data.maxPhotos) + ' items';
       var pct = Math.min(data.usedPercent || 0, 100);
       var fill = document.getElementById('acctQuotaFill');
       if (fill) {

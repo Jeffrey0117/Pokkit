@@ -126,6 +126,20 @@ export function statusRoute(app: FastifyInstance, storage: Storage, config: Pokk
     }
 
     const userStats = storage.userStats(user.userId)
+    if (user.isAdmin) {
+      // Owner/admin: unlimited — mirror checkQuota, never show an Upgrade nag
+      return {
+        userId: user.userId,
+        tier: 'Admin',
+        isPremium: true,
+        unlimited: true,
+        usedBytes: userStats.totalBytes,
+        maxBytes: 0,
+        usedPercent: 0,
+        photoCount: userStats.totalFiles,
+        maxPhotos: 0,
+      }
+    }
     const sub = await checkPremium(user.email, user.userId, config.premiumUserIds)
 
     return {

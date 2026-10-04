@@ -316,6 +316,10 @@ export class Storage {
     return this.store.updatePhotoNotes(id, notes)
   }
 
+  renameFile(id: string, filename: string): boolean {
+    return this.store.renameFile(id, filename)
+  }
+
   userStats(userId: string): { totalFiles: number; totalBytes: number } {
     return this.store.userStats(userId)
   }

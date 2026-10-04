@@ -75,8 +75,12 @@ export async function checkQuota(
   config: PokkitConfig,
   incomingBytes = 0,
 ): Promise<{ status: number; body: Record<string, unknown> } | null> {
+  // Admin (LetMeUse admin / global key) = unlimited — the owner must never be
+  // locked out of their own box by the per-user quota (2026-10-04 實案: Jeff
+  // 4.3GB 既有資料被新 Free 2GB 制當場鎖死)。
+  if (user.isAdmin) return null
   const globalCap = config.globalCapacityBytes ?? Number.POSITIVE_INFINITY
-  if (!user.isAdmin && globalBytes(storage) + incomingBytes > globalCap) {
+  if (globalBytes(storage) + incomingBytes > globalCap) {
     console.error(`[Pokkit] ⛔ GLOBAL CAPACITY FUSE: ${fmtGB(globalBytes(storage))} stored, cap ${fmtGB(config.globalCapacityBytes)} — rejecting uploads`)
     return {
       status: 507,

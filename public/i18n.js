@@ -5,6 +5,10 @@
   var LANG_KEY = 'pokkit_lang';
 
   var ZH = {
+    'Rename': '\u6539\u540d',
+    'New filename': '\u65b0\u6a94\u540d',
+    'Renamed': '\u5df2\u6539\u540d',
+
     'Trash': '\u5783\u573e\u6876',
     'Empty trash': '\u6e05\u7a7a\u5783\u573e\u6876',
     'Items here are deleted forever after 30 days.': '\u9019\u88e1\u7684\u6771\u897f 30 \u5929\u5f8c\u6c38\u4e45\u522a\u9664\u3002',

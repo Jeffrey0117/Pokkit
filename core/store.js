@@ -939,6 +939,10 @@ class PokkitStore {
     return db.updateFilePhoto(this._db, id, { notes });
   }
 
+  renameFile(id, filename) {
+    return db.updateFilePhoto(this._db, id, { filename });
+  }
+
   /**
    * Close the database connection
    */

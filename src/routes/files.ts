@@ -426,6 +426,24 @@ export function filesRoute(
     },
   )
 
+  // PATCH /files/:id — rename (display filename only; storage path unchanged)
+  app.patch<{ Params: { id: string }; Body: { filename?: string } }>(
+    '/files/:id',
+    async (request, reply) => {
+      const user = requireAuth(request, reply, config, storage)
+      if (!user) return
+      const entry = storage.find(request.params.id)
+      if (!entry) return reply.status(404).send({ error: 'File not found' })
+      if (!canAccessEntry(user, entry)) return reply.status(403).send({ error: 'Not your file' })
+      const raw = typeof request.body?.filename === 'string' ? request.body.filename : ''
+      // Path separators and control chars out; it's a display name, not a path
+      const cleaned = raw.replace(/[\/\\]/g, '-').replace(/[\x00-\x1f]/g, '').trim().slice(0, 200)
+      if (!cleaned) return reply.status(400).send({ error: 'filename is required' })
+      storage.renameFile(request.params.id, cleaned)
+      return { ok: true, filename: cleaned }
+    },
+  )
+
   // DELETE /files/:id — remove file (auth required)
   app.delete<{ Params: { id: string } }>(
     '/files/:id',
