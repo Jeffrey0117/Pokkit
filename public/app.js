@@ -1596,10 +1596,13 @@
   function navigate(route, push) {
     if ($appShell) $appShell.classList.remove('sidebar-open');
 
-    // Home: desktop gets the dashboard (Folders) at "/"; mobile keeps the landing page
+    // Home: desktop gets the dashboard at "/"; mobile keeps the landing page.
+    // Logged-in users land on Account (overview first); logged-out keeps the
+    // Folders shell with its login CTA — an empty Account page sells nothing.
     if (route === 'home') {
       if (push !== false && location.pathname !== '/') history.pushState({}, '', '/');
       if (window.matchMedia('(min-width: 761px)').matches) {
+        if (currentUser) { navigate('account', false); return; }
         setMode(true);
         setActiveSide('folders');
         toggleUploadZone(true);
