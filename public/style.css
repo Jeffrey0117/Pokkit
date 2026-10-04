@@ -2829,3 +2829,38 @@ body.mode-dashboard .landing-only {
   white-space: pre-wrap;
   word-break: break-all;
 }
+
+
+/* ── Personal-cloud additions (2026-10): pricing, promo, recent, guest ── */
+.hero-cta { display: flex; gap: 12px; justify-content: center; margin-top: 22px; flex-wrap: wrap; }
+.guest-notice { margin-top: 10px; color: var(--text-tertiary); }
+
+.pricing-section { padding: 8px 0 40px; }
+.pricing-tagline { color: var(--text-secondary); margin: -6px 0 22px; }
+.pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; align-items: stretch; }
+.price-card {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 22px 20px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+}
+.price-card-main { border-color: var(--border-focus); }
+.price-name { font-size: 0.8125rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
+.price-amount { font-size: 1.6rem; font-weight: 700; }
+.price-features { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.price-features li { color: var(--text-secondary); font-size: 0.875rem; padding-left: 18px; position: relative; }
+.price-features li::before { content: '✓'; position: absolute; left: 0; color: var(--text-primary); }
+.price-cta { width: 100%; }
+.price-interest-note { font-size: 0.8125rem; color: var(--text-tertiary); margin-bottom: 8px; }
+.price-interest-row { display: flex; gap: 8px; }
+.price-interest-row .option-input { flex: 1; min-width: 0; }
+
+.account-promo .account-promo-text { color: var(--text-secondary); font-size: 0.875rem; margin: 8px 0 12px; }
+.account-card-wide { grid-column: 1 / -1; }
+.account-recent { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.account-recent-empty { color: var(--text-tertiary); font-size: 0.875rem; }
+.account-recent-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border: 1px solid var(--border-default); border-radius: 8px; }
+.account-recent-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.875rem; }
+.account-recent-size { color: var(--text-tertiary); font-size: 0.75rem; flex-shrink: 0; }
+.account-recent-copy { flex-shrink: 0; padding: 4px 10px; font-size: 0.75rem; }

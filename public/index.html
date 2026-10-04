@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pokkit | Free Anonymous File Sharing</title>
+  <title>Pokkit | Your Personal Photo &amp; File Cloud</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="apple-touch-icon" href="/favicon.svg">
-  <meta name="description" content="Free anonymous file sharing. Upload any file, get a short link. Password protection, auto-expiry, no signup. Share files that self-destruct.">
-  <meta name="keywords" content="file sharing, anonymous upload, free file hosting, password protected files, self-destructing files, temporary file share, send large files">
-  <meta property="og:title" content="Pokkit | Free Anonymous File Sharing">
-  <meta property="og:description" content="Upload any file, get a short link. Password protection, auto-expiry, no signup needed. Files can self-destruct.">
+  <meta name="description" content="Your personal photo and file cloud. Original-quality backup for photos and videos, albums, share links. No scanning, no AI training. 2GB free.">
+  <meta name="keywords" content="photo backup, personal cloud, video backup, original quality, private photo storage, file sharing, albums, free cloud storage">
+  <meta property="og:title" content="Pokkit | Your Personal Photo &amp; File Cloud">
+  <meta property="og:description" content="Original-quality backup for photos and videos. Albums, share links, privacy by design. 2GB free.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Pokkit">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pokkit | Free Anonymous File Sharing">
-  <meta name="twitter:description" content="Upload any file, get a short link. Password protection & auto-expiry. No signup.">
+  <meta name="twitter:title" content="Pokkit | Your Personal Photo &amp; File Cloud">
+  <meta name="twitter:description" content="Original-quality photo & video backup. Albums, share links, privacy by design. 2GB free.">
   <meta name="theme-color" content="#ffffff" id="metaThemeColor">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -60,6 +60,10 @@
         <a class="side-link" href="/account" data-route="account">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>
           <span data-i18n="Account">Account</span>
+        </a>
+        <a class="side-link" href="/pricing" data-route="pricing" id="pricingNav">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <span data-i18n="Upgrade">Upgrade</span>
         </a>
         <a class="side-link" href="/projects" data-route="projects" id="projectsNav" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h7v7H3z"/><path d="M14 3h7v7h-7z"/><path d="M14 14h7v7h-7z"/><path d="M3 14h7v7H3z"/></svg>
@@ -111,6 +115,7 @@
           <span class="user-name" id="userNameLanding"></span>
           <button class="lang-toggle" type="button" title="Language">中</button>
           <button class="btn btn-primary" id="enterDashboardBtn" data-i18n="Dashboard →">Dashboard &rarr;</button>
+          <a class="btn" href="/pricing" data-route="pricing" data-i18n="Plans">Plans</a>
           <button class="btn" id="loginBtnLanding" data-i18n="Login" hidden>Login</button>
           <button class="btn" id="logoutBtnLanding" data-i18n="Logout" hidden>Logout</button>
         </div>
@@ -126,8 +131,12 @@
       </div>
 
       <section class="hero landing-only">
-        <h1 class="hero-title" data-i18n="Drop. Share. Done.">Drop. Share. Done.</h1>
-        <p class="hero-subtitle" data-i18n="Free file sharing with password protection and auto-expiry. No signup, no limits, no tracking.">Free file sharing with password protection and auto-expiry. No signup, no limits, no tracking.</p>
+        <h1 class="hero-title" data-i18n="Your photos, somewhere you trust.">Your photos, somewhere you trust.</h1>
+        <p class="hero-subtitle" data-i18n="Back up photos and videos in original quality. No scanning, no AI training, no selling your data. 2GB free.">Back up photos and videos in original quality. No scanning, no AI training, no selling your data. 2GB free.</p>
+        <div class="hero-cta">
+          <button class="btn btn-upgrade" id="heroStartBtn" data-i18n="Start free — 2GB">Start free — 2GB</button>
+          <a class="btn" href="/pricing" data-route="pricing" data-i18n="See plans">See plans</a>
+        </div>
       </section>
 
     <section class="editor" id="dropzone" tabindex="0" role="button" aria-label="Upload files">
@@ -141,6 +150,7 @@
         </div>
         <p class="drop-text" data-i18n="Drop files here to upload">Drop files here to upload</p>
         <p class="drop-hint" data-i18n="or click to browse · supports folders">or click to browse &middot; supports folders</p>
+        <p class="drop-hint guest-notice" id="guestNotice" hidden data-i18n="Instant share, no login — files expire in 7 days. Sign up free to keep them.">Instant share, no login &mdash; files expire in 7 days. Sign up free to keep them.</p>
       </div>
       <input type="file" id="fileInput" multiple hidden>
     </section>
@@ -172,22 +182,22 @@
           <div class="feature-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           </div>
-          <h3 class="feature-title" data-i18n="Password Protected">Password Protected</h3>
-          <p class="feature-desc" data-i18n="Lock files with a password. Only people you share the password with can download.">Lock files with a password. Only people you share the password with can download.</p>
+          <h3 class="feature-title" data-i18n="Original Quality">Original Quality</h3>
+          <p class="feature-desc" data-i18n="No compression games. What you upload is exactly what you get back.">No compression games. What you upload is exactly what you get back.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </div>
-          <h3 class="feature-title" data-i18n="Auto-Expiry">Auto-Expiry</h3>
-          <p class="feature-desc" data-i18n="Files self-destruct after your chosen time. 1 hour, 1 day, 7 days, or 30 days.">Files self-destruct after your chosen time. 1 hour, 1 day, 7 days, or 30 days.</p>
+          <h3 class="feature-title" data-i18n="Albums &amp; Sharing">Albums &amp; Sharing</h3>
+          <p class="feature-desc" data-i18n="Organize into albums, share with one link. Password and auto-expiry when you want them.">Organize into albums, share with one link. Password and auto-expiry when you want them.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
           </div>
-          <h3 class="feature-title" data-i18n="No Signup">No Signup</h3>
-          <p class="feature-desc" data-i18n="Upload instantly. No account, no email, no personal data collected. Just files.">Upload instantly. No account, no email, no personal data collected. Just files.</p>
+          <h3 class="feature-title" data-i18n="Private by Design">Private by Design</h3>
+          <p class="feature-desc" data-i18n="Your files live on our own server. No scanning, no AI training, no data resale.">Your files live on our own server. No scanning, no AI training, no data resale.</p>
         </div>
       </div>
     </section>
@@ -322,6 +332,61 @@
           <div class="account-setting-row">
             <span class="account-email" id="acctEmail"></span>
             <button class="btn" id="acctLogout" data-i18n="Logout">Logout</button>
+          </div>
+        </div>
+        <div class="account-card account-promo" id="acctPromo" hidden>
+          <div class="account-card-label">Pro</div>
+          <p class="account-promo-text" data-i18n="100GB storage, 4K video in original quality, large files.">100GB storage, 4K video in original quality, large files.</p>
+          <button class="btn btn-upgrade" id="acctPromoBtn" data-i18n="See Pro">See Pro</button>
+        </div>
+        <div class="account-card account-card-wide">
+          <div class="account-card-label" data-i18n="Recent uploads">Recent uploads</div>
+          <div class="account-recent" id="acctRecent"><span class="account-recent-empty" data-i18n="Nothing yet — drop something!">Nothing yet &mdash; drop something!</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pricing-section" id="pricingSection" hidden>
+      <div class="section-header"><h2 class="section-title" data-i18n="Plans">Plans</h2></div>
+      <p class="pricing-tagline" data-i18n="Start free. Upgrade when your memories outgrow it.">Start free. Upgrade when your memories outgrow it.</p>
+      <div class="pricing-grid">
+        <div class="price-card">
+          <h3 class="price-name" data-i18n="Guest">Guest</h3>
+          <div class="price-amount" data-i18n="Free">Free</div>
+          <ul class="price-features">
+            <li data-i18n="Instant share, no login">Instant share, no login</li>
+            <li id="priceGuestFile">64MB / file</li>
+            <li data-i18n="Links expire in 7 days">Links expire in 7 days</li>
+            <li data-i18n="Password protection">Password protection</li>
+          </ul>
+          <button class="btn price-cta" id="priceGuestBtn" data-i18n="Just drop a file">Just drop a file</button>
+        </div>
+        <div class="price-card price-card-main">
+          <h3 class="price-name">Free</h3>
+          <div class="price-amount" id="priceFreeAmount">2GB</div>
+          <ul class="price-features">
+            <li data-i18n="Permanent links">Permanent links</li>
+            <li data-i18n="Photo library &amp; albums">Photo library &amp; albums</li>
+            <li data-i18n="Original-quality backup">Original-quality backup</li>
+            <li data-i18n="Password &amp; expiry controls">Password &amp; expiry controls</li>
+          </ul>
+          <button class="btn btn-upgrade price-cta" id="priceFreeBtn" data-i18n="Start free">Start free</button>
+        </div>
+        <div class="price-card">
+          <h3 class="price-name">Pro</h3>
+          <div class="price-amount" id="priceProAmount">100GB</div>
+          <ul class="price-features">
+            <li data-i18n="Everything in Free">Everything in Free</li>
+            <li data-i18n="4K video, original quality">4K video, original quality</li>
+            <li data-i18n="Large files via chunked upload">Large files via chunked upload</li>
+            <li data-i18n="Priority processing">Priority processing</li>
+          </ul>
+          <div class="price-interest" id="proInterestBox">
+            <p class="price-interest-note" data-i18n="Launching soon — leave your email and get in first.">Launching soon &mdash; leave your email and get in first.</p>
+            <div class="price-interest-row">
+              <input type="email" class="option-input" id="proInterestEmail" placeholder="you@email.com" autocomplete="email">
+              <button class="btn btn-upgrade" id="proInterestBtn" data-i18n="Notify me">Notify me</button>
+            </div>
           </div>
         </div>
       </div>

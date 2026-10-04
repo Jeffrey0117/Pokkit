@@ -343,13 +343,20 @@
     $logoutBtn.hidden = !loggedIn;
     if (loginL) loginL.hidden = loggedIn;
     if (logoutL) logoutL.hidden = !loggedIn;
-    if (loggedIn) {
-      $dropzone.style.display = '';
-      document.getElementById('uploadOptions').style.display = '';
-    } else {
-      $dropzone.style.display = 'none';
-      document.getElementById('uploadOptions').style.display = 'none';
-      $storageQuota.hidden = true;
+    // Guest 快傳: 登出不再藏 dropzone — 免登入即傳即分享是試用入口。
+    // 差別在提示 (7 天過期) 和過期選項 (guest 只准 ≤7d, server 端也會鉗制)。
+    $dropzone.style.display = '';
+    document.getElementById('uploadOptions').style.display = '';
+    if (!loggedIn) $storageQuota.hidden = true;
+    var gn = document.getElementById('guestNotice');
+    if (gn) gn.hidden = loggedIn;
+    var expSel = document.getElementById('expirySelect');
+    if (expSel) {
+      for (var ei = 0; ei < expSel.options.length; ei++) {
+        var opt = expSel.options[ei];
+        if (opt.value === 'forever' || opt.value === '30d') opt.hidden = !loggedIn;
+      }
+      if (!loggedIn && (expSel.value === 'forever' || expSel.value === '30d')) expSel.value = '7d';
     }
   }
 
@@ -367,6 +374,7 @@
   function applyLoggedOut() {
     currentUser = null;
     saveAuthLocally(null);
+    disconnectEvents();
     updateAuthUI();
     var nav = document.getElementById('projectsNav');
     if (nav) nav.hidden = true;
@@ -1022,6 +1030,11 @@
     // proxy body cap; failed chunks retry inside the client, and a failed upload
     // keeps its uploadId so the manual Retry only re-sends what is missing.
     if (file.size > CHUNK_THRESHOLD) {
+      if (!currentUser) {
+        // Guest 單檔上限 = 64MB (chunked 需要帳號); server 端同樣會擋
+        failPermanently(window.t ? window.t('Sign up free to upload files over 64MB.') : 'Sign up free to upload files over 64MB.');
+        return;
+      }
       if (!window.ChunkedUpload) {
         beacon('chunked-client-missing', { name: file.name, size: file.size });
         // never fall back to the one-shot POST: the edge proxy would 413 it after the whole upload
@@ -1482,7 +1495,9 @@
     apiRequest('GET', '/api/user/storage', null, function (data) {
       if (!data) return;
       $storageQuota.hidden = false;
-      $quotaText.textContent = data.photoCount.toLocaleString() + ' / ' + data.maxPhotos.toLocaleString() + ' photos';
+      $quotaText.textContent = data.maxBytes
+        ? formatBytes(data.usedBytes || 0) + ' / ' + formatBytes(data.maxBytes)
+        : data.photoCount.toLocaleString() + ' / ' + data.maxPhotos.toLocaleString() + ' photos';
       $quotaTier.textContent = data.tier;
       $quotaTier.className = 'quota-tier' + (data.isPremium ? ' premium' : '');
       $upgradeBtn.hidden = !!data.isPremium;
@@ -1507,26 +1522,7 @@
   }
 
   $upgradeBtn.addEventListener('click', function () {
-    apiRequest('GET', '/api/plans', null, function (data) {
-      if (!data || !data.plans || data.plans.length === 0) {
-        toast('Upgrade plans coming soon!');
-        return;
-      }
-      // Find the cheapest plan with a checkout URL
-      var plan = null;
-      for (var i = 0; i < data.plans.length; i++) {
-        if (data.plans[i].checkout_url) {
-          if (!plan || data.plans[i].price < plan.price) {
-            plan = data.plans[i];
-          }
-        }
-      }
-      if (plan) {
-        window.open(plan.checkout_url, '_blank');
-      } else {
-        toast('Upgrade plans coming soon!');
-      }
-    });
+    navigate('pricing', true);
   });
 
   // ── Tab Switching ──────────────────────────────────────
@@ -1555,6 +1551,7 @@
     $videosSection.hidden = tabName !== 'videos';
     $gallerySection.hidden = true;
     if ($accountSection) $accountSection.hidden = true;
+    if ($pricingSection) $pricingSection.hidden = true;
     if ($projectsSection) $projectsSection.hidden = true;
     currentAlbumId = null;
     currentAlbumName = '';
@@ -1565,10 +1562,11 @@
 
   // ── Router: home (landing) + dashboard pages with real URLs ─────
   var $accountSection = document.getElementById('accountSection');
+  var $pricingSection = document.getElementById('pricingSection');
   var $projectsSection = document.getElementById('projectsSection');
   var $appShell = document.querySelector('.app-shell');
   var $sideLinks = document.querySelectorAll('.side-link');
-  var DASH_ROUTES = ['folders', 'photos', 'videos', 'files', 'account', 'projects'];
+  var DASH_ROUTES = ['folders', 'photos', 'videos', 'files', 'account', 'projects', 'pricing'];
 
   function routeFromPath() {
     var seg = (location.pathname.split('/')[1] || '').toLowerCase();
@@ -1623,7 +1621,7 @@
       history.pushState({ route: route }, '', '/' + route);
     }
     setActiveSide(route);
-    toggleUploadZone(route !== 'account');
+    toggleUploadZone(route !== 'account' && route !== 'pricing');
     if (route === 'account') {
       $filesSection.hidden = true;
       $albumsSection.hidden = true;
@@ -1631,6 +1629,7 @@
       $videosSection.hidden = true;
       $gallerySection.hidden = true;
       if ($projectsSection) $projectsSection.hidden = true;
+      if ($pricingSection) $pricingSection.hidden = true;
       $accountSection.hidden = false;
       loadAccount();
     } else if (route === 'projects') {
@@ -1640,8 +1639,19 @@
       $videosSection.hidden = true;
       $gallerySection.hidden = true;
       $accountSection.hidden = true;
+      if ($pricingSection) $pricingSection.hidden = true;
       if ($projectsSection) $projectsSection.hidden = false;
       loadProjects();
+    } else if (route === 'pricing') {
+      $filesSection.hidden = true;
+      $albumsSection.hidden = true;
+      $photosSection.hidden = true;
+      $videosSection.hidden = true;
+      $gallerySection.hidden = true;
+      $accountSection.hidden = true;
+      if ($projectsSection) $projectsSection.hidden = true;
+      if ($pricingSection) $pricingSection.hidden = false;
+      loadPricing();
     } else {
       switchTab(route === 'folders' ? 'albums' : route);
     }
@@ -1688,7 +1698,9 @@
     apiRequest('GET', '/api/user/storage', null, function (data) {
       if (!data) return;
       var t = document.getElementById('acctStorageText');
-      if (t) t.textContent = fmt(data.photoCount) + ' / ' + fmt(data.maxPhotos) + ' items';
+      if (t) t.textContent = data.maxBytes
+        ? formatBytes(data.usedBytes || 0) + ' / ' + formatBytes(data.maxBytes)
+        : fmt(data.photoCount) + ' / ' + fmt(data.maxPhotos) + ' items';
       var pct = Math.min(data.usedPercent || 0, 100);
       var fill = document.getElementById('acctQuotaFill');
       if (fill) {
@@ -1699,6 +1711,8 @@
       if (tier) { tier.textContent = data.tier; tier.className = 'quota-tier' + (data.isPremium ? ' premium' : ''); }
       var up = document.getElementById('acctUpgrade');
       if (up) up.hidden = !!data.isPremium;
+      var promo = document.getElementById('acctPromo');
+      if (promo) promo.hidden = !!data.isPremium;
     });
     apiRequest('GET', '/api/user/stats', null, function (s) {
       if (!s) return;
@@ -1709,6 +1723,7 @@
     });
     var em = document.getElementById('acctEmail');
     if (em) em.textContent = (currentUser && (currentUser.email || currentUser.name)) || 'Not logged in';
+    loadRecentUploads();
   }
 
   var $acctThemeToggle = document.getElementById('acctThemeToggle');
@@ -2276,10 +2291,123 @@
   // One timer for the whole page: each tick asks the server for the status of
   // every still-processing item in a single request, instead of spinning up a
   // separate 2s interval per upload (which floods the server on big batches).
+  // ── Recent uploads (account dashboard) ──
+  function loadRecentUploads() {
+    var box = document.getElementById('acctRecent');
+    if (!box || !getToken()) return;
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/files?limit=8&offset=0');
+    setAuthHeader(xhr);
+    xhr.addEventListener('load', function () {
+      if (xhr.status !== 200) return;
+      var files; try { files = JSON.parse(xhr.responseText); } catch (_) { return; }
+      if (!files || !files.length) return;
+      box.innerHTML = '';
+      files.forEach(function (f) {
+        var row = document.createElement('div');
+        row.className = 'account-recent-row';
+        var name = document.createElement('span');
+        name.className = 'account-recent-name';
+        name.textContent = f.filename;
+        name.title = f.filename;
+        var size = document.createElement('span');
+        size.className = 'account-recent-size';
+        size.textContent = formatBytes(f.size || 0);
+        var btn = document.createElement('button');
+        btn.className = 'btn account-recent-copy';
+        btn.textContent = window.t ? window.t('Copy link') : 'Copy link';
+        btn.addEventListener('click', function () {
+          navigator.clipboard.writeText(location.origin + '/f/' + f.id).then(function () {
+            toast(window.t ? window.t('Link copied') : 'Link copied');
+          });
+        });
+        row.appendChild(name); row.appendChild(size); row.appendChild(btn);
+        box.appendChild(row);
+      });
+    });
+    xhr.send();
+  }
+
+  // ── Pricing page ──
+  function loadPricing() {
+    apiRequest('GET', '/api/tiers', null, function (tiers) {
+      if (!tiers) return;
+      var g = document.getElementById('priceGuestFile');
+      if (g && tiers.guest) g.textContent = Math.round(tiers.guest.maxFileBytes / (1024 * 1024)) + 'MB / ' + (window.t ? window.t('file') : 'file');
+      var f = document.getElementById('priceFreeAmount');
+      if (f && tiers.free) f.textContent = tiers.free.maxGB + 'GB';
+      var p = document.getElementById('priceProAmount');
+      if (p && tiers.pro) p.textContent = 'NT$' + (tiers.pro.priceNTD || 149) + (window.t ? window.t('/mo') : '/mo') + ' · ' + tiers.pro.maxGB + 'GB';
+    });
+    var input = document.getElementById('proInterestEmail');
+    if (input && !input.value && currentUser && currentUser.email) input.value = currentUser.email;
+  }
+  (function bindPricing() {
+    var freeBtn = document.getElementById('priceFreeBtn');
+    if (freeBtn) freeBtn.addEventListener('click', function () {
+      if (currentUser) { navigate('account', true); return; }
+      if (typeof letmeuse !== 'undefined') letmeuse.login(); else toast('Login service loading...');
+    });
+    var guestBtn = document.getElementById('priceGuestBtn');
+    if (guestBtn) guestBtn.addEventListener('click', function () { navigate('home', true); });
+    var heroBtn = document.getElementById('heroStartBtn');
+    if (heroBtn) heroBtn.addEventListener('click', function () {
+      if (currentUser) { navigate('account', true); return; }
+      if (typeof letmeuse !== 'undefined') letmeuse.login(); else toast('Login service loading...');
+    });
+    var promoBtn = document.getElementById('acctPromoBtn');
+    if (promoBtn) promoBtn.addEventListener('click', function () { navigate('pricing', true); });
+    var interestBtn = document.getElementById('proInterestBtn');
+    if (interestBtn) interestBtn.addEventListener('click', function () {
+      var input = document.getElementById('proInterestEmail');
+      var email = input ? input.value.trim() : '';
+      if (!email) { toast(window.t ? window.t('Enter your email first') : 'Enter your email first', true); return; }
+      interestBtn.disabled = true;
+      apiRequest('POST', '/api/pro-interest', { email: email }, function (data) {
+        interestBtn.disabled = false;
+        if (data && data.ok) {
+          toast(window.t ? window.t('You are in! We will email you when Pro launches.') : 'You are in! We will email you when Pro launches.');
+          interestBtn.textContent = window.t ? window.t('Registered ✓') : 'Registered ✓';
+          interestBtn.disabled = true;
+        }
+      });
+    });
+  })();
+
+  // ── SSE: processing events push (polling drops to 15s safety net) ──
+  var sse = null;
+  var sseRetryTimer = null;
+  function connectEvents() {
+    if (sse || typeof EventSource === 'undefined') return;
+    var token = getToken();
+    if (!token) return;
+    try {
+      sse = new EventSource('/api/events?token=' + encodeURIComponent(token));
+      sse.onmessage = function (e) {
+        var ev; try { ev = JSON.parse(e.data); } catch (_) { return; }
+        // 事件只當「叫醒」訊號 — 真相仍問 status API (帶 duration/media_type)
+        if (ev && ev.id && processingIds[ev.id]) pollProcessingBatch();
+      };
+      sse.onerror = function () {
+        try { sse.close(); } catch (_) { /* already dead */ }
+        sse = null;
+        if (!sseRetryTimer) sseRetryTimer = setTimeout(function () {
+          sseRetryTimer = null;
+          if (currentUser) connectEvents();
+        }, 30000);
+      };
+    } catch (_) { sse = null; }
+  }
+  function disconnectEvents() {
+    if (sseRetryTimer) { clearTimeout(sseRetryTimer); sseRetryTimer = null; }
+    if (sse) { try { sse.close(); } catch (_) { /* */ } sse = null; }
+  }
+
   function pollPhotoStatus(id) {
     processingIds[id] = true;
     if (!processingTimer) {
-      processingTimer = setInterval(pollProcessingBatch, 2000);
+      // SSE 在線時輪詢只是 15s 保底; 沒 SSE 才回到 2s 輪詢
+      processingTimer = setInterval(pollProcessingBatch, sse ? 15000 : 2000);
     }
   }
 
@@ -3263,7 +3391,7 @@
     saveAuthLocally(currentUser);
     updateAuthUI();
     loadFiles();
-    if (currentUser) loadStats();
+    if (currentUser) { loadStats(); connectEvents(); }
   }
 
   // Confirm the cached/optimistic session against the server. /api/me re-verifies
@@ -3287,6 +3415,7 @@
       var nav = document.getElementById('projectsNav');
       if (nav) nav.hidden = !me.isAdmin;
       if (changed) { loadFiles(); loadStats(); }
+      connectEvents();
     });
   }
 
