@@ -413,7 +413,8 @@ class PokkitStore {
    * @returns {boolean}
    */
   remove(id) {
-    const entry = db.findFile(this._db, id);
+    // findFileAny: purge must work on trashed entries too (findFile hides them)
+    const entry = db.findFileAny(this._db, id);
     if (!entry) return false;
 
     const filePath = this._resolveFilePath(entry.bucket, entry.stored_name);
@@ -451,6 +452,35 @@ class PokkitStore {
    * so expired shares stop being served AND stop occupying disk/quota.
    * @returns {number} how many were removed
    */
+  softDelete(id) {
+    return db.softDeleteFile(this._db, id);
+  }
+
+  restore(id) {
+    return db.restoreFile(this._db, id);
+  }
+
+  listTrash(opts) {
+    return db.listTrash(this._db, opts);
+  }
+
+  findAny(id) {
+    return db.findFileAny(this._db, id);
+  }
+
+  /**
+   * Purge trash older than cutoffMs (default 30 days): disk + DB, via remove().
+   * @returns {number} purged count
+   */
+  purgeOldTrash(now = Date.now(), cutoffMs = 30 * 24 * 60 * 60 * 1000) {
+    const ids = db.listTrashOlderThan(this._db, now - cutoffMs);
+    let n = 0;
+    for (const id of ids) {
+      try { if (this.remove(id)) n++; } catch (_) { /* keep sweeping */ }
+    }
+    return n;
+  }
+
   sweepExpired(now = Date.now()) {
     let removed = 0;
     for (const id of db.listExpiredIds(this._db, now)) {

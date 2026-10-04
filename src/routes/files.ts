@@ -441,11 +441,17 @@ export function filesRoute(
         return reply.status(403).send({ error: 'Not your file' })
       }
 
-      const removed = await storage.remove(request.params.id)
-      if (!removed) {
-        return reply.status(404).send({ error: 'File not found' })
+      // 人類用戶 → 垃圾桶 (30 天可復原); pk_ 專案帳號/全域 key → 硬刪
+      // (程式化消費者刪檔就是要空間立刻回來, 不想要垃圾桶語意)。
+      const hardDelete = user.isProject || user.userId === 'admin'
+      if (hardDelete) {
+        const removed = await storage.remove(request.params.id)
+        if (!removed) return reply.status(404).send({ error: 'File not found' })
+        return { ok: true }
       }
-      return { ok: true }
+      const trashed = storage.softDelete(request.params.id)
+      if (!trashed) return reply.status(404).send({ error: 'File not found' })
+      return { ok: true, trashed: true }
     },
   )
 

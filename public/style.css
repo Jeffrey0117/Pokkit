@@ -2876,3 +2876,9 @@ body.mode-dashboard .landing-only {
   letter-spacing: 0.06em;
   color: var(--text-secondary);
 }
+
+
+/* ── Trash page ── */
+.trash-section { padding-bottom: 40px; }
+.trash-note { color: var(--text-tertiary); font-size: 0.8125rem; margin: -6px 0 16px; }
+.trash-list { display: flex; flex-direction: column; gap: 6px; }

@@ -15,6 +15,7 @@ import { uploadRoute } from './routes/upload.js'
 import { filesRoute } from './routes/files.js'
 import { statusRoute } from './routes/status.js'
 import { eventsRoute } from './routes/events.js'
+import { trashRoute } from './routes/trash.js'
 import { photosRoute } from './routes/photos.js'
 import { adminRoute } from './routes/admin.js'
 import { chunkedUploadRoute } from './routes/chunked-upload.js'
@@ -120,6 +121,7 @@ export async function createServer(config: PokkitConfig) {
   filesRoute(app, storage, config, serveApp)
   statusRoute(app, storage, config)
   eventsRoute(app, storage, config)
+  trashRoute(app, storage, config)
   photosRoute(app, storage, config)
   adminRoute(app, storage, config)
 
@@ -141,6 +143,8 @@ export async function createServer(config: PokkitConfig) {
     try {
       const n = storage.sweepExpired()
       if (n > 0) console.log(`[Pokkit] Swept ${n} expired file(s)`)
+      const p = storage.purgeOldTrash()
+      if (p > 0) console.log(`[Pokkit] Purged ${p} trashed file(s) past 30 days`)
     } catch (err) {
       console.error('[Pokkit] Expired sweep failed:', err)
     }

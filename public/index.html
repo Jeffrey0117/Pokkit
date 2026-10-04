@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pokkit | Your Personal Photo &amp; File Cloud</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="apple-touch-icon" href="/favicon.svg">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
   <meta name="description" content="Your personal photo and file cloud. Original-quality backup for photos and videos, albums, share links. No scanning, no AI training. 2GB free.">
   <meta name="keywords" content="photo backup, personal cloud, video backup, original quality, private photo storage, file sharing, albums, free cloud storage">
   <meta property="og:title" content="Pokkit | Your Personal Photo &amp; File Cloud">
@@ -56,6 +57,10 @@
         <a class="side-link" href="/files" data-route="files">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
           <span data-i18n="Files">Files</span>
+        </a>
+        <a class="side-link" href="/trash" data-route="trash">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          <span data-i18n="Trash">Trash</span>
         </a>
         <a class="side-link" href="/account" data-route="account">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>
@@ -346,6 +351,15 @@
           <div class="account-recent" id="acctRecent"><span class="account-recent-empty" data-i18n="Nothing yet — drop something!">Nothing yet &mdash; drop something!</span></div>
         </div>
       </div>
+    </section>
+
+    <section class="trash-section" id="trashSection" hidden>
+      <div class="section-header">
+        <h2 class="section-title" data-i18n="Trash">Trash</h2>
+        <button class="btn btn-danger" id="emptyTrashBtn" data-i18n="Empty trash">Empty trash</button>
+      </div>
+      <p class="trash-note" data-i18n="Items here are deleted forever after 30 days.">Items here are deleted forever after 30 days.</p>
+      <div class="trash-list" id="trashList"></div>
     </section>
 
     <section class="pricing-section" id="pricingSection" hidden>

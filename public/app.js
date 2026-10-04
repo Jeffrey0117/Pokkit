@@ -1591,6 +1591,7 @@
     $gallerySection.hidden = true;
     if ($accountSection) $accountSection.hidden = true;
     if ($pricingSection) $pricingSection.hidden = true;
+    if ($trashSection) $trashSection.hidden = true;
     if ($projectsSection) $projectsSection.hidden = true;
     currentAlbumId = null;
     currentAlbumName = '';
@@ -1602,10 +1603,11 @@
   // ── Router: home (landing) + dashboard pages with real URLs ─────
   var $accountSection = document.getElementById('accountSection');
   var $pricingSection = document.getElementById('pricingSection');
+  var $trashSection = document.getElementById('trashSection');
   var $projectsSection = document.getElementById('projectsSection');
   var $appShell = document.querySelector('.app-shell');
   var $sideLinks = document.querySelectorAll('.side-link');
-  var DASH_ROUTES = ['folders', 'photos', 'videos', 'files', 'account', 'projects', 'pricing'];
+  var DASH_ROUTES = ['folders', 'photos', 'videos', 'files', 'account', 'projects', 'pricing', 'trash'];
 
   function routeFromPath() {
     var seg = (location.pathname.split('/')[1] || '').toLowerCase();
@@ -1660,7 +1662,7 @@
       history.pushState({ route: route }, '', '/' + route);
     }
     setActiveSide(route);
-    toggleUploadZone(route !== 'account' && route !== 'pricing');
+    toggleUploadZone(route !== 'account' && route !== 'pricing' && route !== 'trash');
     if (route === 'account') {
       $filesSection.hidden = true;
       $albumsSection.hidden = true;
@@ -1669,6 +1671,7 @@
       $gallerySection.hidden = true;
       if ($projectsSection) $projectsSection.hidden = true;
       if ($pricingSection) $pricingSection.hidden = true;
+      if ($trashSection) $trashSection.hidden = true;
       $accountSection.hidden = false;
       loadAccount();
     } else if (route === 'projects') {
@@ -1679,6 +1682,7 @@
       $gallerySection.hidden = true;
       $accountSection.hidden = true;
       if ($pricingSection) $pricingSection.hidden = true;
+      if ($trashSection) $trashSection.hidden = true;
       if ($projectsSection) $projectsSection.hidden = false;
       loadProjects();
     } else if (route === 'pricing') {
@@ -1689,8 +1693,20 @@
       $gallerySection.hidden = true;
       $accountSection.hidden = true;
       if ($projectsSection) $projectsSection.hidden = true;
+      if ($trashSection) $trashSection.hidden = true;
       if ($pricingSection) $pricingSection.hidden = false;
       loadPricing();
+    } else if (route === 'trash') {
+      $filesSection.hidden = true;
+      $albumsSection.hidden = true;
+      $photosSection.hidden = true;
+      $videosSection.hidden = true;
+      $gallerySection.hidden = true;
+      $accountSection.hidden = true;
+      if ($projectsSection) $projectsSection.hidden = true;
+      if ($pricingSection) $pricingSection.hidden = true;
+      if ($trashSection) $trashSection.hidden = false;
+      loadTrash();
     } else {
       switchTab(route === 'folders' ? 'albums' : route);
     }
@@ -2311,8 +2327,8 @@
 
   function deletePhoto(id) {
     if (!confirm('Delete this photo?')) return;
-    apiRequest('DELETE', '/files/' + id, null, function () {
-      toast('Deleted');
+    apiRequest('DELETE', '/files/' + id, null, function (r) {
+      toast(r && r.trashed ? (window.t ? window.t('Moved to trash') : 'Moved to trash') : 'Deleted');
       galleryPhotos = galleryPhotos.filter(function (p) { return p.id !== id; });
       $galleryCount.textContent = galleryPhotos.length + ' photos';
       renderPhotoGrid();
@@ -2330,6 +2346,66 @@
   // One timer for the whole page: each tick asks the server for the status of
   // every still-processing item in a single request, instead of spinning up a
   // separate 2s interval per upload (which floods the server on big batches).
+  // ── Trash page ──
+  function loadTrash() {
+    var box = document.getElementById('trashList');
+    if (!box) return;
+    box.innerHTML = '';
+    apiRequest('GET', '/api/trash', null, function (items) {
+      if (!items) return;
+      if (!items.length) {
+        box.innerHTML = '<div class="empty-state"><div class="empty-state-text">' +
+          (window.t ? window.t('Trash is empty') : 'Trash is empty') + '</div></div>';
+        return;
+      }
+      items.forEach(function (f) {
+        var row = document.createElement('div');
+        row.className = 'account-recent-row';
+        var name = document.createElement('span');
+        name.className = 'account-recent-name';
+        name.textContent = f.filename;
+        name.title = f.filename;
+        var meta = document.createElement('span');
+        meta.className = 'account-recent-size';
+        meta.textContent = formatBytes(f.size || 0) + ' · ' + formatDate(f.deleted_at);
+        var restoreBtn = document.createElement('button');
+        restoreBtn.className = 'btn account-recent-copy';
+        restoreBtn.textContent = window.t ? window.t('Restore') : 'Restore';
+        restoreBtn.addEventListener('click', function () {
+          apiRequest('POST', '/api/trash/' + f.id + '/restore', {}, function (r) {
+            if (r && r.ok) { toast(window.t ? window.t('Restored') : 'Restored'); loadTrash(); loadStats(); }
+          });
+        });
+        var purgeBtn = document.createElement('button');
+        purgeBtn.className = 'btn btn-danger account-recent-copy';
+        purgeBtn.textContent = window.t ? window.t('Delete forever') : 'Delete forever';
+        purgeBtn.addEventListener('click', function () {
+          if (!confirm(window.t ? window.t('Delete forever? This cannot be undone.') : 'Delete forever? This cannot be undone.')) return;
+          apiRequest('DELETE', '/api/trash/' + f.id, null, function (r) {
+            if (r && r.ok) { loadTrash(); loadStats(); }
+          });
+        });
+        row.appendChild(name); row.appendChild(meta); row.appendChild(restoreBtn); row.appendChild(purgeBtn);
+        box.appendChild(row);
+      });
+    });
+  }
+  (function bindTrash() {
+    var btn = document.getElementById('emptyTrashBtn');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      if (!confirm(window.t ? window.t('Empty trash? Everything in it is deleted forever.') : 'Empty trash? Everything in it is deleted forever.')) return;
+      apiRequest('DELETE', '/api/trash', null, function (r) {
+        if (r && r.ok) { toast((window.t ? window.t('Trash emptied') : 'Trash emptied')); loadTrash(); loadStats(); }
+      });
+    });
+  })();
+
+  // ── PWA: register the no-cache service worker (installability only) ──
+  if ('serviceWorker' in navigator) {
+    try { navigator.serviceWorker.register('/sw.js'); } catch (_) { /* non-secure context etc. */ }
+  }
+
   // ── Recent uploads (account dashboard) ──
   function loadRecentUploads() {
     var box = document.getElementById('acctRecent');
@@ -2621,8 +2697,8 @@
     if (lightboxIndex < 0 || lightboxIndex >= galleryPhotos.length) return;
     var photo = galleryPhotos[lightboxIndex];
     if (!confirm('Delete this photo?')) return;
-    apiRequest('DELETE', '/files/' + photo.id, null, function () {
-      toast('Deleted');
+    apiRequest('DELETE', '/files/' + photo.id, null, function (r) {
+      toast(r && r.trashed ? (window.t ? window.t('Moved to trash') : 'Moved to trash') : 'Deleted');
       galleryPhotos.splice(lightboxIndex, 1);
       $galleryCount.textContent = galleryPhotos.length + ' photos';
       if (galleryPhotos.length === 0) {

@@ -67,6 +67,12 @@ function openDb(dbPath) {
     _db.exec('ALTER TABLE files ADD COLUMN album_id TEXT');
     _db.exec('CREATE INDEX IF NOT EXISTS idx_files_album ON files(album_id)');
   }
+  // Trash (soft delete): deleted_at timestamp; NULL = live. Trashed files are
+  // invisible to findFile/all listings, so share links & serving 404 instantly.
+  if (!cols.includes('deleted_at')) {
+    _db.exec('ALTER TABLE files ADD COLUMN deleted_at INTEGER');
+    _db.exec('CREATE INDEX IF NOT EXISTS idx_files_deleted ON files(deleted_at) WHERE deleted_at IS NOT NULL');
+  }
   if (!cols.includes('taken_at')) {
     _db.exec('ALTER TABLE files ADD COLUMN taken_at INTEGER');
   }
@@ -221,7 +227,7 @@ function incrementDownloads(db, id) {
  * @returns {object|null}
  */
 function findFile(db, id) {
-  const row = db.prepare('SELECT * FROM files WHERE id = ?').get(id);
+  const row = db.prepare('SELECT * FROM files WHERE id = ? AND deleted_at IS NULL').get(id);
   return row ? deserializeRow(row) : null;
 }
 
@@ -233,7 +239,7 @@ function findFile(db, id) {
  */
 function findByHash(db, hash, bucket) {
   if (bucket) {
-    return db.prepare('SELECT * FROM files WHERE hash = ? AND bucket = ?')
+    return db.prepare('SELECT * FROM files WHERE deleted_at IS NULL AND hash = ? AND bucket = ?')
       .all(hash, bucket).map(deserializeRow);
   }
   return db.prepare('SELECT * FROM files WHERE hash = ?')
@@ -270,7 +276,7 @@ function listFiles(db, opts = {}) {
   const { bucket, limit = 100, offset = 0, order, excludeAccounts, userId, q } = opts;
   const dir = order === 'asc' ? 'ASC' : 'DESC';
   const params = [];
-  let where = '1=1';
+  let where = 'deleted_at IS NULL';
   if (bucket) { where += ' AND bucket = ?'; params.push(bucket); }
   if (q) {
     // Escape LIKE wildcards so a literal "%" in the query can't scan everything
@@ -293,6 +299,35 @@ function listFiles(db, opts = {}) {
  * @param {string} id
  * @returns {boolean}
  */
+function findFileAny(db, id) {
+  const row = db.prepare('SELECT * FROM files WHERE id = ?').get(id);
+  return row ? deserializeRow(row) : undefined;
+}
+
+function softDeleteFile(db, id) {
+  const result = db.prepare('UPDATE files SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL').run(Date.now(), id);
+  return result.changes > 0;
+}
+
+function restoreFile(db, id) {
+  const result = db.prepare('UPDATE files SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL').run(id);
+  return result.changes > 0;
+}
+
+function listTrash(db, opts = {}) {
+  const { userId, limit = 200 } = opts;
+  const params = [];
+  let where = 'deleted_at IS NOT NULL';
+  if (userId) { where += ' AND user_id = ?'; params.push(userId); }
+  return db.prepare(`SELECT * FROM files WHERE ${where} ORDER BY deleted_at DESC LIMIT ?`)
+    .all(...params, limit).map(deserializeRow);
+}
+
+function listTrashOlderThan(db, cutoff) {
+  return db.prepare('SELECT id FROM files WHERE deleted_at IS NOT NULL AND deleted_at < ?')
+    .all(cutoff).map((r) => r.id);
+}
+
 function deleteFile(db, id) {
   // file_tags cascade-deleted by FK
   const result = db.prepare('DELETE FROM files WHERE id = ?').run(id);
@@ -509,7 +544,7 @@ function listPhotosByAlbum(db, albumId, opts = {}) {
   const dir = order === 'asc' ? 'ASC' : 'DESC';
   return db.prepare(`
     SELECT * FROM files
-    WHERE album_id = ? AND status IN ('ready', 'processing')
+    WHERE deleted_at IS NULL AND album_id = ? AND status IN ('ready', 'processing')
     ORDER BY uploaded_at ${dir}
     LIMIT ? OFFSET ?
   `).all(albumId, limit, offset).map(deserializeRow);
@@ -594,7 +629,7 @@ function listAllPhotos(db, opts = {}) {
   if (mediaType) params.push(mediaType);
   return db.prepare(`
     SELECT * FROM files
-    WHERE status IN ('ready', 'processing') ${typeFilter} ${scope}
+    WHERE deleted_at IS NULL AND status IN ('ready', 'processing') ${typeFilter} ${scope}
     ORDER BY uploaded_at ${dir}
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset).map(deserializeRow);
@@ -691,6 +726,11 @@ module.exports = {
   incrementDownloads,
   insertAlbum,
   findAlbum,
+  findFileAny,
+  softDeleteFile,
+  restoreFile,
+  listTrash,
+  listTrashOlderThan,
   setAlbumShareToken,
   findAlbumByShareToken,
   listAlbums,

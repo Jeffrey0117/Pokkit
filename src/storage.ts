@@ -169,6 +169,26 @@ export class Storage {
     return this.store.list({ bucket: 'default', limit, offset, order, excludeAccounts, userId, q })
   }
 
+  softDelete(id: string): boolean {
+    return this.store.softDelete(id)
+  }
+
+  restore(id: string): boolean {
+    return this.store.restore(id)
+  }
+
+  listTrash(opts?: { userId?: string; limit?: number }): FileEntry[] {
+    return this.store.listTrash(opts || {})
+  }
+
+  findAny(id: string): FileEntry | undefined {
+    return this.store.findAny(id)
+  }
+
+  purgeOldTrash(): number {
+    return this.store.purgeOldTrash()
+  }
+
   setAlbumShareToken(id: string, token: string | null): boolean {
     return this.store.setAlbumShareToken(id, token)
   }

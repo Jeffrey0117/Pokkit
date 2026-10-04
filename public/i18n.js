@@ -5,6 +5,18 @@
   var LANG_KEY = 'pokkit_lang';
 
   var ZH = {
+    'Trash': '\u5783\u573e\u6876',
+    'Empty trash': '\u6e05\u7a7a\u5783\u573e\u6876',
+    'Items here are deleted forever after 30 days.': '\u9019\u88e1\u7684\u6771\u897f 30 \u5929\u5f8c\u6c38\u4e45\u522a\u9664\u3002',
+    'Trash is empty': '\u5783\u573e\u6876\u662f\u7a7a\u7684',
+    'Restore': '\u5fa9\u539f',
+    'Restored': '\u5df2\u5fa9\u539f',
+    'Delete forever': '\u6c38\u4e45\u522a\u9664',
+    'Delete forever? This cannot be undone.': '\u6c38\u4e45\u522a\u9664\uff1f\u9019\u500b\u52d5\u4f5c\u7121\u6cd5\u5fa9\u539f\u3002',
+    'Empty trash? Everything in it is deleted forever.': '\u6e05\u7a7a\u5783\u573e\u6876\uff1f\u88e1\u9762\u6240\u6709\u6771\u897f\u90fd\u6703\u6c38\u4e45\u522a\u9664\u3002',
+    'Trash emptied': '\u5783\u573e\u6876\u5df2\u6e05\u7a7a',
+    'Moved to trash': '\u5df2\u79fb\u5230\u5783\u573e\u6876 \u2014 30 \u5929\u5167\u53ef\u5fa9\u539f',
+
     'Search filename...': '\u641c\u5c0b\u6a94\u540d...',
     'No match for': '\u627e\u4e0d\u5230',
     'Share': '\u5206\u4eab',
