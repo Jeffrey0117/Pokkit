@@ -5,6 +5,27 @@
   var LANG_KEY = 'pokkit_lang';
 
   var ZH = {
+    'Welcome to Pokkit 👋': '\u6b61\u8fce\u4f86\u5230 Pokkit \ud83d\udc4b',
+    '30 seconds to meet your personal cloud.': '\u82b1 30 \u79d2\u8a8d\u8b58\u4f60\u7684\u500b\u4eba\u96f2\u7aef\u3002',
+    'Drop anything here': '\u6a94\u6848\u5f80\u9019\u88e1\u4e1f',
+    'Photos and videos land in your library in original quality; every file gets a share link.': '\u7167\u7247\u548c\u5f71\u7247\u6703\u4ee5\u539f\u756b\u8cea\u9032\u5165\u4f60\u7684\u5a92\u9ad4\u5eab\uff1b\u6bcf\u500b\u6a94\u6848\u90fd\u6703\u62ff\u5230\u5206\u4eab\u9023\u7d50\u3002',
+    'Your photo library': '\u4f60\u7684\u76f8\u7247\u5eab',
+    'Browse everything by month — the timeline reads the photo\u2019s real capture date.': '\u6309\u6708\u4efd\u700f\u89bd\u5168\u90e8\u7167\u7247 \u2014 \u6642\u9593\u8ef8\u8b80\u7684\u662f\u7167\u7247\u771f\u6b63\u7684\u62cd\u651d\u65e5\u671f\u3002',
+    'Albums': '\u76f8\u7c3f',
+    'Organize into albums, then hit Share — one link anyone can open, no app needed.': '\u6574\u7406\u6210\u76f8\u7c3f\u5f8c\u6309 Share \u2014 \u4e00\u689d\u9023\u7d50\u8ab0\u90fd\u80fd\u958b\uff0c\u4e0d\u7528\u88dd\u4efb\u4f55\u6771\u897f\u3002',
+    'Deleted \u2260 gone': '\u522a\u6389 \u2260 \u6d88\u5931',
+    'Anything you delete waits in Trash for 30 days before it\u2019s really gone.': '\u522a\u6389\u7684\u6771\u897f\u6703\u5728\u5783\u573e\u6876\u7b49 30 \u5929\uff0c\u53cd\u6094\u96a8\u6642\u6551\u5f97\u56de\u4f86\u3002',
+    'Your storage': '\u4f60\u7684\u5bb9\u91cf',
+    'Keep an eye on your space here. Free starts you at 2GB.': '\u5bb9\u91cf\u7528\u91cf\u770b\u9019\u88e1\uff0c\u514d\u8cbb\u7248\u5f9e 2GB \u958b\u59cb\u3002',
+    'That\u2019s it \ud83c\udf89': '\u5c31\u9019\u6a23 \ud83c\udf89',
+    'Drop your first file and see for yourself.': '\u4e1f\u7b2c\u4e00\u500b\u6a94\u6848\u4e0a\u4f86\u8a66\u8a66\u5c31\u77e5\u9053\u3002',
+    'Next': '\u4e0b\u4e00\u6b65',
+    'Back': '\u4e0a\u4e00\u6b65',
+    'Skip': '\u8df3\u904e',
+    'Done': '\u5b8c\u6210',
+    'New here?': '\u7b2c\u4e00\u6b21\u7528\uff1f',
+    'Replay tour': '\u91cd\u770b\u5c0e\u89bd',
+
     'Rename': '\u6539\u540d',
     'New filename': '\u65b0\u6a94\u540d',
     'Renamed': '\u5df2\u6539\u540d',
