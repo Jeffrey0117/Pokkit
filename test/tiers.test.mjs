@@ -184,3 +184,46 @@ test('/api/admin/pro-interest requires admin', async () => {
   const res = await app.inject({ method: 'GET', url: '/api/admin/pro-interest' })
   assert.equal(res.statusCode, 401)
 })
+
+// ── Round 2: filename search + public album share ──
+test('/files?q= filters by filename (admin scope)', async () => {
+  const up = async (fname) => {
+    const mp = multipart([{ name: 'file', filename: fname, contentType: 'text/plain', value: 'x' }])
+    return app.inject({ method: 'POST', url: '/upload', headers: { authorization: `Bearer ${API_KEY}`, 'content-type': mp.contentType }, payload: mp.body })
+  }
+  assert.equal((await up('vacation-tokyo.txt')).statusCode, 200)
+  assert.equal((await up('invoice-march.txt')).statusCode, 200)
+  const res = await app.inject({ method: 'GET', url: '/files?q=tokyo', headers: { authorization: `Bearer ${API_KEY}` } })
+  assert.equal(res.statusCode, 200)
+  const files = res.json()
+  assert.ok(files.some((f) => f.filename === 'vacation-tokyo.txt'))
+  assert.ok(!files.some((f) => f.filename === 'invoice-march.txt'))
+})
+
+test('album share: mint token → public /a/ page works → revoke → 404', async () => {
+  const create = await app.inject({ method: 'POST', url: '/api/albums', headers: { authorization: `Bearer ${API_KEY}`, 'content-type': 'application/json' }, payload: JSON.stringify({ name: 'Trip 2026' }) })
+  assert.equal(create.statusCode, 201)
+  const albumId = create.json().id
+
+  const share = await app.inject({ method: 'POST', url: `/api/albums/${albumId}/share`, headers: { authorization: `Bearer ${API_KEY}` } })
+  assert.equal(share.statusCode, 200)
+  const { token, url } = share.json()
+  assert.ok(token && url.includes('/a/' + token))
+
+  // Minting again returns the SAME token (stable share links)
+  const share2 = await app.inject({ method: 'POST', url: `/api/albums/${albumId}/share`, headers: { authorization: `Bearer ${API_KEY}` } })
+  assert.equal(share2.json().token, token)
+
+  const page = await app.inject({ method: 'GET', url: '/a/' + token })
+  assert.equal(page.statusCode, 200)
+  assert.ok(page.body.includes('Trip 2026'))
+  assert.ok(page.body.includes('Powered by Pokkit'))
+
+  const revoke = await app.inject({ method: 'DELETE', url: `/api/albums/${albumId}/share`, headers: { authorization: `Bearer ${API_KEY}` } })
+  assert.equal(revoke.statusCode, 200)
+  assert.equal((await app.inject({ method: 'GET', url: '/a/' + token })).statusCode, 404)
+})
+
+test('album share endpoints require auth', async () => {
+  assert.equal((await app.inject({ method: 'POST', url: '/api/albums/whatever/share' })).statusCode, 401)
+})

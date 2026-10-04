@@ -131,7 +131,7 @@
       </div>
 
       <section class="hero landing-only">
-        <h1 class="hero-title" data-i18n="Your photos, somewhere you trust.">Your photos, somewhere you trust.</h1>
+        <h1 class="hero-title" data-i18n="Your files, somewhere you trust.">Your files, somewhere you trust.</h1>
         <p class="hero-subtitle" data-i18n="Back up photos and videos in original quality. No scanning, no AI training, no selling your data. 2GB free.">Back up photos and videos in original quality. No scanning, no AI training, no selling your data. 2GB free.</p>
         <div class="hero-cta">
           <button class="btn btn-upgrade" id="heroStartBtn" data-i18n="Start free — 2GB">Start free — 2GB</button>
@@ -212,6 +212,7 @@
     <section class="files-section" id="filesSection" hidden>
       <div class="section-header">
         <h2 class="section-title" data-i18n="Files">Files</h2>
+        <input type="search" class="option-input file-search" id="fileSearch" placeholder="Search filename..." data-i18n-ph="Search filename...">
         <label class="select-all-label"><input type="checkbox" id="selectAllFiles"> <span data-i18n="Select all">Select all</span></label>
       </div>
       <div id="fileList">
@@ -286,6 +287,7 @@
         <h2 class="section-title" id="galleryTitle"></h2>
         <span class="gallery-count" id="galleryCount"></span>
         <div class="gallery-header-actions">
+          <button class="btn" id="galleryShare" data-i18n="Share">Share</button>
           <button class="btn" id="gallerySelect" data-i18n="Select">Select</button>
           <button class="btn" id="galleryCleanup" data-i18n="Cleanup">Cleanup</button>
           <button class="btn" id="galleryRename" data-i18n="Rename">Rename</button>

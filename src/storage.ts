@@ -164,9 +164,17 @@ export class Storage {
     return this.store.findByHash(hash)
   }
 
-  list(opts?: { limit?: number; offset?: number; order?: string; excludeAccounts?: boolean; userId?: string }): FileEntry[] {
-    const { limit = 50, offset = 0, order, excludeAccounts, userId } = opts || {}
-    return this.store.list({ bucket: 'default', limit, offset, order, excludeAccounts, userId })
+  list(opts?: { limit?: number; offset?: number; order?: string; excludeAccounts?: boolean; userId?: string; q?: string }): FileEntry[] {
+    const { limit = 50, offset = 0, order, excludeAccounts, userId, q } = opts || {}
+    return this.store.list({ bucket: 'default', limit, offset, order, excludeAccounts, userId, q })
+  }
+
+  setAlbumShareToken(id: string, token: string | null): boolean {
+    return this.store.setAlbumShareToken(id, token)
+  }
+
+  findAlbumByShareToken(token: string): AlbumEntry | undefined {
+    return this.store.findAlbumByShareToken(token)
   }
 
   async remove(id: string): Promise<boolean> {

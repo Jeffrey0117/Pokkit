@@ -5,8 +5,13 @@
   var LANG_KEY = 'pokkit_lang';
 
   var ZH = {
+    'Search filename...': '\u641c\u5c0b\u6a94\u540d...',
+    'No match for': '\u627e\u4e0d\u5230',
+    'Share': '\u5206\u4eab',
+    'Share link copied — anyone with it can view this album': '\u5206\u4eab\u9023\u7d50\u5df2\u8907\u88fd \u2014 \u62ff\u5230\u9023\u7d50\u7684\u4eba\u90fd\u80fd\u770b\u9019\u672c\u76f8\u7c3f',
+
     // ── Personal-cloud repositioning (2026-10) ──
-    'Your photos, somewhere you trust.': '\u4f60\u7684\u7167\u7247\uff0c\u653e\u5728\u4f60\u4fe1\u5f97\u904e\u7684\u5730\u65b9\u3002',
+    'Your files, somewhere you trust.': '\u4f60\u7684\u6a94\u6848\uff0c\u653e\u5728\u4f60\u4fe1\u5f97\u904e\u7684\u5730\u65b9\u3002',
     'Back up photos and videos in original quality. No scanning, no AI training, no selling your data. 2GB free.': '\u539f\u756b\u8cea\u4fdd\u5b58\u7167\u7247\u8207\u5f71\u7247\u3002\u4e0d\u6383\u63cf\u3001\u4e0d\u8a13\u7df4 AI\u3001\u4e0d\u8ce3\u4f60\u7684\u6578\u64da\u3002\u514d\u8cbb 2GB \u8d77\u3002',
     'Start free — 2GB': '\u514d\u8cbb\u958b\u59cb \u2014 2GB',
     'See plans': '\u770b\u65b9\u6848',

@@ -2864,3 +2864,15 @@ body.mode-dashboard .landing-only {
 .account-recent-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.875rem; }
 .account-recent-size { color: var(--text-tertiary); font-size: 0.75rem; flex-shrink: 0; }
 .account-recent-copy { flex-shrink: 0; padding: 4px 10px; font-size: 0.75rem; }
+
+
+/* ── Round 2: search, timeline, share ── */
+.file-search { max-width: 220px; margin-left: auto; margin-right: 12px; }
+.photo-month-header {
+  grid-column: 1 / -1;
+  padding: 14px 2px 4px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}

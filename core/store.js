@@ -877,6 +877,14 @@ class PokkitStore {
     return db.updateAlbum(this._db, id, updates);
   }
 
+  setAlbumShareToken(id, token) {
+    return db.setAlbumShareToken(this._db, id, token);
+  }
+
+  findAlbumByShareToken(token) {
+    return db.findAlbumByShareToken(this._db, token);
+  }
+
   deleteAlbum(id) {
     return db.deleteAlbum(this._db, id);
   }

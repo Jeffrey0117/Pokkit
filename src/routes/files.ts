@@ -281,7 +281,7 @@ export function filesRoute(
   // GET /files — list all files (auth required, paginated). But a browser
   // navigating to /files (Accept: text/html, no pagination query) is the Files
   // *page* — serve the SPA shell in that case so the route is deep-linkable.
-  app.get<{ Querystring: { limit?: string; offset?: string; order?: string } }>('/files', async (request, reply) => {
+  app.get<{ Querystring: { limit?: string; offset?: string; order?: string; q?: string } }>('/files', async (request, reply) => {
     if (
       serveApp &&
       request.query.limit === undefined &&
@@ -294,10 +294,11 @@ export function filesRoute(
     const limit = Math.min(parseInt(request.query.limit || '50', 10) || 50, 200)
     const offset = parseInt(request.query.offset || '0', 10) || 0
     const order = request.query.order === 'asc' ? 'asc' : 'desc'
+    const q = typeof request.query.q === 'string' ? request.query.q.slice(0, 100).trim() : ''
     // Admin/owner sees the personal library (project files excluded); a project
     // account sees only its own files.
     const scope = user.isAdmin ? { excludeAccounts: true } : { userId: user.userId }
-    return storage.list({ limit, offset, order, ...scope })
+    return storage.list({ limit, offset, order, ...(q ? { q } : {}), ...scope })
   })
 
   // GET /files/:id/:filename — direct file download (no auth, for streaming/embedding)

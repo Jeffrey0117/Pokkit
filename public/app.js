@@ -1009,6 +1009,12 @@
           addFileRow(data);
           filesOffset++;
           $emptyState.style.display = 'none';
+          // 單檔上傳完直接把分享連結放進剪貼簿 — 批次上傳不搶 (會蓋好幾次)
+          if (batchTotal === 1 && data.url && navigator.clipboard) {
+            navigator.clipboard.writeText(data.url).then(function () {
+              toast(window.t ? window.t('Link copied') : 'Link copied');
+            }).catch(function () { /* clipboard needs user gesture on some browsers */ });
+          }
         }
       } catch (_) { /* */ }
       $passwordInput.value = '';
@@ -1241,6 +1247,23 @@
   }
 
   // ── File List ───────────────────────────────────────────
+  var fileSearchQ = '';
+  (function bindFileSearch() {
+    var input = document.getElementById('fileSearch');
+    if (!input) return;
+    var deb = null;
+    input.addEventListener('input', function () {
+      if (deb) clearTimeout(deb);
+      deb = setTimeout(function () {
+        deb = null;
+        var v = input.value.trim();
+        if (v === fileSearchQ) return;
+        fileSearchQ = v;
+        loadFiles();
+      }, 300);
+    });
+  })();
+
   function loadFiles() {
     // Reset scroll state
     filesOffset = 0;
@@ -1266,7 +1289,7 @@
     filesLoading = true;
 
     var xhr = new XMLHttpRequest();
-    xhr.open('GET', '/files?limit=' + FILES_PAGE_SIZE + '&offset=' + filesOffset);
+    xhr.open('GET', '/files?limit=' + FILES_PAGE_SIZE + '&offset=' + filesOffset + (fileSearchQ ? '&q=' + encodeURIComponent(fileSearchQ) : ''));
     setAuthHeader(xhr);
 
     xhr.addEventListener('load', function () {
@@ -1276,7 +1299,9 @@
           var files = JSON.parse(xhr.responseText);
           if (filesOffset === 0 && files.length === 0) {
             $emptyState.style.display = '';
-            $emptyState.querySelector('.empty-state-text').textContent = 'No files yet';
+            $emptyState.querySelector('.empty-state-text').textContent = fileSearchQ
+              ? (window.t ? window.t('No match for') : 'No match for') + ' \u300c' + fileSearchQ + '\u300d'
+              : 'No files yet';
             $fileList.appendChild($emptyState);
             return;
           }
@@ -1523,6 +1548,20 @@
 
   $upgradeBtn.addEventListener('click', function () {
     navigate('pricing', true);
+  });
+
+  // ── Album share link ──
+  var $galleryShare = document.getElementById('galleryShare');
+  if ($galleryShare) $galleryShare.addEventListener('click', function () {
+    if (!currentAlbumId) return;
+    apiRequest('POST', '/api/albums/' + encodeURIComponent(currentAlbumId) + '/share', {}, function (data) {
+      if (!data || !data.url) return;
+      navigator.clipboard.writeText(data.url).then(function () {
+        toast(window.t ? window.t('Share link copied — anyone with it can view this album') : 'Share link copied');
+      }).catch(function () {
+        window.prompt('Share link:', data.url);
+      });
+    });
   });
 
   // ── Tab Switching ──────────────────────────────────────
@@ -2850,6 +2889,7 @@
     if (allPhotosScrollLoader) { allPhotosScrollLoader.destroy(); allPhotosScrollLoader = null; }
 
     $allPhotoGrid.innerHTML = '';
+    allPhotosLastMonth = null;
     fillGridSkeletons($allPhotoGrid);
     // Load album map first, then start paginated photo loading
     apiRequest('GET', '/api/albums', null, function (albums) {
@@ -2893,6 +2933,16 @@
       });
 
       for (var i = 0; i < newPhotos.length; i++) {
+        // 時間軸: 以 EXIF 拍攝時間 (fallback 上傳時間) 分月, 換月就插一條日期列
+        var ts = newPhotos[i].taken_at || newPhotos[i].uploaded_at;
+        var month = monthLabel(ts);
+        if (month !== allPhotosLastMonth) {
+          allPhotosLastMonth = month;
+          var hdr = document.createElement('div');
+          hdr.className = 'photo-month-header';
+          hdr.textContent = month;
+          $allPhotoGrid.appendChild(hdr);
+        }
         allPhotos.push(newPhotos[i]);
         addAllPhotoCell(newPhotos[i], allPhotos.length - 1);
       }
@@ -2912,6 +2962,13 @@
       if (allPhotosOffset === 0) clearGridSkeletons($allPhotoGrid);
     });
     xhr.send();
+  }
+
+  var allPhotosLastMonth = null;
+  function monthLabel(ts) {
+    if (!ts) return '';
+    var d = new Date(ts);
+    return d.getFullYear() + (window.t && window.t('year-sep') !== 'year-sep' ? window.t('year-sep') : '/') + (d.getMonth() + 1 < 10 ? '0' : '') + (d.getMonth() + 1);
   }
 
   function addAllPhotoCell(photo, index) {

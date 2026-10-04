@@ -117,6 +117,11 @@ function openDb(dbPath) {
     _db.exec('ALTER TABLE albums ADD COLUMN user_id TEXT');
     _db.exec('CREATE INDEX IF NOT EXISTS idx_albums_user ON albums(user_id)');
   }
+  // Public album sharing: a nullable unguessable token; NULL = not shared.
+  if (!albumCols.includes('share_token')) {
+    _db.exec('ALTER TABLE albums ADD COLUMN share_token TEXT');
+    _db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_albums_share ON albums(share_token)');
+  }
 
   // ── Timeline indexes ──
   // The photo/video grids sort by COALESCE(taken_at, uploaded_at). Without an
@@ -262,11 +267,16 @@ function findByTag(db, tag, bucket) {
  * @returns {object[]}
  */
 function listFiles(db, opts = {}) {
-  const { bucket, limit = 100, offset = 0, order, excludeAccounts, userId } = opts;
+  const { bucket, limit = 100, offset = 0, order, excludeAccounts, userId, q } = opts;
   const dir = order === 'asc' ? 'ASC' : 'DESC';
   const params = [];
   let where = '1=1';
   if (bucket) { where += ' AND bucket = ?'; params.push(bucket); }
+  if (q) {
+    // Escape LIKE wildcards so a literal "%" in the query can't scan everything
+    where += " AND filename LIKE ? ESCAPE '\\'";
+    params.push('%' + String(q).replace(/[\\%_]/g, (c) => '\\' + c) + '%');
+  }
   // Scope by account, or exclude project-account files from the owner's view.
   if (userId) {
     where += ' AND user_id = ?';
@@ -453,6 +463,17 @@ function listAlbums(db, opts = {}) {
     GROUP BY a.id
     ORDER BY a.created_at DESC
   `).all(scoped ? { userId: opts.userId } : {});
+}
+
+function setAlbumShareToken(db, id, token) {
+  const result = db.prepare('UPDATE albums SET share_token = @token, updated_at = @now WHERE id = @id')
+    .run({ token: token || null, now: Date.now(), id });
+  return result.changes > 0;
+}
+
+function findAlbumByShareToken(db, token) {
+  if (!token) return undefined;
+  return db.prepare('SELECT * FROM albums WHERE share_token = ?').get(token);
 }
 
 function updateAlbum(db, id, updates) {
@@ -670,6 +691,8 @@ module.exports = {
   incrementDownloads,
   insertAlbum,
   findAlbum,
+  setAlbumShareToken,
+  findAlbumByShareToken,
   listAlbums,
   updateAlbum,
   deleteAlbum,

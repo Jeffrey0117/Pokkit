@@ -1,8 +1,21 @@
 import { createReadStream, statSync } from 'node:fs'
-import type { FastifyInstance } from 'fastify'
+import { randomBytes } from 'node:crypto'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { Storage } from '../storage.js'
 import type { PokkitConfig } from '../config.js'
 import { requireAuth, canAccessAlbum, canAccessEntry } from '../auth.js'
+
+function escapeHtml(text: string): string {
+  const map: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }
+  return String(text).replace(/[&<>"']/g, (c) => map[c])
+}
+
+function shareBaseUrl(request: FastifyRequest, config: PokkitConfig): string {
+  if (config.publicUrl) return config.publicUrl
+  const host = request.headers.host ?? 'localhost'
+  const proto = (request.headers['x-forwarded-proto'] as string) ?? 'http'
+  return `${proto}://${host}`
+}
 
 export function photosRoute(app: FastifyInstance, storage: Storage, config: PokkitConfig) {
   // ── Albums ──
@@ -83,6 +96,97 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   // ── Photo Serving ──
 
   // GET /photos/:id/photo.webp — serve compressed photo
+  // ── Public album sharing ──
+  // POST: mint (or return the existing) share token — owner/admin only.
+  app.post<{ Params: { id: string } }>('/api/albums/:id/share', async (request, reply) => {
+    const user = requireAuth(request, reply, config, storage)
+    if (!user) return
+    const album = storage.getAlbum(request.params.id)
+    if (!album || !canAccessAlbum(user, album)) {
+      return reply.status(404).send({ error: 'Album not found' })
+    }
+    let token = (album as { share_token?: string | null }).share_token ?? null
+    if (!token) {
+      token = randomBytes(12).toString('base64url')
+      storage.setAlbumShareToken(album.id, token)
+    }
+    return { token, url: `${shareBaseUrl(request, config)}/a/${token}` }
+  })
+
+  // DELETE: revoke the share link (the /a/ page 404s immediately after).
+  app.delete<{ Params: { id: string } }>('/api/albums/:id/share', async (request, reply) => {
+    const user = requireAuth(request, reply, config, storage)
+    if (!user) return
+    const album = storage.getAlbum(request.params.id)
+    if (!album || !canAccessAlbum(user, album)) {
+      return reply.status(404).send({ error: 'Album not found' })
+    }
+    storage.setAlbumShareToken(album.id, null)
+    return { ok: true }
+  })
+
+  // GET /a/:token — public album page (no auth: the token IS the capability).
+  // Media is referenced through the already-public /photos/:id/* routes.
+  app.get<{ Params: { token: string } }>('/a/:token', async (request, reply) => {
+    const token = request.params.token
+    if (!/^[A-Za-z0-9_-]{8,64}$/.test(token)) {
+      return reply.status(404).send({ error: 'Not found' })
+    }
+    const album = storage.findAlbumByShareToken(token)
+    if (!album) return reply.status(404).send({ error: 'Not found' })
+    const photos = storage.listPhotosByAlbum(album.id, { limit: 500, offset: 0, order: 'asc' })
+      .filter((p) => p.status === 'ready')
+    const baseUrl = shareBaseUrl(request, config)
+    const name = escapeHtml(album.name)
+    const cover = photos.find((p) => p.media_type === 'photo') ?? photos[0]
+    const ogImage = cover ? `${baseUrl}/photos/${cover.id}/thumb.webp` : ''
+    const cells = photos.map((p) => {
+      const thumb = `/photos/${p.id}/thumb.webp`
+      const full = p.media_type === 'video' ? `/photos/${p.id}/video.mp4` : `/photos/${p.id}/photo.webp`
+      const badge = p.media_type === 'video' ? '<span class="badge">▶</span>' : ''
+      return `<a class="cell" href="${full}" target="_blank" rel="noopener">${badge}<img src="${thumb}" loading="lazy" alt=""></a>`
+    }).join('')
+    const html = `<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${name} — Pokkit</title>
+  <meta property="og:title" content="${name}">
+  <meta property="og:description" content="${photos.length} items · Shared with Pokkit">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Pokkit">
+  ${ogImage ? `<meta property="og:image" content="${ogImage}">` : ''}
+  <meta name="twitter:card" content="${ogImage ? 'summary_large_image' : 'summary'}">
+  <meta name="robots" content="noindex">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #030303; color: #fff; font-family: Inter, 'Noto Sans TC', system-ui, sans-serif; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px 48px; }
+    .head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    h1 { font-size: 1.4rem; }
+    .count { color: #a1a1aa; font-size: 0.875rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
+    .cell { position: relative; display: block; aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: #111; }
+    .cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .badge { position: absolute; top: 6px; right: 8px; z-index: 1; font-size: 0.75rem; background: rgba(0,0,0,.6); border-radius: 6px; padding: 2px 7px; }
+    .foot { margin-top: 28px; text-align: center; }
+    .foot a { color: #a1a1aa; font-size: 0.8125rem; text-decoration: none; }
+    .foot a:hover { color: #fff; }
+    .empty { color: #71717a; padding: 48px 0; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="head"><h1>${name}</h1><span class="count">${photos.length} items</span></div>
+    ${photos.length ? `<div class="grid">${cells}</div>` : '<div class="empty">This album is empty.</div>'}
+    <div class="foot"><a href="${baseUrl}/">Powered by Pokkit — your files, somewhere you trust</a></div>
+  </div>
+</body>
+</html>`
+    return reply.header('Content-Type', 'text/html; charset=utf-8').header('Cache-Control', 'no-cache').send(html)
+  })
+
   app.get<{ Params: { id: string } }>('/photos/:id/photo.webp', async (request, reply) => {
     const entry = storage.find(request.params.id)
     if (!entry) {
