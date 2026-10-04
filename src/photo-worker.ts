@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import { emitProcessed } from './events.js'
 
 const require = createRequire(import.meta.url)
 
@@ -24,8 +25,10 @@ function spawnOne(index: number): Worker {
       console.log(`[PhotoWorker#${index}] Worker ready`)
     } else if (msg.type === 'done') {
       console.log(`[PhotoWorker#${index}] Processed ${msg.id}`)
+      emitProcessed({ id: msg.id, status: 'done', kind: 'photo' })
     } else if (msg.type === 'error') {
       console.error(`[PhotoWorker#${index}] Failed ${msg.id}: ${msg.error}`)
+      emitProcessed({ id: msg.id, status: 'failed', kind: 'photo' })
     }
   })
 

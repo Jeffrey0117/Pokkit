@@ -1,6 +1,6 @@
 import type { FastifyRequest } from 'fastify'
 import type { Storage } from './storage.js'
-import type { PokkitConfig } from './config.js'
+import { GUEST_MAX_FILE_BYTES, GUEST_USER_ID, type PokkitConfig } from './config.js'
 import { canAccessAlbum, type AuthUser } from './auth.js'
 import { processPhoto } from './photo-worker.js'
 import { processVideo, hasFfmpeg } from './video-worker.js'
@@ -44,26 +44,87 @@ export function resolveBaseUrl(request: FastifyRequest, config: PokkitConfig): s
   return `${proto}://${host}`
 }
 
-// Count-based quota via PayGate subscription. Returns a ready-made 413 when the
-// user is at their limit, null when they may upload. Shared by /upload (at
-// finalize) and the chunked route (at init, before any byte lands).
+// Bytes-based quota (2026-10-04 容量制). Shared by /upload (finalize, knows the
+// buffer) and the chunked route (init, knows the declared size — refuse before
+// a single byte lands). Items stay as a sanity ceiling only.
+// Guest: per-file cap, no account quota — guest files force-expire in ≤7 days.
+// Global fuse: the home box's disk is finite; past the line every non-admin
+// upload 507s LOUDLY instead of quietly filling the disk to death.
+
+const FUSE_CACHE_TTL = 60 * 1000
+// Keyed per Storage instance (not module-global) so tests with fake storages
+// and any future multi-store setup can't read each other's cached totals.
+const fuseCache = new WeakMap<object, { totalBytes: number; at: number }>()
+
+function globalBytes(storage: Storage): number {
+  const hit = fuseCache.get(storage)
+  if (hit && Date.now() - hit.at < FUSE_CACHE_TTL) return hit.totalBytes
+  const stats = storage.stats() as { totalBytes?: number }
+  const entry = { totalBytes: stats.totalBytes ?? 0, at: Date.now() }
+  fuseCache.set(storage, entry)
+  return entry.totalBytes
+}
+
+function fmtGB(bytes: number): string {
+  return (bytes / (1024 * 1024 * 1024)).toFixed(bytes >= 10 * 1024 * 1024 * 1024 ? 0 : 1) + ' GB'
+}
+
 export async function checkQuota(
   user: AuthUser,
   storage: Storage,
   config: PokkitConfig,
+  incomingBytes = 0,
 ): Promise<{ status: number; body: Record<string, unknown> } | null> {
+  const globalCap = config.globalCapacityBytes ?? Number.POSITIVE_INFINITY
+  if (!user.isAdmin && globalBytes(storage) + incomingBytes > globalCap) {
+    console.error(`[Pokkit] ⛔ GLOBAL CAPACITY FUSE: ${fmtGB(globalBytes(storage))} stored, cap ${fmtGB(config.globalCapacityBytes)} — rejecting uploads`)
+    return {
+      status: 507,
+      body: { error: 'Server storage is full — uploads are temporarily paused. Please try again later.' },
+    }
+  }
+
+  if (user.userId === GUEST_USER_ID) {
+    if (incomingBytes > GUEST_MAX_FILE_BYTES) {
+      return {
+        status: 413,
+        body: { error: `Guest uploads are limited to ${fmtGB(GUEST_MAX_FILE_BYTES)} per file. Sign up free for more.`, guest: true },
+      }
+    }
+    return null
+  }
+
   const sub = await checkPremium(user.email, user.userId, config.premiumUserIds)
   const userStats = storage.userStats(user.userId)
-  if (userStats.totalFiles < sub.maxPhotos) return null
-  return {
-    status: 413,
-    body: {
-      error: `Photo limit reached. ${sub.tier} plan: ${sub.maxPhotos.toLocaleString()} photos. Upgrade for more.`,
-      tier: sub.tier,
-      photoCount: userStats.totalFiles,
-      maxPhotos: sub.maxPhotos,
-    },
+  if (userStats.totalBytes + incomingBytes > sub.maxBytes) {
+    return {
+      status: 413,
+      body: {
+        error: `Storage full. ${sub.tier} plan: ${fmtGB(sub.maxBytes)}. Upgrade for more space.`,
+        tier: sub.tier,
+        usedBytes: userStats.totalBytes,
+        maxBytes: sub.maxBytes,
+      },
+    }
   }
+  if (userStats.totalFiles >= sub.maxPhotos) {
+    return {
+      status: 413,
+      body: {
+        error: `Item limit reached. ${sub.tier} plan: ${sub.maxPhotos.toLocaleString()} items.`,
+        tier: sub.tier,
+        photoCount: userStats.totalFiles,
+        maxPhotos: sub.maxPhotos,
+      },
+    }
+  }
+  return null
+}
+
+// Guest files must never outlive 7 days — clamp whatever the form sent.
+const GUEST_ALLOWED_EXPIRY = new Set(['1h', '1d', '7d'])
+export function clampGuestExpiry(expiresIn: string | undefined): string {
+  return expiresIn && GUEST_ALLOWED_EXPIRY.has(expiresIn) ? expiresIn : '7d'
 }
 
 export async function finalizeUpload(
@@ -74,6 +135,14 @@ export async function finalizeUpload(
   config: PokkitConfig,
 ): Promise<FinalizeResult> {
   const { filename, mime, buffer, fields } = input
+  const isGuest = user.userId === GUEST_USER_ID
+  if (isGuest) {
+    // Guests: no albums, forced expiry, and ALWAYS the plain-file branch below —
+    // no thumbnail/transcode worker time for anonymous uploads (the /f/ share
+    // page previews images and videos from the raw file just fine).
+    fields.album_id = undefined
+    fields.expiresIn = clampGuestExpiry(fields.expiresIn)
+  }
 
   let albumId: string | undefined
   if (fields.album_id) {
@@ -83,13 +152,13 @@ export async function finalizeUpload(
     albumId = fields.album_id
   }
 
-  const quota = await checkQuota(user, storage, config)
+  const quota = await checkQuota(user, storage, config, buffer.length)
   if (quota) return quota
 
   const baseUrl = resolveBaseUrl(request, config)
 
   // Photo branch: images get deferred processing
-  if (storage.isImage(mime)) {
+  if (!isGuest && storage.isImage(mime)) {
     const entry = storage.savePhoto(filename, mime, buffer, { album_id: albumId, userId: user.userId })
     if (!entry.deduplicated && entry.rawPath) {
       processPhoto(entry.id, entry.rawPath)
@@ -111,7 +180,7 @@ export async function finalizeUpload(
   }
 
   // Video branch: videos get deferred processing (ffmpeg)
-  if (storage.isVideo(mime)) {
+  if (!isGuest && storage.isVideo(mime)) {
     if (!hasFfmpeg()) {
       return { status: 400, body: { error: 'Video upload not available — ffmpeg not installed on server' } }
     }

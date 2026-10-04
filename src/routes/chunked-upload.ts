@@ -57,7 +57,7 @@ export function chunkedUploadRoute(app: FastifyInstance, storage: Storage, confi
     onInit: async (body: InitInput, _owner: string, request: FastifyRequest) => {
       const user = users.get(request)
       if (!user) throw new ChunkError(401, 'unauthorized', 'Unauthorized')
-      const quota = await checkQuota(user, storage, config)
+      const quota = await checkQuota(user, storage, config, body.size ?? 0)
       if (quota) throw new ChunkError(quota.status, 'quota', String(quota.body.error), quota.body)
       const fields = normalizeFields(body.meta)
       if (fields.album_id) {

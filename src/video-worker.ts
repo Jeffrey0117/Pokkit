@@ -1,4 +1,5 @@
 import { Worker } from 'node:worker_threads'
+import { emitProcessed } from './events.js'
 import { execFile, execSync } from 'node:child_process'
 import { join, delimiter } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -61,8 +62,10 @@ function spawn(): Worker {
       console.log('[VideoWorker] Worker ready')
     } else if (msg.type === 'done') {
       console.log(`[VideoWorker] Processed ${msg.id}`)
+      emitProcessed({ id: msg.id, status: 'done', kind: 'video' })
     } else if (msg.type === 'error') {
       console.error(`[VideoWorker] Failed ${msg.id}: ${msg.error}`)
+      emitProcessed({ id: msg.id, status: 'failed', kind: 'video' })
     }
   })
 

@@ -65,6 +65,15 @@ function timingSafeEqualStr(a: string, b: string): boolean {
   return crypto.timingSafeEqual(bufA, bufB)
 }
 
+/** True when the request carries ANY credential. Used by the guest-upload path:
+ *  no credential at all → guest; a PRESENT credential must still pass requireAuth
+ *  (an invalid/expired token must 401 loudly, never silently demote to guest —
+ *  otherwise someone who thinks they're uploading to their account gets their
+ *  file stored as an anonymous 7-day-expiry guest file). */
+export function hasAuthToken(request: FastifyRequest): boolean {
+  return extractToken(request) !== null
+}
+
 /** Extract the bearer/X-Pokkit-Key token from a request, if any. */
 function extractToken(request: FastifyRequest): string | null {
   const auth = request.headers.authorization

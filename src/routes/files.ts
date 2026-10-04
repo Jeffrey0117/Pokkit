@@ -132,9 +132,10 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
   <title>${escapeHtml(entry.filename)} — Pokkit</title>
   <meta property="og:title" content="${escapeHtml(entry.filename)}">
   <meta property="og:description" content="${formatBytes(entry.size)} · ${escapeHtml(entry.mime)}${entry.expires_at && !isExpired ? ' · Limited time' : ''}">
-  <meta property="og:type" content="${isImage ? 'image' : 'website'}">
+  <meta property="og:type" content="${isImage ? 'image' : isVideo ? 'video.other' : 'website'}">
   <meta property="og:site_name" content="Pokkit">
   ${isImage ? `<meta property="og:image" content="${baseUrl}${previewUrl}">` : ''}
+  ${isVideo ? `<meta property="og:video" content="${baseUrl}${previewUrl}">\n  <meta property="og:video:type" content="${escapeHtml(entry.mime)}">` : ''}
   <meta name="twitter:card" content="${isImage ? 'summary_large_image' : 'summary'}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
