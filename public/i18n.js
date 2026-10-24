@@ -5,6 +5,11 @@
   var LANG_KEY = 'pokkit_lang';
 
   var ZH = {
+    'Taken · newest': '\u62cd\u651d \u65b0\u2192\u820a',
+    'Taken · oldest': '\u62cd\u651d \u820a\u2192\u65b0',
+    'Uploaded · newest': '\u4e0a\u50b3 \u65b0\u2192\u820a',
+    'Uploaded · oldest': '\u4e0a\u50b3 \u820a\u2192\u65b0',
+
     'Welcome to Pokkit 👋': '\u6b61\u8fce\u4f86\u5230 Pokkit \ud83d\udc4b',
     '30 seconds to meet your personal cloud.': '\u82b1 30 \u79d2\u8a8d\u8b58\u4f60\u7684\u500b\u4eba\u96f2\u7aef\u3002',
     'Drop anything here': '\u6a94\u6848\u5f80\u9019\u88e1\u4e1f',

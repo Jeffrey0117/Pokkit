@@ -540,12 +540,13 @@ function deleteAlbum(db, id) {
 // ── Photo Queries ──
 
 function listPhotosByAlbum(db, albumId, opts = {}) {
+  const sortCol = opts.sortBy === 'uploaded' ? 'uploaded_at' : 'COALESCE(taken_at, uploaded_at)';
   const { limit = 200, offset = 0, order } = opts;
   const dir = order === 'asc' ? 'ASC' : 'DESC';
   return db.prepare(`
     SELECT * FROM files
     WHERE deleted_at IS NULL AND album_id = ? AND status IN ('ready', 'processing')
-    ORDER BY uploaded_at ${dir}
+    ORDER BY ${sortCol} ${dir}
     LIMIT ? OFFSET ?
   `).all(albumId, limit, offset).map(deserializeRow);
 }
@@ -612,8 +613,12 @@ function bulkMoveToAlbum(db, photoIds, albumId, opts = {}) {
 }
 
 function listAllPhotos(db, opts = {}) {
-  const { limit = 200, offset = 0, mediaType, order, excludeAccounts, userId } = opts;
+  const { limit = 200, offset = 0, mediaType, order, excludeAccounts, userId, sortBy } = opts;
   const dir = order === 'asc' ? 'ASC' : 'DESC';
+  // 'taken' (預設) = 拍攝時間軸 (EXIF taken_at, 無則退 uploaded_at) — 月份能完美分組,
+  // 索引 idx_files_media_time 就是為它建的。'uploaded' = 上傳歷史視角。
+  // 鐵則: 前端的月份標題必須跟排序鍵同基準, 不然 60 張能切出 16 個月份標題 (2026-10-24 實案)。
+  const sortCol = sortBy === 'uploaded' ? 'uploaded_at' : 'COALESCE(taken_at, uploaded_at)';
   // Scope: a specific account (userId) sees only its own; otherwise the owner's
   // grid excludes project-account files so tenant uploads don't pollute the
   // personal library. Null-safe: orphan (NULL) files still show for the owner.
@@ -630,7 +635,7 @@ function listAllPhotos(db, opts = {}) {
   return db.prepare(`
     SELECT * FROM files
     WHERE deleted_at IS NULL AND status IN ('ready', 'processing') ${typeFilter} ${scope}
-    ORDER BY uploaded_at ${dir}
+    ORDER BY ${sortCol} ${dir}
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset).map(deserializeRow);
 }

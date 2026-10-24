@@ -291,7 +291,7 @@ export class Storage {
 
   listPhotosByAlbum(
     albumId: string,
-    opts?: { limit?: number; offset?: number; order?: string },
+    opts?: { limit?: number; offset?: number; order?: string; sortBy?: string },
   ): PhotoEntry[] {
     return this.store.listPhotosByAlbum(albumId, opts)
   }
@@ -308,7 +308,7 @@ export class Storage {
     return this.store.bulkMoveToAlbum(photoIds, albumId, opts || {})
   }
 
-  listAllPhotos(opts?: { limit?: number; offset?: number; mediaType?: string; order?: string; excludeAccounts?: boolean; userId?: string }) {
+  listAllPhotos(opts?: { limit?: number; offset?: number; mediaType?: string; order?: string; sortBy?: string; excludeAccounts?: boolean; userId?: string }) {
     return this.store.listAllPhotos(opts)
   }
 

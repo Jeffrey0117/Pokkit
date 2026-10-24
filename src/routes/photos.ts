@@ -40,7 +40,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   })
 
   // GET /api/albums/:id — album detail + photo list
-  app.get<{ Params: { id: string }; Querystring: { limit?: string; offset?: string; order?: string } }>(
+  app.get<{ Params: { id: string }; Querystring: { limit?: string; offset?: string; order?: string; sort?: string } }>(
     '/api/albums/:id',
     async (request, reply) => {
       const user = requireAuth(request, reply, config, storage)
@@ -52,7 +52,8 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
       const limit = Math.min(parseInt(request.query.limit || '200', 10) || 200, 1000)
       const offset = parseInt(request.query.offset || '0', 10) || 0
       const order = request.query.order === 'asc' ? 'asc' : 'desc'
-      const photos = storage.listPhotosByAlbum(album.id, { limit, offset, order })
+      const sortBy = request.query.sort === 'uploaded' ? 'uploaded' : 'taken'
+      const photos = storage.listPhotosByAlbum(album.id, { limit, offset, order, sortBy })
       return { ...album, photos }
     },
   )
@@ -317,7 +318,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   })
 
   // GET /api/photos — list all photos (across all albums)
-  app.get<{ Querystring: { limit?: string; offset?: string; type?: string; order?: string } }>(
+  app.get<{ Querystring: { limit?: string; offset?: string; type?: string; order?: string; sort?: string } }>(
     '/api/photos',
     async (request, reply) => {
       const user = requireAuth(request, reply, config, storage)
@@ -329,10 +330,11 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
           ? request.query.type
           : undefined
       const order = request.query.order === 'asc' ? 'asc' : 'desc'
+      const sortBy = request.query.sort === 'uploaded' ? 'uploaded' : 'taken'
       // Admin/owner sees the personal library (project files excluded); a project
       // account sees only its own media.
       const scope = user.isAdmin ? { excludeAccounts: true } : { userId: user.userId }
-      return storage.listAllPhotos({ limit, offset, mediaType, order, ...scope })
+      return storage.listAllPhotos({ limit, offset, mediaType, order, sortBy, ...scope })
     },
   )
 

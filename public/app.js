@@ -1980,7 +1980,18 @@
   // ── Grid sort + size controls ──────────────────────────
   var GRID_SIZE_KEY = 'pokkit_grid_size';
   var GRID_SORT_KEY = 'pokkit_grid_sort';
-  var gridSort = localStorage.getItem(GRID_SORT_KEY) === 'asc' ? 'asc' : 'desc';
+  // 'taken-desc' | 'taken-asc' | 'uploaded-desc' | 'uploaded-asc'
+  // (舊值 'asc'/'desc' 遷移成拍攝時間模式 — 預設視角是拍攝時間軸)
+  var VALID_SORTS = ['taken-desc', 'taken-asc', 'uploaded-desc', 'uploaded-asc'];
+  var gridSort = (function () {
+    var v = localStorage.getItem(GRID_SORT_KEY);
+    if (v === 'asc') return 'taken-asc';
+    if (VALID_SORTS.indexOf(v) !== -1) return v;
+    return 'taken-desc';
+  })();
+  function gridSortOrder() { return gridSort.slice(gridSort.indexOf('-') + 1); }
+  function gridSortBy() { return gridSort.slice(0, gridSort.indexOf('-')); }
+  function gridSortQuery() { return '&order=' + gridSortOrder() + '&sort=' + gridSortBy(); }
 
   function applyGridSize(px) {
     document.documentElement.style.setProperty('--grid-min', px + 'px');
@@ -1997,8 +2008,8 @@
     else if (currentTab === 'videos') loadVideos();
   }
 
-  function applyGridSort(order, reload) {
-    gridSort = order === 'asc' ? 'asc' : 'desc';
+  function applyGridSort(mode, reload) {
+    gridSort = VALID_SORTS.indexOf(mode) !== -1 ? mode : 'taken-desc';
     localStorage.setItem(GRID_SORT_KEY, gridSort);
     var sels = document.querySelectorAll('.grid-sort');
     for (var i = 0; i < sels.length; i++) sels[i].value = gridSort;
@@ -2181,7 +2192,7 @@
     if (galleryLoading || !galleryHasMore) return;
     galleryLoading = true;
 
-    var url = '/api/albums/' + currentAlbumId + '?limit=' + GALLERY_PAGE_SIZE + '&offset=' + galleryOffset + '&order=' + gridSort;
+    var url = '/api/albums/' + currentAlbumId + '?limit=' + GALLERY_PAGE_SIZE + '&offset=' + galleryOffset + gridSortQuery();
     var xhr = new XMLHttpRequest();
     xhr.open('GET', url);
     setAuthHeader(xhr);
@@ -3036,7 +3047,7 @@
     allPhotosLoading = true;
 
     var xhr = new XMLHttpRequest();
-    xhr.open('GET', '/api/photos?type=photo&limit=' + ALL_PHOTOS_PAGE_SIZE + '&offset=' + allPhotosOffset + '&order=' + gridSort);
+    xhr.open('GET', '/api/photos?type=photo&limit=' + ALL_PHOTOS_PAGE_SIZE + '&offset=' + allPhotosOffset + gridSortQuery());
     setAuthHeader(xhr);
     xhr.addEventListener('load', function () {
       allPhotosLoading = false;
@@ -3063,8 +3074,11 @@
       });
 
       for (var i = 0; i < newPhotos.length; i++) {
-        // 時間軸: 以 EXIF 拍攝時間 (fallback 上傳時間) 分月, 換月就插一條日期列
-        var ts = newPhotos[i].taken_at || newPhotos[i].uploaded_at;
+        // 時間軸: 分組鍵必須 = 排序鍵 — 拍攝模式標拍攝月, 上傳模式標上傳月,
+        // 不然月份標題會乒乓 (60 張切 16 次的實案)
+        var ts = gridSortBy() === 'uploaded'
+          ? newPhotos[i].uploaded_at
+          : (newPhotos[i].taken_at || newPhotos[i].uploaded_at);
         var month = monthLabel(ts);
         if (month !== allPhotosLastMonth) {
           allPhotosLastMonth = month;
@@ -3180,7 +3194,7 @@
     videosLoading = true;
 
     var xhr = new XMLHttpRequest();
-    xhr.open('GET', '/api/photos?type=video&limit=' + VIDEOS_PAGE_SIZE + '&offset=' + videosOffset + '&order=' + gridSort);
+    xhr.open('GET', '/api/photos?type=video&limit=' + VIDEOS_PAGE_SIZE + '&offset=' + videosOffset + gridSortQuery());
     setAuthHeader(xhr);
     xhr.addEventListener('load', function () {
       videosLoading = false;
