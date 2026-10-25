@@ -19,10 +19,9 @@ function hs256(payload, { secret = SECRET, header = { alg: 'HS256', typ: 'JWT' }
 const future = () => Math.floor(Date.now() / 1000) + 3600
 const pastTs = () => Math.floor(Date.now() / 1000) - 60
 
-test('valid HS256 token resolves to the user', () => {
+test('HS256 token is rejected even with the correct secret (2026-10-25 資安事件後廢除 — secret 洩漏仍免疫)', () => {
   const u = verifyLetMeUseToken(hs256({ sub: 'u1', email: 'a@b.com', app: APP, exp: future() }), SECRET, APP)
-  assert.equal(u?.userId, 'u1')
-  assert.equal(u?.email, 'a@b.com')
+  assert.equal(u, null)
 })
 
 test('expired token is rejected', () => {

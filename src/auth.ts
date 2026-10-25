@@ -24,9 +24,12 @@ export function verifyLetMeUseToken(token: string, secret: string, appId: string
     if (!headerB64 || !payloadB64 || !sigB64) return null
     const header = JSON.parse(Buffer.from(headerB64, 'base64url').toString('utf-8'))
 
-    // 1. 依 alg 驗簽章 (過渡期 ES256/JWKS 與 HS256 都收)
+    // 1. 只收 ES256 (JWKS 公鑰驗)。
+    // ⚠️ 2026-10-25 資安事件:HS256 過渡路徑是入侵面 — 攻擊者取得 app secret 後
+    // 用 HS256 自簽任意 sub (usr_3kxvW3qwFYqe) 闖進來當免費圖床。LetMeUse 早已全面
+    // ES256,真實用戶的 token 都走 JWKS 公鑰(無法偽造,除非 LetMeUse 私鑰外洩),
+    // 故直接廢掉 HS256 — 就算 secret 已洩,偽造 token 也一律被擋。
     if (header.alg === 'ES256') {
-      // 🔑 JWKS 公鑰驗 (LetMeUse Phase 2 翻 ES256 後走這條; 不再需要共用 secret)
       const pub = getJwksPublicKey(header.kid)
       if (!pub) return null
       const ok = crypto.verify(
@@ -36,14 +39,10 @@ export function verifyLetMeUseToken(token: string, secret: string, appId: string
         Buffer.from(sigB64, 'base64url'),
       )
       if (!ok) return null
-    } else if (header.alg === 'HS256') {
-      if (!secret) return null
-      const expected = crypto.createHmac('sha256', secret).update(`${headerB64}.${payloadB64}`).digest()
-      const actual = Buffer.from(sigB64, 'base64url')
-      if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) return null
     } else {
-      return null // 不認的 alg (none 等) → 擋
+      return null // HS256 / none / 其他 → 一律擋
     }
+    void secret // 保留簽名相容;HS256 已廢除後不再使用
 
     // 2. payload 檢查
     const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf-8'))
