@@ -1,3 +1,5 @@
+import { statSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import type { FastifyRequest } from 'fastify'
 import type { Storage } from './storage.js'
 import { GUEST_MAX_FILE_BYTES, GUEST_USER_ID, type PokkitConfig } from './config.js'
@@ -16,10 +18,14 @@ export interface UploadFields {
   album_id?: string
 }
 
+// Exactly one of buffer / filePath. filePath (chunked uploads: the assembled
+// file already on disk) keeps large videos out of process memory entirely —
+// photo/video branches move the file into storage with zero copies.
 export interface FinalizeInput {
   filename: string
   mime: string
-  buffer: Buffer
+  buffer?: Buffer
+  filePath?: string
   fields: UploadFields
 }
 
@@ -138,7 +144,10 @@ export async function finalizeUpload(
   storage: Storage,
   config: PokkitConfig,
 ): Promise<FinalizeResult> {
-  const { filename, mime, buffer, fields } = input
+  const { filename, mime, filePath, fields } = input
+  let buffer = input.buffer
+  if (!buffer && !filePath) return { status: 400, body: { error: 'No upload content' } }
+  const inputSize = buffer ? buffer.length : statSync(filePath as string).size
   const isGuest = user.userId === GUEST_USER_ID
   if (isGuest) {
     // Guests: no albums, forced expiry, and ALWAYS the plain-file branch below —
@@ -156,14 +165,16 @@ export async function finalizeUpload(
     albumId = fields.album_id
   }
 
-  const quota = await checkQuota(user, storage, config, buffer.length)
+  const quota = await checkQuota(user, storage, config, inputSize)
   if (quota) return quota
 
   const baseUrl = resolveBaseUrl(request, config)
 
   // Photo branch: images get deferred processing
   if (!isGuest && storage.isImage(mime)) {
-    const entry = storage.savePhoto(filename, mime, buffer, { album_id: albumId, userId: user.userId })
+    const entry = filePath
+      ? await storage.savePhotoFromFile(filename, mime, filePath, { album_id: albumId, userId: user.userId })
+      : storage.savePhoto(filename, mime, buffer as Buffer, { album_id: albumId, userId: user.userId })
     if (!entry.deduplicated && entry.rawPath) {
       processPhoto(entry.id, entry.rawPath)
     }
@@ -188,7 +199,9 @@ export async function finalizeUpload(
     if (!hasFfmpeg()) {
       return { status: 400, body: { error: 'Video upload not available — ffmpeg not installed on server' } }
     }
-    const entry = storage.saveVideo(filename, mime, buffer, { album_id: albumId, userId: user.userId })
+    const entry = filePath
+      ? await storage.saveVideoFromFile(filename, mime, filePath, { album_id: albumId, userId: user.userId })
+      : storage.saveVideo(filename, mime, buffer as Buffer, { album_id: albumId, userId: user.userId })
     if (entry.rawPath) {
       try {
         processVideo(entry.id, entry.rawPath)
@@ -212,7 +225,9 @@ export async function finalizeUpload(
     }
   }
 
-  // Normal file branch
+  // Normal file branch (buffer-based core API; chunked plain files are read
+  // here lazily, gated by the chunked route's finalize semaphore)
+  if (!buffer) buffer = await readFile(filePath as string)
   const entry = await storage.save(filename, mime, buffer, {
     password: fields.password,
     expiresIn: fields.expiresIn,

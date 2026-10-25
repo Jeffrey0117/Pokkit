@@ -244,6 +244,24 @@ export class Storage {
     })
   }
 
+  // File-path variants (chunked uploads): zero-copy into storage, nothing buffered.
+  savePhotoFromFile(filename: string, mime: string, srcPath: string, opts?: { album_id?: string; userId?: string }): Promise<PhotoEntry> {
+    return this.store.saveRawPhotoFromFile(filename, mime, srcPath, {
+      bucket: 'default',
+      album_id: opts?.album_id,
+      user_id: opts?.userId,
+    })
+  }
+
+  saveVideoFromFile(filename: string, mime: string, srcPath: string, opts?: { album_id?: string; userId?: string }): Promise<PhotoEntry> {
+    return this.store.saveRawPhotoFromFile(filename, mime, srcPath, {
+      bucket: 'default',
+      album_id: opts?.album_id,
+      user_id: opts?.userId,
+      media_type: 'video',
+    })
+  }
+
   getPhotoStatus(id: string): string | null {
     const entry = this.store.find(id)
     return entry?.status ?? null

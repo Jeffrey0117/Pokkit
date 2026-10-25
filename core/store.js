@@ -779,6 +779,72 @@ class PokkitStore {
   }
 
   /**
+   * saveRawPhoto 的「檔案路徑」版:來源已在磁碟上(切塊上傳組裝完的檔),
+   * 全程不把內容讀進記憶體 — hash 用串流、入庫用 rename(同磁碟區)。
+   * 成功(非 dedup)時會「吃掉」srcPath(搬走);dedup 命中則留著給呼叫端清理。
+   * 2026-10-25 實案:兩支 135MB .mov 的 readFile 併發組裝把 process OOM 殺了兩次。
+   */
+  async saveRawPhotoFromFile(filename, mime, srcPath, opts = {}) {
+    const bucket = opts.bucket || 'default';
+    this._validateBucket(bucket);
+
+    const size = fs.statSync(srcPath).size;
+    const hash = await hashFile(srcPath);
+
+    const existing = db.findByHash(this._db, hash, bucket);
+    const owner = opts.user_id || null;
+    const match = existing.find(e =>
+      (e.status === 'ready' || e.status === 'processing') && (e.user_id || null) === owner
+    );
+    if (match) {
+      return { ...match, deduplicated: true };
+    }
+
+    const id = shortId();
+    const ext = path.extname(filename) || '.jpg';
+    const rawName = `_raw${ext}`;
+    const storedName = `${id}/${rawName}`;
+    const destPath = this._resolveFilePath(bucket, storedName);
+
+    const dir = path.dirname(destPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    try {
+      fs.renameSync(srcPath, destPath);
+    } catch {
+      // Cross-device fallback: copy then best-effort remove the source.
+      fs.copyFileSync(srcPath, destPath);
+      try { fs.unlinkSync(srcPath); } catch {}
+    }
+
+    const mediaType = opts.media_type || 'photo';
+    const entry = {
+      id,
+      bucket,
+      filename,
+      stored_name: storedName,
+      mime,
+      size,
+      hash,
+      is_directory: false,
+      uploaded_at: Date.now(),
+      metadata: null,
+      password_hash: opts.password_hash || null,
+      expires_at: opts.expires_at || null,
+      download_count: 0,
+      album_id: opts.album_id || null,
+      status: 'processing',
+      user_id: opts.user_id || null,
+      media_type: mediaType,
+    };
+
+    db.insertFile(this._db, entry);
+
+    return { ...entry, is_directory: false, deduplicated: false, rawPath: destPath };
+  }
+
+  /**
    * Finalize photo after worker processing.
    * Writes compressed + thumb, deletes raw, updates DB.
    */

@@ -1,5 +1,4 @@
 import { join } from 'node:path'
-import { readFile } from 'node:fs/promises'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { createChunkStore, registerChunkedUpload, ChunkError } from 'chunked-upload-kit'
 import type { CompletedUpload, InitInput } from 'chunked-upload-kit'
@@ -10,9 +9,11 @@ import { finalizeUpload, normalizeFields, checkQuota } from '../upload-finalize.
 
 export const CHUNKED_UPLOAD_PREFIX = '/api/upload/chunked'
 
-// How many chunked uploads may be finalized (read into memory + stored) at once.
-// Each one holds up to maxFileSize in RAM, so keep this small.
-const FINALIZE_SLOTS = 2
+// How many chunked uploads may be finalized at once. Photo/video finalize is
+// now zero-copy (file moves on disk, nothing buffered); only the plain-file
+// branch still reads into RAM, so keep this at 1 — two concurrent 135MB .mov
+// readFile()s OOM-killed the process twice on 2026-10-25.
+const FINALIZE_SLOTS = 1
 
 // Chunked upload: POST init → PUT chunks → POST complete. Every request stays
 // small, so large videos get past Cloudflare's 100MB per-request cap.
@@ -76,10 +77,10 @@ export function chunkedUploadRoute(app: FastifyInstance, storage: Storage, confi
       const fields = normalizeFields({ ...(file.meta ?? {}), ...(request.completeBody ?? {}) })
       await acquire()
       try {
-        // Same memory profile as /upload (which buffers via file.toBuffer()).
-        const buffer = await readFile(file.path)
+        // Hand over the assembled file by path — photo/video branches move it
+        // into storage without ever loading it into memory.
         const result = await finalizeUpload(
-          { filename: file.filename, mime: file.mime, buffer, fields },
+          { filename: file.filename, mime: file.mime, filePath: file.path, fields },
           user,
           request,
           storage,
