@@ -9,7 +9,28 @@
 
 const { parentPort, workerData } = require('node:worker_threads');
 const path = require('node:path');
+const fs = require('node:fs');
 const PokkitStore = require('../../core/index.js');
+
+// Cross-worker mutex for the AVIF archival step. Full-resolution AVIF encodes
+// are the dominant native-memory cost (hundreds of MB per 12MP image); with 4
+// workers encoding concurrently a 90-photo burst OOM-kills the whole process
+// (2026-10-25 incident, silent abort — no V8 heap trace). Serialize to one
+// encode at a time across all workers; the fast path (webp/thumb) is untouched.
+const AVIF_LOCK = path.join(workerData.dataDir, '.avif-encode-lock');
+async function acquireAvifLock(timeoutMs) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try { fs.mkdirSync(AVIF_LOCK); return true; } catch {}
+    try {
+      // Stale lock (crashed holder) — steal after 5 minutes.
+      if (Date.now() - fs.statSync(AVIF_LOCK).mtimeMs > 300000) { fs.rmdirSync(AVIF_LOCK); continue; }
+    } catch {}
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  return false;
+}
+function releaseAvifLock() { try { fs.rmdirSync(AVIF_LOCK); } catch {} }
 
 // Initialize store with same config as main thread
 const store = new PokkitStore({
@@ -23,6 +44,10 @@ parentPort.on('message', async (msg) => {
   try {
     // Dynamic import for ESM-only modules
     const sharp = (await import('sharp')).default;
+    // Bound libvips native memory: small op cache, 2 vips threads per op
+    // (default = all cores × 4 workers → native memory/CPU blowup on bursts).
+    sharp.cache({ memory: 32, files: 0, items: 50 });
+    sharp.concurrency(2);
 
     // 1. Read metadata (EXIF, dimensions)
     const metadata = await sharp(rawPath).metadata();
@@ -74,26 +99,33 @@ parentPort.on('message', async (msg) => {
     //    meaningfully smaller. Any doubt → keep the original raw untouched.
     //    DB hash/dedup is untouched (hash refers to the uploaded bytes).
     if (process.env.POKKIT_ARCHIVE_RECOMPRESS !== 'off' && !/\.avif$/i.test(rawPath) && /\.(jpe?g|png|webp)$/i.test(rawPath)) {
-      try {
-        const fs = require('node:fs');
-        const rawSize = fs.statSync(rawPath).size;
-        const avifBuffer = await sharp(rawPath, { failOn: 'none' })
-          .keepMetadata()
-          .avif({ quality: 50 })
-          .toBuffer();
-        const chk = await sharp(avifBuffer).metadata();
-        const dimsOk = chk.width === origWidth && chk.height === origHeight;
-        if (dimsOk && avifBuffer.length < rawSize * 0.95) {
-          const avifPath = path.join(path.dirname(rawPath), '_raw.avif');
-          const tmpPath = avifPath + '.tmp';
-          fs.writeFileSync(tmpPath, avifBuffer);
-          fs.renameSync(tmpPath, avifPath);
-          fs.unlinkSync(rawPath);
-          console.log(`[PhotoWorker] Archived ${id}: raw ${(rawSize / 1048576).toFixed(2)}MB -> avif ${(avifBuffer.length / 1048576).toFixed(2)}MB`);
+      // One AVIF encode at a time process-wide; can't get the lock → keep raw.
+      const gotLock = await acquireAvifLock(90000);
+      if (!gotLock) {
+        console.error(`[PhotoWorker] Archive skip ${id}: avif lock busy (raw kept)`);
+      } else {
+        try {
+          const rawSize = fs.statSync(rawPath).size;
+          const avifBuffer = await sharp(rawPath, { failOn: 'none' })
+            .keepMetadata()
+            .avif({ quality: 50 })
+            .toBuffer();
+          const chk = await sharp(avifBuffer).metadata();
+          const dimsOk = chk.width === origWidth && chk.height === origHeight;
+          if (dimsOk && avifBuffer.length < rawSize * 0.95) {
+            const avifPath = path.join(path.dirname(rawPath), '_raw.avif');
+            const tmpPath = avifPath + '.tmp';
+            fs.writeFileSync(tmpPath, avifBuffer);
+            fs.renameSync(tmpPath, avifPath);
+            fs.unlinkSync(rawPath);
+            console.log(`[PhotoWorker] Archived ${id}: raw ${(rawSize / 1048576).toFixed(2)}MB -> avif ${(avifBuffer.length / 1048576).toFixed(2)}MB`);
+          }
+        } catch (archiveErr) {
+          // Never fail the photo over archival — original raw stays.
+          console.error(`[PhotoWorker] Archive skip ${id}: ${archiveErr.message}`);
+        } finally {
+          releaseAvifLock();
         }
-      } catch (archiveErr) {
-        // Never fail the photo over archival — original raw stays.
-        console.error(`[PhotoWorker] Archive skip ${id}: ${archiveErr.message}`);
       }
     }
 
