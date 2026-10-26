@@ -819,6 +819,11 @@
   var failedFiles = [];        // 重試額度用盡的 File(等 retry-all / 回前景自動重排)
   var verifyState = 'idle';    // idle | running | done
   var verifyRounds = 0;
+  // 位元組級進度:進度條按「已完成+在途」位元組連續流動,不再跟著波次跳格
+  // (H2 公平分頻讓 10 路同時完成 → 張數計數「跳10→停→跳10」被誤讀成卡住)
+  var batchTotalBytes = 0;
+  var inflightBytes = 0;
+  var lastSummaryPaint = 0;
 
   function queueFiles(files) {
     $queueSection.hidden = false;
@@ -829,6 +834,8 @@
       batchDone = 0;
       batchFailed = 0;
       batchBytes = 0;
+      batchTotalBytes = 0;
+      inflightBytes = 0;
       batchStartTime = Date.now();
       verifyFiles = [];
       failedFiles = [];
@@ -841,6 +848,7 @@
     for (var i = 0; i < files.length; i++) {
       pending.push(files[i]);
       verifyFiles.push(files[i]);
+      batchTotalBytes += files[i].size || 0;
     }
     updateQueueSummary();
     processQueue();
@@ -1041,9 +1049,10 @@
     // Hide individual items in summary mode
     $queueList.hidden = true;
     var elapsed = (Date.now() - batchStartTime) / 1000 || 1;
-    var speed = batchBytes / elapsed;
+    var liveBytes = batchBytes + inflightBytes;
+    var speed = liveBytes / elapsed;
     var finished = batchDone + batchFailed;
-    var pct = batchTotal > 0 ? Math.round((finished / batchTotal) * 100) : 0;
+    var pct = batchTotalBytes > 0 ? Math.min(100, Math.round((liveBytes / batchTotalBytes) * 100)) : (batchTotal > 0 ? Math.round((finished / batchTotal) * 100) : 0);
     $summary.innerHTML =
       '<div class="queue-summary-text">' +
         'Uploading ' + finished + ' / ' + batchTotal.toLocaleString() +
@@ -1108,6 +1117,7 @@
     // Schedule an automatic retry with exponential backoff for transient failures.
     // Returns true if a retry was scheduled (caller should NOT count a failure yet).
     function autoRetry() {
+      settleInflight();
       if (attempt >= MAX_UPLOAD_RETRIES) return false;
       var delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
       uploading--;
@@ -1118,6 +1128,7 @@
 
     // Permanent failure: count it and show a manual Retry button on the row.
     function failPermanently(msg) {
+      settleInflight();
       batchFailed++;
       if (failedFiles.indexOf(file) < 0) failedFiles.push(file);
       bar.classList.add('error');
@@ -1147,6 +1158,7 @@
 
     // Success path shared by both transports (response JSON has the same shape).
     function handleSuccess(data) {
+      settleInflight();
       batchDone++;
       batchBytes += file.size;
       bar.style.width = '100%';
@@ -1277,22 +1289,36 @@
     // 慢網路傳大檔只要有在動就不會被誤殺。
     var lastProgressAt = Date.now();
     var stallTimer = setInterval(function () {
-      if (Date.now() - lastProgressAt > 20000) {
+      if (Date.now() - lastProgressAt > 10000) {
         clearInterval(stallTimer);
         stallTimer = null;
         xhr.abort();
       }
-    }, 5000);
+    }, 2500);
     function clearStallTimer() {
       if (stallTimer) { clearInterval(stallTimer); stallTimer = null; }
     }
 
+    var sentBytes = 0;
+    function settleInflight() {
+      inflightBytes -= sentBytes;
+      if (inflightBytes < 0) inflightBytes = 0;
+      sentBytes = 0;
+    }
+
     xhr.upload.addEventListener('progress', function (e) {
       lastProgressAt = Date.now();
+      inflightBytes += e.loaded - sentBytes;
+      sentBytes = e.loaded;
       if (e.lengthComputable) {
         var p = Math.round((e.loaded / e.total) * 100);
         bar.style.width = p + '%';
         pct.textContent = p + '%';
+      }
+      // 位元組級總進度:節流 300ms 重繪,讓總進度條連續流動
+      if (Date.now() - lastSummaryPaint > 300) {
+        lastSummaryPaint = Date.now();
+        updateQueueSummary();
       }
     });
 
@@ -1306,6 +1332,7 @@
       clearStallTimer();
       // Rate limited — always retry (separate from the transient-error budget)
       if (xhr.status === 429) {
+        settleInflight();
         uploading--;
         row.remove();
         pending.unshift(file);
