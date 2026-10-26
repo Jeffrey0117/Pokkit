@@ -1271,7 +1271,24 @@
     if (currentAlbumId) fd.append('album_id', currentAlbumId);
     fd.append('file', file);
 
+    // 進度停滯偵測:到 CF 的 HTTP/2 連線約每 140MB 會無聲卡死(不報錯、位元組
+    // 不動),10 個槽全被佔住乾等 — 實測佇列每 ~57 張停整整 120 秒(= 舊逾時)。
+    // 位元組 20 秒沒動就主動 abort → autoRetry 秒接手。比砍短 xhr.timeout 聰明:
+    // 慢網路傳大檔只要有在動就不會被誤殺。
+    var lastProgressAt = Date.now();
+    var stallTimer = setInterval(function () {
+      if (Date.now() - lastProgressAt > 20000) {
+        clearInterval(stallTimer);
+        stallTimer = null;
+        xhr.abort();
+      }
+    }, 5000);
+    function clearStallTimer() {
+      if (stallTimer) { clearInterval(stallTimer); stallTimer = null; }
+    }
+
     xhr.upload.addEventListener('progress', function (e) {
+      lastProgressAt = Date.now();
       if (e.lengthComputable) {
         var p = Math.round((e.loaded / e.total) * 100);
         bar.style.width = p + '%';
@@ -1279,7 +1296,14 @@
       }
     });
 
+    xhr.addEventListener('abort', function () {
+      clearStallTimer();
+      if (autoRetry()) return;
+      failPermanently('Connection stalled');
+    });
+
     xhr.addEventListener('load', function () {
+      clearStallTimer();
       // Rate limited — always retry (separate from the transient-error budget)
       if (xhr.status === 429) {
         uploading--;
@@ -1327,12 +1351,14 @@
     });
 
     xhr.addEventListener('error', function () {
+      clearStallTimer();
       // Network error — transient, auto-retry then fall back to manual.
       if (autoRetry()) return;
       failPermanently('Network error');
     });
 
     xhr.addEventListener('timeout', function () {
+      clearStallTimer();
       if (autoRetry()) return;
       failPermanently('Timed out');
     });
