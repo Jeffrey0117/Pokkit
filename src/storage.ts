@@ -272,10 +272,13 @@ export class Storage {
   getPhotoMeta(
     id: string,
   ): { status: string; duration: number | null; media_type: string } | null {
-    const entry = this.store.find(id) as PhotoEntry | undefined
+    // 含垃圾桶查詢:入庫自動去重會把重複條目送進垃圾桶,但它代表的內容
+    // 確實在雲端(保留的那份)— 狀態查詢/上傳驗證點名時回 'duplicate',
+    // 前端收掉格子、驗證計入「已在雲端」。
+    const entry = (this.store as unknown as { findAny(id: string): PhotoEntry & { deleted_at?: number } }).findAny(id)
     if (!entry || !entry.status) return null
     return {
-      status: entry.status,
+      status: entry.deleted_at ? 'duplicate' : entry.status,
       duration: entry.duration ?? null,
       media_type: entry.media_type,
     }

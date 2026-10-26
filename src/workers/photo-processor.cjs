@@ -93,12 +93,28 @@ parentPort.on('message', async (msg) => {
       takenAt,
     });
 
+    // 5b. 入庫感知去重:thumb 算 dHash,同 user+同尺寸+同指紋的既有照片存在
+    // → 這張自動進垃圾桶(iOS 每次匯出位元組不同,byte-dedup 抓不到同圖多份)。
+    let isDup = false;
+    try {
+      const { data: dh } = await sharp(thumbBuffer).grayscale().resize(9, 8, { fit: 'fill' }).raw().toBuffer({ resolveWithObject: true });
+      let bits = '';
+      for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) bits += dh[y * 9 + x] < dh[y * 9 + x + 1] ? '1' : '0';
+      const dup = store.setDhashAndAutoDedup(id, bits);
+      if (dup.duplicate) {
+        isDup = true;
+        console.log(`[PhotoWorker] Auto-dedup ${id}: 與 ${dup.keptId} 感知重複,已自動進垃圾桶`);
+      }
+    } catch (dhErr) {
+      console.error(`[PhotoWorker] dHash skip ${id}: ${dhErr.message}`);
+    }
+
     // 6. Archival recompress (POKKIT_ARCHIVE_RECOMPRESS=off to disable):
     //    replace the bulky raw with a FULL-RESOLUTION AVIF — every pixel kept,
     //    EXIF kept, typically 60-99% smaller. Guards: decodable, same dimensions,
     //    meaningfully smaller. Any doubt → keep the original raw untouched.
     //    DB hash/dedup is untouched (hash refers to the uploaded bytes).
-    if (process.env.POKKIT_ARCHIVE_RECOMPRESS !== 'off' && !/\.avif$/i.test(rawPath) && /\.(jpe?g|png|webp)$/i.test(rawPath)) {
+    if (!isDup && process.env.POKKIT_ARCHIVE_RECOMPRESS !== 'off' && !/\.avif$/i.test(rawPath) && /\.(jpe?g|png|webp)$/i.test(rawPath)) {
       // One AVIF encode at a time process-wide; can't get the lock → keep raw.
       const gotLock = await acquireAvifLock(90000);
       if (!gotLock) {

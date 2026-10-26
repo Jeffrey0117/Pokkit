@@ -343,6 +343,44 @@ class PokkitStore {
     return db.findFile(this._db, id);
   }
 
+  // 含垃圾桶版(狀態查詢/上傳驗證用) — 自動去重的條目要答「有」而不是消失
+  findAny(id) {
+    return db.findFileAny(this._db, id);
+  }
+
+  /**
+   * 入庫感知去重:worker 處理完把 dHash 寫進條目,並檢查同 user 是否已有
+   * 「更早、同尺寸、同 dHash(影片加同時長±1s)」的條目 — 有就把自己送進
+   * 垃圾桶,相簿永遠不出現第二份。iOS 每次匯出位元組不同,byte-dedup 抓
+   * 不到這種「同圖多份」,這裡是補上的第二道門。
+   */
+  setDhashAndAutoDedup(id, dhash) {
+    const entry = db.findFileAny(this._db, id);
+    if (!entry || !dhash) return { duplicate: false };
+    this._db.prepare('UPDATE files SET dhash = ? WHERE id = ?').run(dhash, id);
+    if (entry.deleted_at) return { duplicate: false }; // 已在垃圾桶,不用再去重
+    // 同人+同尺寸+同類型的候選全撈,JS 算 hamming 距離 ≤6 即同圖
+    // (重編碼會翻 1~4 個位元,精確比對會漏;幾千筆字串比對是毫秒級)
+    const candidates = this._db.prepare(`
+      SELECT id, dhash, duration FROM files
+      WHERE user_id IS ? AND media_type = ? AND width = ? AND height = ?
+        AND dhash IS NOT NULL AND deleted_at IS NULL AND id != ?
+        AND status IN ('ready','processing') AND uploaded_at <= ?
+      ORDER BY uploaded_at ASC
+    `).all(entry.user_id, entry.media_type, entry.width, entry.height, id, entry.uploaded_at);
+    for (const c of candidates) {
+      if (!c.dhash || c.dhash.length !== dhash.length) continue;
+      let dist = 0;
+      for (let i = 0; i < dhash.length && dist <= 6; i++) if (dhash[i] !== c.dhash[i]) dist++;
+      if (dist > 6) continue;
+      if (entry.media_type === 'video' && entry.duration != null && c.duration != null
+          && Math.abs(entry.duration - c.duration) > 1) continue;
+      this._db.prepare('UPDATE files SET deleted_at = ? WHERE id = ?').run(Date.now(), id);
+      return { duplicate: true, keptId: c.id };
+    }
+    return { duplicate: false };
+  }
+
   /**
    * Check if a file exists in the index
    * @param {string} id

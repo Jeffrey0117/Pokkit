@@ -19,12 +19,12 @@ const ROOT = path.join(__dirname, '..');
 const db = new Database(path.join(ROOT, 'data', 'pokkit.db'));
 
 const rows = db.prepare(`
-  SELECT id, stored_name, thumb_stored_name, size, uploaded_at, taken_at, width, height, filename
+  SELECT id, stored_name, thumb_stored_name, size, uploaded_at, taken_at, width, height, duration, media_type, filename
   FROM files
-  WHERE media_type='photo' AND status='ready' AND deleted_at IS NULL
+  WHERE media_type IN ('photo','video') AND status='ready' AND deleted_at IS NULL
   ORDER BY uploaded_at ASC
 `).all();
-console.log(`掃描對象: ${rows.length} 張 ready 照片`);
+console.log(`掃描對象: ${rows.length} 筆 (照片+影片)`);
 
 async function dhash(file) {
   const { data } = await sharp(file)
@@ -72,6 +72,13 @@ async function dhash(file) {
       if (b.length < 2) continue;
       const times = new Set(b.map((m) => m.taken_at).filter(Boolean));
       if (times.size > 1) continue; // 拍攝時間互相矛盾 → 不敢動
+      // 影片加一道:時長差 >1 秒的不算同一支(縮圖相同但長度不同=不同剪輯)
+      const kinds = new Set(b.map((m) => m.media_type));
+      if (kinds.size > 1) continue; // 照片跟影片縮圖撞 hash → 不同東西
+      if (b[0].media_type === 'video') {
+        const durs = b.map((m) => m.duration).filter((d) => d != null);
+        if (durs.length && Math.max(...durs) - Math.min(...durs) > 1) continue;
+      }
       groups++;
       const keep = b[0]; // uploaded_at 最早
       for (let i = 1; i < b.length; i++) toTrash.push({ dup: b[i], keep });

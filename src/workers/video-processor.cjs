@@ -124,6 +124,19 @@ parentPort.on('message', async (msg) => {
       takenAt,
     });
 
+    // 5b. 入庫感知去重:縮圖 dHash + 同尺寸 + 時長±1s = 同一支影片
+    // (同支 .mov 重傳位元組不同,byte-dedup 抓不到 — 自動進垃圾桶)
+    try {
+      const sharp = (await import('sharp')).default;
+      const { data: dh } = await sharp(thumbBuffer).grayscale().resize(9, 8, { fit: 'fill' }).raw().toBuffer({ resolveWithObject: true });
+      let bits = '';
+      for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) bits += dh[y * 9 + x] < dh[y * 9 + x + 1] ? '1' : '0';
+      const dup = store.setDhashAndAutoDedup(id, bits);
+      if (dup.duplicate) console.log(`[VideoWorker] Auto-dedup ${id}: 與 ${dup.keptId} 感知重複,已自動進垃圾桶`);
+    } catch (dhErr) {
+      console.error(`[VideoWorker] dHash skip ${id}: ${dhErr.message}`);
+    }
+
     parentPort.postMessage({ type: 'done', id });
   } catch (err) {
     // Cleanup temp files

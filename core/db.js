@@ -96,6 +96,12 @@ function openDb(dbPath) {
   if (!cols.includes('duration')) {
     _db.exec('ALTER TABLE files ADD COLUMN duration INTEGER');
   }
+  if (!cols.includes('dhash')) {
+    // 感知指紋(64-bit dHash hex):worker 處理完寫入,入庫自動去重用
+    // (iOS 每次匯出位元組不同 → byte-hash 抓不到「同圖多份」)
+    _db.exec('ALTER TABLE files ADD COLUMN dhash TEXT');
+  }
+  _db.exec('CREATE INDEX IF NOT EXISTS idx_files_user_dhash ON files(user_id, dhash)');
   if (!cols.includes('media_type')) {
     _db.exec("ALTER TABLE files ADD COLUMN media_type TEXT DEFAULT 'file'");
     // Backfill existing photos
@@ -228,6 +234,13 @@ function incrementDownloads(db, id) {
  */
 function findFile(db, id) {
   const row = db.prepare('SELECT * FROM files WHERE id = ? AND deleted_at IS NULL').get(id);
+  return row ? deserializeRow(row) : null;
+}
+
+// 含垃圾桶版 — 給「狀態查詢/上傳驗證」用:自動去重的條目進了垃圾桶,
+// 但它代表的內容確實在雲端(保留的那份),點名時要答「有」而不是消失。
+function findFileAny(db, id) {
+  const row = db.prepare('SELECT * FROM files WHERE id = ?').get(id);
   return row ? deserializeRow(row) : null;
 }
 
@@ -715,6 +728,7 @@ module.exports = {
   closeDb,
   insertFile,
   findFile,
+  findFileAny,
   findByHash,
   findByTag,
   listFiles,

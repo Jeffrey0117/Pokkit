@@ -2931,6 +2931,15 @@
         } else if (info.status === 'failed') {
           delete processingIds[pid];
           toast('Processing failed: ' + pid, true);
+        } else if (info.status === 'duplicate') {
+          // 入庫自動去重:這張跟既有照片/影片內容相同,伺服器已自動略過
+          delete processingIds[pid];
+          var dupCell = $photoGrid.querySelector('[data-id="' + pid + '"]');
+          if (dupCell) dupCell.remove();
+          for (var gi = galleryPhotos.length - 1; gi >= 0; gi--) {
+            if (galleryPhotos[gi].id === pid) galleryPhotos.splice(gi, 1);
+          }
+          toast('1 張重複內容已自動略過(已有相同的一份)');
         }
       }
     });
