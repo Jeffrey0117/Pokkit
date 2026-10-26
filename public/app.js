@@ -791,8 +791,27 @@
     });
   }
 
+  // ── Screen Wake Lock:手機鎖屏/退背景會凍結 JS,整個上傳佇列陪睡
+  // (2026-10-26 實案:百張批次卡 59/100,其餘 41 張在手機裡睡到使用者點回來)。
+  // 佇列有活時保持螢幕常亮;切回前景時重新上鎖(系統會在背景自動釋放 wake lock)。
+  var wakeLock = null;
+  function acquireWakeLock() {
+    if (wakeLock || !('wakeLock' in navigator)) return;
+    navigator.wakeLock.request('screen').then(function (wl) {
+      wakeLock = wl;
+      wl.addEventListener('release', function () { wakeLock = null; });
+    }).catch(function () {});
+  }
+  function releaseWakeLock() {
+    if (wakeLock) { wakeLock.release().catch(function () {}); wakeLock = null; }
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && (pending.length > 0 || uploading > 0)) acquireWakeLock();
+  });
+
   function queueFiles(files) {
     $queueSection.hidden = false;
+    acquireWakeLock();
     // Init batch counters if starting fresh
     if (pending.length === 0 && uploading === 0) {
       batchTotal = 0;
@@ -912,6 +931,7 @@
     while (uploading < MAX_CONCURRENT && pending.length > 0) {
       uploadFile(pending.shift());
     }
+    if (pending.length === 0 && uploading === 0) releaseWakeLock();
   }
 
   function uploadFile(file, attempt) {
