@@ -6,6 +6,18 @@
   box-sizing: border-box;
 }
 
+/* 手機橫向捲軸根絕:任何元素意外超寬都不准把頁面撐出水平捲軸。
+   clip 優先(不產生新捲動容器、sticky 不受影響),舊瀏覽器退回 hidden。 */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+
+img, video, canvas {
+  max-width: 100%;
+}
+
 :root {
   --bg-primary: #030303;
   --bg-secondary: #0a0a0a;
@@ -925,6 +937,25 @@ body.mode-dashboard .landing-only {
 .dl-bar .selection-actions {
   display: flex;
   gap: 6px;
+}
+
+/* 窄螢幕:fixed 置中的工具列比 viewport 寬就兩邊戳出去(body overflow 管不住
+   fixed 元素 → 手機出現左右滑動軸的主嫌)。改貼齊左右、內容可換行。 */
+@media (max-width: 760px) {
+  .dl-bar {
+    left: 8px;
+    right: 8px;
+    transform: none;
+    max-width: none;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+  .dl-bar .selection-actions {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
 }
 
 /* Video/photo cell selection */
