@@ -806,8 +806,19 @@
     if (wakeLock) { wakeLock.release().catch(function () {}); wakeLock = null; }
   }
   document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible' && (pending.length > 0 || uploading > 0)) acquireWakeLock();
+    if (document.visibilityState !== 'visible') return;
+    if (pending.length > 0 || uploading > 0) acquireWakeLock();
+    // 回前景:失敗的自動重排(鎖屏斷線的自癒最後一哩)
+    if (failedFiles.length > 0 && pending.length === 0) requeueFailed();
   });
+
+  // ── 終局驗證:批次跑完後拿「全部檔案的內容雜湊」去問伺服器,親口確認
+  // 每一張都在雲端才顯示「可安全刪除手機照片」。缺的自動補傳再驗,最多 3 輪。
+  // (2026-10-26 需求:計數器卡 57/99 使用者不敢刪手機 — 自我回報不可信,要獨立查核)
+  var verifyFiles = [];        // 本批次所有進過佇列的 File
+  var failedFiles = [];        // 重試額度用盡的 File(等 retry-all / 回前景自動重排)
+  var verifyState = 'idle';    // idle | running | done
+  var verifyRounds = 0;
 
   function queueFiles(files) {
     $queueSection.hidden = false;
@@ -819,11 +830,135 @@
       batchFailed = 0;
       batchBytes = 0;
       batchStartTime = Date.now();
+      verifyFiles = [];
+      failedFiles = [];
+      verifyState = 'idle';
+      verifyRounds = 0;
+      var oldVerdict = document.getElementById('batchVerdict');
+      if (oldVerdict) oldVerdict.remove();
     }
     batchTotal += files.length;
-    for (var i = 0; i < files.length; i++) pending.push(files[i]);
+    for (var i = 0; i < files.length; i++) {
+      pending.push(files[i]);
+      verifyFiles.push(files[i]);
+    }
     updateQueueSummary();
     processQueue();
+  }
+
+  function showVerdict(html, cls) {
+    var v = document.getElementById('batchVerdict');
+    if (!v) {
+      v = document.createElement('div');
+      v.id = 'batchVerdict';
+      $queueSection.insertBefore(v, $queueSection.firstChild);
+    }
+    v.className = 'batch-verdict ' + (cls || '');
+    v.innerHTML = html;
+    $queueSection.hidden = false;
+  }
+
+  function requeueFailed() {
+    if (failedFiles.length === 0) return;
+    var again = failedFiles;
+    failedFiles = [];
+    batchFailed = 0;
+    var rows = $queueList.querySelectorAll('.queue-item');
+    for (var i = 0; i < rows.length; i++) rows[i].remove();
+    acquireWakeLock();
+    for (var j = 0; j < again.length; j++) pending.push(again[j]);
+    updateQueueSummary();
+    processQueue();
+  }
+
+  // 一次只算一張的序列式 SHA-256(手機安全:單一 3MB 暫存,算完即棄)
+  function hashSequential(files, idx, out, done) {
+    if (idx >= files.length) { done(out); return; }
+    var f = files[idx];
+    if (!window.crypto || !window.crypto.subtle || !f.arrayBuffer || f.size > 32 * 1024 * 1024) {
+      out.push(null);
+      hashSequential(files, idx + 1, out, done);
+      return;
+    }
+    f.arrayBuffer()
+      .then(function (buf) { return crypto.subtle.digest('SHA-256', buf); })
+      .then(function (digest) {
+        var b = new Uint8Array(digest), hex = '';
+        for (var i = 0; i < b.length; i++) hex += b[i].toString(16).padStart(2, '0');
+        out.push(hex);
+        setTimeout(function () { hashSequential(files, idx + 1, out, done); }, 0);
+      })
+      .catch(function () { out.push(null); hashSequential(files, idx + 1, out, done); });
+  }
+
+  function runFinalVerify() {
+    verifyState = 'running';
+    verifyRounds++;
+    var total = verifyFiles.length;
+    showVerdict('驗證中… 正在跟伺服器逐張核對 ' + total + ' 張 (' + verifyRounds + '/3)', 'pending');
+    hashSequential(verifyFiles, 0, [], function (hashes) {
+      var toQuery = [];
+      for (var i = 0; i < hashes.length; i++) if (hashes[i]) toQuery.push(hashes[i]);
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/check-hashes');
+      setAuthHeader(xhr);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.timeout = 20000;
+      var fallback = function () {
+        verifyState = 'done';
+        showVerdict('⚠ 無法連線驗證 — 上傳計數 ' + batchDone + '/' + total + '。請稍後重新整理相簿人工核對。', 'warn');
+      };
+      xhr.addEventListener('error', fallback);
+      xhr.addEventListener('timeout', fallback);
+      xhr.addEventListener('load', function () {
+        // 非 2xx 不准當「缺檔」亂報 — 401=登入過期要老實說,其他錯誤=無法驗證
+        if (xhr.status === 401) {
+          verifyState = 'done';
+          releaseWakeLock();
+          showVerdict('⚠ 登入已過期,無法向伺服器驗證 — <strong>請先重新登入</strong>,再重傳一次這批(已在雲端的會自動跳過)。', 'warn');
+          return;
+        }
+        if (xhr.status < 200 || xhr.status >= 300) { fallback(); return; }
+        var existing = {};
+        try { existing = (JSON.parse(xhr.responseText) || {}).existing || {}; } catch (_) { /* */ }
+        var missing = [], unverifiable = 0;
+        for (var i = 0; i < verifyFiles.length; i++) {
+          if (!hashes[i]) { unverifiable++; continue; }
+          if (!existing[hashes[i]]) missing.push(verifyFiles[i]);
+        }
+        if (missing.length === 0) {
+          verifyState = 'done';
+          var note = unverifiable > 0 ? '(' + unverifiable + ' 張過大無法核對,請人工確認)' : '';
+          showVerdict('✅ 已驗證 ' + (total - unverifiable) + '/' + total + ' 張都在雲端' + note + '<br><strong>手機上的這批照片可以安全刪除</strong>', 'ok');
+          releaseWakeLock();
+        } else if (verifyRounds >= 3) {
+          verifyState = 'done';
+          releaseWakeLock();
+          showVerdict('⚠ 驗證 3 輪後仍有 ' + missing.length + ' 張不在雲端 — <strong>請勿刪除手機照片</strong>,稍後重傳這批。', 'warn');
+        } else {
+          showVerdict('驗證發現 ' + missing.length + ' 張缺漏,自動補傳中…', 'pending');
+          verifyState = 'idle'; // 補傳完成後 processQueue 會再觸發下一輪驗證
+          for (var m = 0; m < missing.length; m++) pending.push(missing[m]);
+          batchTotal += missing.length;
+          processQueue();
+        }
+      });
+      xhr.send(JSON.stringify({ hashes: toQuery }));
+    });
+  }
+
+  function onQueueDrained() {
+    if (batchTotal === 0 || verifyState === 'running' || verifyState === 'done') return;
+    if (failedFiles.length > 0) {
+      showVerdict(
+        '⚠ ' + failedFiles.length + ' 張上傳失敗 — <button type="button" id="retryAllBtn" class="queue-retry">全部重試</button>',
+        'warn'
+      );
+      var btn = document.getElementById('retryAllBtn');
+      if (btn) btn.addEventListener('click', requeueFailed);
+      return;
+    }
+    runFinalVerify();
   }
 
   // SHA-256 of a File as hex (matches the server's content hash). Calls cb(null)
@@ -934,7 +1069,7 @@
     while (uploading < MAX_CONCURRENT && pending.length > 0) {
       uploadFile(pending.shift());
     }
-    if (pending.length === 0 && uploading === 0) releaseWakeLock();
+    if (pending.length === 0 && uploading === 0) onQueueDrained();
   }
 
   function uploadFile(file, attempt) {
@@ -984,6 +1119,7 @@
     // Permanent failure: count it and show a manual Retry button on the row.
     function failPermanently(msg) {
       batchFailed++;
+      if (failedFiles.indexOf(file) < 0) failedFiles.push(file);
       bar.classList.add('error');
       bar.style.width = '100%';
       if (msg) toast(file.name + ': ' + msg, true);
@@ -1050,9 +1186,20 @@
         row.style.transition = 'opacity 0.3s';
         setTimeout(function () {
           row.remove();
-          if ($queueList.children.length === 0) $queueSection.hidden = true;
+          // verdict(終局驗證結果)還掛著時不收合 — 使用者要看到「可安全刪除」那行
+          if ($queueList.children.length === 0 && !document.getElementById('batchVerdict')) $queueSection.hidden = true;
         }, 300);
       }, 2000);
+    }
+
+    // 登入態但當下拿不到有效 token(過期/SDK 刷新中)→ 絕不准靜默降級成 guest 上傳
+    // (guest 檔 7 天過期、不進相簿 — 使用者以為備份好了,一週後人間蒸發)。
+    // SDK 還在刷新就排重試;真的過期就老實失敗要求重新登入。
+    if (currentUser && !getToken()) {
+      if (sdkBusy() && autoRetry()) return;
+      authExpired();
+      failPermanently(window.t ? window.t('Session expired — please log in again') : 'Session expired — please log in again');
+      return;
     }
 
     // Large files: chunked transport. Keeps every request far below the edge

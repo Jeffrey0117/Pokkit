@@ -638,6 +638,30 @@ body.mode-dashboard .landing-only {
   border-radius: var(--radius-sm);
 }
 
+/* 批次終局驗證結果 — 使用者要「敢刪手機照片」的黑白字據 */
+.batch-verdict {
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  border: 1px solid var(--border-default);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+.batch-verdict.ok {
+  border-color: var(--status-ready);
+  box-shadow: inset 3px 0 0 var(--status-ready);
+}
+.batch-verdict.warn {
+  border-color: var(--status-failed);
+  box-shadow: inset 3px 0 0 var(--status-failed);
+}
+.batch-verdict.pending {
+  border-color: var(--status-processing);
+  box-shadow: inset 3px 0 0 var(--status-processing);
+}
+
 .queue-name {
   flex: 1;
   font-size: 0.8125rem;
