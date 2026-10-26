@@ -261,6 +261,19 @@
   var STORAGE_TOKEN_KEY = 'pokkit_token';
   var STORAGE_USER_KEY = 'pokkit_user';
 
+  // ── LAN 直傳模式:頁面跑在私網 IP/localhost 上(http://192.168.x.x:4009)。
+  // 在家上傳走 CF 要出門繞一圈(實測 341MB:公網 173s vs LAN 3s);此模式下
+  // 同 WiFi 直連。登入票證由公網頁的「LAN 高速模式」按鈕經 URL hash 交接
+  // (#lanauth=,hash 不上網路不進 log);票證 4h 到期後回公網頁再按一次。
+  var LAN_MODE = /^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
+  if (LAN_MODE) {
+    var lanAuthMatch = location.hash.match(/lanauth=([^&]+)/);
+    if (lanAuthMatch) {
+      try { localStorage.setItem(STORAGE_TOKEN_KEY, decodeURIComponent(lanAuthMatch[1])); } catch (_) { /* */ }
+      history.replaceState(null, '', location.pathname + location.search);
+    }
+  }
+
   // Decode a JWT's exp (ms) without a library, so the client can tell a dead
   // token from a live one instead of waiting for the server to 401.
   function b64urlDecode(s) {
@@ -280,6 +293,13 @@
   }
 
   function getToken() {
+    // LAN 模式:票證是公網頁交接來的,SDK 在這個 origin 沒有 session,
+    // 絕不能走 SDK 分支(它會把「SDK 無 session」當登出、刪掉我們的票證)。
+    if (LAN_MODE) {
+      var lanTok = localStorage.getItem(STORAGE_TOKEN_KEY);
+      if (lanTok && isTokenExpired(lanTok)) return null;
+      return lanTok;
+    }
     // Prefer SDK token (freshest — the SDK silently refreshes it)
     if (typeof letmeuse !== 'undefined') {
       var sdkToken = letmeuse.getToken();
@@ -824,6 +844,37 @@
   var batchTotalBytes = 0;
   var inflightBytes = 0;
   var lastSummaryPaint = 0;
+  var verifyIds = [];          // 本批次伺服器回的入庫 id(LAN http 無 crypto.subtle 時用 id 點名驗證)
+
+  // ── LAN 模式 UI:徽章 + 票證指引;公網頁則掛「LAN 高速模式」換軌按鈕
+  function initLanUx() {
+    if (LAN_MODE) {
+      var badge = document.createElement('div');
+      badge.className = 'lan-badge';
+      badge.textContent = '⚡ LAN 高速模式';
+      document.body.appendChild(badge);
+      if (!getToken()) {
+        badge.className = 'lan-badge expired';
+        badge.textContent = '⚡ LAN 票證不在/已過期 — 回 pokkit.isnowfriend.com 重按「LAN 高速模式」';
+      }
+      return;
+    }
+    // 公網頁:登入後探測 LAN 資訊,有就掛換軌按鈕(在家才按得通;不在家點了連不上,無害)
+    apiRequest('GET', '/api/lan-info', null, function (info) {
+      if (!info || !info.ip) return;
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'lan-badge lan-switch';
+      btn.textContent = '⚡ 在家?LAN 高速直傳';
+      btn.addEventListener('click', function () {
+        var t = getToken();
+        if (!t) { toast('請先登入再切換 LAN 模式', true); return; }
+        location.href = 'http://' + info.ip + ':' + info.port + '/#lanauth=' + encodeURIComponent(t);
+      });
+      document.body.appendChild(btn);
+    });
+  }
+  setTimeout(initLanUx, 2500);
 
   function queueFiles(files) {
     $queueSection.hidden = false;
@@ -839,6 +890,7 @@
       batchStartTime = Date.now();
       verifyFiles = [];
       failedFiles = [];
+      verifyIds = [];
       verifyState = 'idle';
       verifyRounds = 0;
       var oldVerdict = document.getElementById('batchVerdict');
@@ -899,10 +951,48 @@
       .catch(function () { out.push(null); hashSequential(files, idx + 1, out, done); });
   }
 
+  // http LAN 環境沒有 crypto.subtle(非安全上下文)算不了雜湊 —
+  // 改用「入庫 id 點名」:上傳回應給的 id 逐筆向伺服器確認存在。
+  function runIdVerify(total) {
+    var ids = [];
+    var seen = {};
+    for (var i = 0; i < verifyIds.length && ids.length < 500; i++) {
+      if (!seen[verifyIds[i]]) { seen[verifyIds[i]] = 1; ids.push(verifyIds[i]); }
+    }
+    showVerdict('驗證中… 伺服器逐筆點名 ' + ids.length + ' 筆', 'pending');
+    var xhr2 = new XMLHttpRequest();
+    xhr2.open('GET', '/api/photos/status?ids=' + encodeURIComponent(ids.join(',')));
+    setAuthHeader(xhr2);
+    xhr2.timeout = 20000;
+    var bad = function () {
+      verifyState = 'done';
+      showVerdict('⚠ 無法連線驗證 — 上傳計數 ' + batchDone + '/' + total + '。請重新整理相簿人工核對。', 'warn');
+    };
+    xhr2.addEventListener('error', bad);
+    xhr2.addEventListener('timeout', bad);
+    xhr2.addEventListener('load', function () {
+      if (xhr2.status < 200 || xhr2.status >= 300) { bad(); return; }
+      var found = 0;
+      try {
+        var st = (JSON.parse(xhr2.responseText) || {}).statuses || {};
+        for (var j = 0; j < ids.length; j++) if (st[ids[j]]) found++;
+      } catch (_) { /* */ }
+      verifyState = 'done';
+      releaseWakeLock();
+      if (found >= total && failedFiles.length === 0) {
+        showVerdict('✅ 伺服器點名確認 ' + found + '/' + total + ' 筆已入庫<br><strong>手機上的這批照片可以安全刪除</strong>', 'ok');
+      } else {
+        showVerdict('⚠ 點名 ' + found + '/' + total + ' — 有缺,請重傳一次這批(已在雲端的會自動跳過)。', 'warn');
+      }
+    });
+    xhr2.send();
+  }
+
   function runFinalVerify() {
     verifyState = 'running';
     verifyRounds++;
     var total = verifyFiles.length;
+    if (!window.crypto || !window.crypto.subtle) { runIdVerify(total); return; }
     showVerdict('驗證中… 正在跟伺服器逐張核對 ' + total + ' 張 (' + verifyRounds + '/3)', 'pending');
     hashSequential(verifyFiles, 0, [], function (hashes) {
       var toQuery = [];
@@ -1159,6 +1249,7 @@
     // Success path shared by both transports (response JSON has the same shape).
     function handleSuccess(data) {
       settleInflight();
+      if (data && data.id) verifyIds.push(data.id);
       batchDone++;
       batchBytes += file.size;
       bar.style.width = '100%';
