@@ -882,6 +882,9 @@
         done(toUpload, skipped);
       });
       xhr.addEventListener('error', function () { done(files, 0); });
+      // 預檢掛了不准卡住整批 — 逾時就全部當新檔上傳(伺服器端還有去重兜底)
+      xhr.timeout = 15000;
+      xhr.addEventListener('timeout', function () { done(files, 0); });
       xhr.send(JSON.stringify({ hashes: toQuery }));
     }
     pump();
@@ -1188,6 +1191,10 @@
     });
 
     xhr.open('POST', '/upload');
+    // 必設:預設 timeout=0=無限等。被斬斷的連線在 iOS 上常不觸發 error 事件,
+    // 殭屍請求永久佔用併發槽,累積 10 個就把整個佇列鎖死
+    // (2026-10-26 實案:百張批次兩度「卡在 59」)。逾時走 ontimeout → autoRetry。
+    xhr.timeout = 120000;
     setAuthHeader(xhr);
     xhr.send(fd);
   }
