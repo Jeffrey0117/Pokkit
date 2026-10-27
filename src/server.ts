@@ -117,6 +117,17 @@ export async function createServer(config: PokkitConfig) {
   // API routes
   app.get('/api/health', async () => ({ ok: true }))
   app.get('/api/version', async () => ({ commit: buildCommit, startedAt, pid: process.pid }))
+  // AVIF 閒時歸檔 sweeper:手動觸發一輪(admin 限定,驗證/營運用)
+  app.post('/api/admin/avif-sweep', async (request, reply) => {
+    const { requireAuth } = await import('./auth.js')
+    const { sweepOnce, getSweeperState } = await import('./avif-sweeper.js')
+    const user = requireAuth(request, reply, config, storage)
+    if (!user) return
+    if (!user.isAdmin) return reply.status(403).send({ error: 'Admin only' })
+    const result = await sweepOnce(storage, config.dataDir)
+    return { result, state: getSweeperState() }
+  })
+
   // LAN 直傳模式:回報本機私網 IP,公網頁的「LAN 高速模式」按鈕用它組家用網址。
   // 在家上傳每張照片都得出門到 CF 再繞回家(實測 341MB:公網 173s vs LAN 3s),
   // 同一 WiFi 直連可拿回整段頻寬。需登入才回(別對匿名者洩漏內網拓撲)。
@@ -141,6 +152,13 @@ export async function createServer(config: PokkitConfig) {
   trashRoute(app, storage, config)
   photosRoute(app, storage, config)
   adminRoute(app, storage, config)
+
+  // AVIF 閒時歸檔 sweeper(閒 10 分鐘 + 無 processing 才動工,一次一張,子程序編碼)
+  {
+    const { startAvifSweeper, stopAvifSweeper } = await import('./avif-sweeper.js')
+    startAvifSweeper(storage, config.dataDir)
+    app.addHook('onClose', async () => stopAvifSweeper())
+  }
 
   // SPA fallback: client-routed pages (/folders, /photos, /videos, /account, …)
   // aren't real routes — when a browser navigates straight to one, serve the app

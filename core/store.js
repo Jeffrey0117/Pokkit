@@ -430,6 +430,17 @@ class PokkitStore {
     return this._resolveFilePath(entry.bucket, entry.stored_name);
   }
 
+  // sweeper 候選:全部 ready 照片 id(最舊優先)。raw 檔是磁碟慣例
+  // (<id>/_raw.<ext>),stored_name 指向展示版 photo.webp — 歸檔是純磁碟
+  // 操作(jpg→avif 原地換),DB 完全不用動。
+  listArchiveCandidates() {
+    return this._db.prepare(`
+      SELECT id FROM files
+      WHERE media_type = 'photo' AND status = 'ready' AND deleted_at IS NULL
+      ORDER BY uploaded_at ASC
+    `).all();
+  }
+
   /**
    * Get a readable stream for a file
    * @param {string} id

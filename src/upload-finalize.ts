@@ -1,5 +1,6 @@
 import { statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { markIngest } from './avif-sweeper.js'
 import type { FastifyRequest } from 'fastify'
 import type { Storage } from './storage.js'
 import { GUEST_MAX_FILE_BYTES, GUEST_USER_ID, type PokkitConfig } from './config.js'
@@ -145,6 +146,7 @@ export async function finalizeUpload(
   config: PokkitConfig,
 ): Promise<FinalizeResult> {
   const { filename, mime, filePath, fields } = input
+  markIngest() // AVIF sweeper 讓路訊號:有人在上傳,閒時歸檔停手
   let buffer = input.buffer
   if (!buffer && !filePath) return { status: 400, body: { error: 'No upload content' } }
   const inputSize = buffer ? buffer.length : statSync(filePath as string).size
