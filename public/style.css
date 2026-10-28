@@ -2613,7 +2613,17 @@ body.mode-dashboard .landing-only {
   }
 
   .nav-right {
-    gap: 8px;
+    gap: 6px;
+    /* 手機:logo 佔第一行,按鈕群整排換到下一行,放不下自動再折行
+       (原本不換行 → 第 6 顆 Logout 被切出畫面右緣) */
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+  .nav-right .btn,
+  .nav-right .lang-toggle {
+    font-size: 0.75rem;
+    padding: 6px 10px;
   }
 
   .storage-quota {
