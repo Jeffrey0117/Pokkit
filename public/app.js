@@ -1557,6 +1557,21 @@
     return {
       sentinel: sentinel,
       observer: observer,
+      // 每頁渲染完必呼叫:①新 cells 是 append 在哨兵後面,把哨兵挪回最尾端
+      // (否則它卡在內容中段)②IO 只在「狀態改變」時觸發 — 哨兵若 load 後
+      // 仍在視口內,事件永遠不再來(症狀:滾到底不載入,要先往上再往下)
+      // → 手動補量一次,還在視口就直接續載,直到畫面填滿。
+      bump: function () {
+        container.appendChild(sentinel);
+        // 哨兵若 load 後仍留在視口,IO 不會再觸發(無狀態變化)→ 主動補量。
+        // loadMore 有自己的 loading 旗標擋重入,安全;下一頁 render 完會再
+        // 呼 bump,如此遞迴直到哨兵離開視口或資料載完(旗標為 false 才真的發)。
+        setTimeout(function () {
+          if (!sentinel.parentNode) return;
+          var r = sentinel.getBoundingClientRect();
+          if (r.top < window.innerHeight + 200) loadMore();
+        }, 80);
+      },
       destroy: function () {
         observer.disconnect();
         if (sentinel.parentNode) sentinel.remove();
@@ -1638,7 +1653,7 @@
             filesScrollLoader = createScrollLoader($fileList, loadFilesPage);
           } else {
             // Re-append sentinel to end
-            $fileList.appendChild(filesScrollLoader.sentinel);
+            filesScrollLoader.bump();
           }
         } catch (_) { /* */ }
       } else if (xhr.status === 401) {
@@ -2554,7 +2569,7 @@
       } else if (!galleryScrollLoader) {
         galleryScrollLoader = createScrollLoader($photoGrid, loadGalleryPage);
       } else {
-        $photoGrid.appendChild(galleryScrollLoader.sentinel);
+        galleryScrollLoader.bump();
       }
     });
     xhr.addEventListener('error', function () {
@@ -3441,7 +3456,7 @@
       } else if (!allPhotosScrollLoader) {
         allPhotosScrollLoader = createScrollLoader($allPhotoGrid, loadAllPhotosPage);
       } else {
-        $allPhotoGrid.appendChild(allPhotosScrollLoader.sentinel);
+        allPhotosScrollLoader.bump();
       }
     });
     xhr.addEventListener('error', function () {
@@ -3574,7 +3589,7 @@
       } else if (!videosScrollLoader) {
         videosScrollLoader = createScrollLoader($videoGrid, loadVideosPage);
       } else {
-        $videoGrid.appendChild(videosScrollLoader.sentinel);
+        videosScrollLoader.bump();
       }
     });
     xhr.addEventListener('error', function () {
