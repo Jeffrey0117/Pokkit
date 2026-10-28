@@ -681,6 +681,48 @@ body.mode-dashboard .landing-only {
 .lan-badge.lan-switch { cursor: pointer; }
 .lan-badge.expired { border-color: var(--status-failed); }
 
+/* 多選批次刪除 */
+.selection-delete { color: var(--status-failed); border-color: var(--status-failed); }
+
+/* 滑動快分:底部相簿快捷鍵列 */
+.swipe-albums {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px calc(14px + env(safe-area-inset-bottom));
+}
+.swipe-album-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-hover);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  max-width: 44vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.swipe-album-btn:active { transform: scale(0.96); }
+.swipe-album-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 0.6875rem;
+  flex-shrink: 0;
+}
+
 .queue-name {
   flex: 1;
   font-size: 0.8125rem;

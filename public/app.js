@@ -3346,6 +3346,22 @@
     });
   }
 
+  // 多選批次刪除(進垃圾桶,可還原)
+  var $selectionDelete = document.getElementById('selectionDelete');
+  if ($selectionDelete) {
+    $selectionDelete.addEventListener('click', function () {
+      if (!selectedIds.length) return;
+      if (!confirm('把 ' + selectedIds.length + ' 個項目移到垃圾桶?(可在 Trash 還原)')) return;
+      apiRequest('POST', '/api/photos/bulk-trash', { photo_ids: selectedIds }, function (data) {
+        toast('已移到垃圾桶:' + (data && data.trashed != null ? data.trashed : selectedIds.length) + ' 個');
+        exitSelectMode();
+        if (currentTab === 'photos') { loadAllPhotos(); }
+        else if (currentAlbumId) { openAlbum(currentAlbumId, currentAlbumName); }
+        scheduleStatsRefresh();
+      });
+    });
+  }
+
   // ── All Photos Tab ───────────────────────────────────
 
   function loadAllPhotos() {
@@ -3722,6 +3738,7 @@
 
     swipeIndex = 0;
     swipeDeletedCount = 0;
+    swipeFiledCount = 0;
     swipeBusy = false;
     $swipeSummary.classList.remove('visible');
     $swipeStage.style.display = '';
@@ -3729,7 +3746,51 @@
     $swipeActions.style.display = '';
     $swipeMode.classList.add('active');
     document.body.style.overflow = 'hidden';
+    loadSwipeAlbums();
     showSwipeCard();
+  }
+
+  // ── 滑動快分:底部相簿快捷鍵(左滑刪、右滑留、點相簿=直接歸檔並前進) ──
+  var swipeFiledCount = 0;
+  var $swipeAlbums = document.getElementById('swipeAlbums');
+
+  function loadSwipeAlbums() {
+    if (!$swipeAlbums) return;
+    $swipeAlbums.innerHTML = '';
+    apiRequest('GET', '/api/albums', null, function (albums) {
+      if (!albums || !albums.length) return;
+      // 目前相簿視圖內刷卡時,排除「自己」(移回自己沒意義)
+      var shown = albums.filter(function (a) { return a.id !== currentAlbumId; }).slice(0, 4);
+      for (var i = 0; i < shown.length; i++) {
+        (function (album, idx) {
+          var b = document.createElement('button');
+          b.className = 'swipe-album-btn';
+          b.innerHTML = '<span class="swipe-album-key">' + (idx + 1) + '</span>' + album.name;
+          b.addEventListener('click', function () { swipeFileTo(album); });
+          $swipeAlbums.appendChild(b);
+        })(shown[i], i);
+      }
+    });
+  }
+
+  function swipeFileTo(album) {
+    if (swipeBusy || swipeIndex >= swipePhotos.length) return;
+    swipeBusy = true;
+    var photo = swipePhotos[swipeIndex];
+    if (isVideoEntry(photo)) $swipeVideo.pause();
+    apiRequest('PUT', '/api/photos/' + photo.id + '/album', { album_id: album.id }, null);
+    markReviewed(currentAlbumId, photo.id);
+    swipeFiledCount++;
+    toast('→ ' + album.name);
+    // 向上飛出的歸檔動畫(跟刪/留區隔)
+    $swipeCard.style.transition = '';
+    $swipeCard.classList.add('animating');
+    $swipeCard.style.transform = 'translateY(-900px) rotate(-8deg)';
+    $swipeCard.style.opacity = '0';
+    setTimeout(function () {
+      swipeIndex++;
+      showSwipeCard();
+    }, 300);
   }
 
   function exitSwipeMode() {
@@ -3844,8 +3905,10 @@
     $swipeHint.style.display = 'none';
     $swipeActions.style.display = 'none';
     $swipeSummary.classList.add('visible');
-    var kept = swipePhotos.length - swipeDeletedCount;
-    $swipeSummaryStats.innerHTML = 'Deleted: ' + swipeDeletedCount + '<br>Kept: ' + kept;
+    var kept = swipePhotos.length - swipeDeletedCount - swipeFiledCount;
+    $swipeSummaryStats.innerHTML = 'Deleted: ' + swipeDeletedCount +
+      (swipeFiledCount > 0 ? '<br>Filed: ' + swipeFiledCount : '') +
+      '<br>Kept: ' + kept;
     $swipeProgress.textContent = 'Done!';
   }
 
@@ -3910,6 +3973,11 @@
     if (e.key === 'ArrowLeft') doSwipeAction('left');
     if (e.key === 'ArrowRight') doSwipeAction('right');
     if (e.key === 'Escape') exitSwipeMode();
+    // 數字鍵 1-4 = 點對應的相簿快捷鍵(快分)
+    if (e.key >= '1' && e.key <= '4' && $swipeAlbums) {
+      var btn = $swipeAlbums.children[Number(e.key) - 1];
+      if (btn) btn.click();
+    }
   });
 
   // ── Init ──────────────────────────────────────────────

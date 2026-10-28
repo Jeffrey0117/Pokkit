@@ -389,6 +389,24 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
     },
   )
 
+  // POST /api/photos/bulk-trash — 多選批次移入垃圾桶(可還原)
+  app.post<{ Body: { photo_ids: string[] } }>(
+    '/api/photos/bulk-trash',
+    async (request, reply) => {
+      const user = requireAuth(request, reply, config, storage)
+      if (!user) return
+      const ids = Array.isArray(request.body?.photo_ids) ? request.body!.photo_ids.slice(0, 1000) : []
+      if (ids.length === 0) return reply.status(400).send({ error: 'photo_ids array is required' })
+      let trashed = 0
+      for (const id of ids) {
+        const entry = storage.find(id)
+        if (!entry || !canAccessEntry(user, entry)) continue
+        if (storage.softDelete(id)) trashed++
+      }
+      return { ok: true, trashed }
+    },
+  )
+
   // PUT /api/photos/:id/album — move photo to album
   app.put<{ Params: { id: string }; Body: { album_id: string | null } }>(
     '/api/photos/:id/album',
