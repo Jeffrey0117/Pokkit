@@ -373,6 +373,9 @@
     if (!loggedIn) $storageQuota.hidden = true;
     var gn = document.getElementById('guestNotice');
     if (gn) gn.hidden = loggedIn;
+    // 訪客快傳橫幅(定價頁)只給未登入訪客看 — 已登入的人看定價是想升級,不需要
+    var gb = document.getElementById('guestBanner');
+    if (gb) gb.hidden = loggedIn;
     var expSel = document.getElementById('expirySelect');
     if (expSel) {
       for (var ei = 0; ei < expSel.options.length; ei++) {

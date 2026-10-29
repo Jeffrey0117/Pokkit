@@ -6,6 +6,12 @@
   box-sizing: border-box;
 }
 
+/* [hidden] 根治:瀏覽器內建的 [hidden]→display:none 是最低優先級,任何
+   元素自帶 display 規則(.btn/.side-link/… display:flex)都會蓋掉它,
+   讓 hidden 屬性整個失效(2026 實案:已登入仍顯示登入鈕、admin-only
+   專案露給所有人)。全域 !important 確保 hidden 永遠真的隱藏。 */
+[hidden] { display: none !important; }
+
 /* 手機橫向捲軸根絕:任何元素意外超寬都不准把頁面撐出水平捲軸。
    clip 優先(不產生新捲動容器、sticky 不受影響),舊瀏覽器退回 hidden。 */
 html, body {
