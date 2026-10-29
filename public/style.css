@@ -111,6 +111,10 @@ body {
   gap: 2px;
 }
 
+/* [hidden] 的 display:none 是瀏覽器預設(最低優先級),會被 .side-link 的
+   display:flex 蓋掉 → hidden 失效,admin-only 的「專案」對所有人都露出。
+   這條特異性(class+attr)贏過單 class,讓 hidden 真的生效。 */
+.side-link[hidden] { display: none; }
 .side-link {
   display: flex;
   align-items: center;
