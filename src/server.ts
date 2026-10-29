@@ -15,6 +15,7 @@ import { Storage } from './storage.js'
 import { uploadRoute } from './routes/upload.js'
 import { filesRoute } from './routes/files.js'
 import { statusRoute } from './routes/status.js'
+import { billingRoute } from './routes/billing.js'
 import { eventsRoute } from './routes/events.js'
 import { trashRoute } from './routes/trash.js'
 import { photosRoute } from './routes/photos.js'
@@ -148,6 +149,7 @@ export async function createServer(config: PokkitConfig) {
   chunkedUploadRoute(app, storage, config)
   filesRoute(app, storage, config, serveApp)
   statusRoute(app, storage, config)
+  billingRoute(app, storage, config)
   eventsRoute(app, storage, config)
   trashRoute(app, storage, config)
   photosRoute(app, storage, config)

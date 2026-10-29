@@ -2851,6 +2851,13 @@
       if (f && tiers.free) f.textContent = tiers.free.maxGB + 'GB';
       var p = document.getElementById('priceProAmount');
       if (p && tiers.pro) p.textContent = 'NT$' + (tiers.pro.priceNTD || 149) + (window.t ? window.t('/mo') : '/mo') + ' · ' + tiers.pro.maxGB + 'GB';
+      // 金流已接上 → 顯示結帳按鈕,收起「通知我」登記框
+      var checkoutBtn = document.getElementById('proCheckoutBtn');
+      var interestBox = document.getElementById('proInterestBox');
+      if (tiers.pro && tiers.pro.available) {
+        if (checkoutBtn) checkoutBtn.hidden = false;
+        if (interestBox) interestBox.hidden = true;
+      }
     });
     var input = document.getElementById('proInterestEmail');
     if (input && !input.value && currentUser && currentUser.email) input.value = currentUser.email;
@@ -2870,6 +2877,32 @@
     });
     var promoBtn = document.getElementById('acctPromoBtn');
     if (promoBtn) promoBtn.addEventListener('click', function () { navigate('pricing', true); });
+    var checkoutBtn = document.getElementById('proCheckoutBtn');
+    if (checkoutBtn) checkoutBtn.addEventListener('click', function () {
+      if (!currentUser) {
+        if (typeof letmeuse !== 'undefined') letmeuse.login(); else toast('Login service loading...');
+        return;
+      }
+      checkoutBtn.disabled = true;
+      // 已是 Pro 就別讓他重複刷 — 改走退訂確認
+      apiRequest('GET', '/api/user/storage', null, function (st) {
+        if (st && st.isPremium) {
+          checkoutBtn.disabled = false;
+          var msg = window.t ? window.t('You are already Pro. Cancel your subscription?') : 'You are already Pro. Cancel your subscription?';
+          if (confirm(msg)) {
+            apiRequest('POST', '/api/billing/cancel', {}, function (d) {
+              if (d && d.ok) toast(window.t ? window.t('Subscription cancelled — Pro stays until the end of the paid period.') : 'Subscription cancelled — Pro stays until the end of the paid period.');
+            });
+          }
+          return;
+        }
+        toast(window.t ? window.t('Redirecting to secure checkout…') : 'Redirecting to secure checkout…');
+        apiRequest('POST', '/api/billing/checkout', {}, function (d) {
+          checkoutBtn.disabled = false;
+          if (d && d.checkout_url) location.href = d.checkout_url;
+        });
+      });
+    });
     var interestBtn = document.getElementById('proInterestBtn');
     if (interestBtn) interestBtn.addEventListener('click', function () {
       var input = document.getElementById('proInterestEmail');
