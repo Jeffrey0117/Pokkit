@@ -2964,6 +2964,23 @@ body.mode-dashboard .landing-only {
 .pricing-section { padding: 8px 0 40px; }
 .pricing-tagline { color: var(--text-secondary); margin: -6px 0 22px; }
 .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; align-items: stretch; }
+/* 兩張卡(Free vs Pro):桌面置中不拉滿整列,手機自動疊成一欄 */
+.pricing-grid-two { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 720px; }
+@media (max-width: 560px) { .pricing-grid-two { grid-template-columns: 1fr; max-width: none; } }
+
+/* 訪客橫幅:免註冊快傳入口,不佔價格卡 */
+.guest-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  flex-wrap: wrap;
+  padding: 14px 18px; margin-bottom: 18px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+}
+.guest-banner-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.guest-banner-text strong { font-size: 0.9375rem; }
+.guest-banner-text span { color: var(--text-tertiary); font-size: 0.8125rem; }
+.guest-banner .btn { flex-shrink: 0; }
 .price-card {
   display: flex; flex-direction: column; gap: 12px;
   padding: 22px 20px;
