@@ -363,6 +363,9 @@
     $logoutBtn.hidden = !loggedIn;
     if (loginL) loginL.hidden = loggedIn;
     if (logoutL) logoutL.hidden = !loggedIn;
+    // 未登入不顯示「Dashboard →」後台入口(點了也進不去,只會誤導)
+    var enterDash = document.getElementById('enterDashboardBtn');
+    if (enterDash) enterDash.hidden = !loggedIn;
     // Guest 快傳: 登出不再藏 dropzone — 免登入即傳即分享是試用入口。
     // 差別在提示 (7 天過期) 和過期選項 (guest 只准 ≤7d, server 端也會鉗制)。
     $dropzone.style.display = '';
@@ -1662,7 +1665,10 @@
         if (sdkBusy()) return;
         $fileList.innerHTML = '';
         $emptyState.style.display = '';
-        $emptyState.querySelector('.empty-state-text').textContent = 'Session expired, please login again';
+        // 未登入者本來就沒權限看檔案列表 — 引導登入,別說「過期」
+        var wasLoggedIn = currentUser || loadCachedUser();
+        $emptyState.querySelector('.empty-state-text').textContent =
+          wasLoggedIn ? 'Session expired, please login again' : 'Log in to see your files';
         $fileList.appendChild($emptyState);
       }
     });
@@ -3701,8 +3707,11 @@
   // logged in; only a post-init 401 means the session is actually dead.
   function authExpired() {
     if (sdkBusy()) return;
+    // 從來沒登入過的人打到需要 auth 的端點收 401 是正常的,不是「過期」——
+    // 別拿過期字眼嚇唬根本沒登入的訪客(只有曾登入才算 session 失效)。
+    var wasLoggedIn = currentUser || loadCachedUser();
     applyLoggedOut();
-    if (Date.now() - lastAuthToast > 5000) {
+    if (wasLoggedIn && Date.now() - lastAuthToast > 5000) {
       lastAuthToast = Date.now();
       toast('Session expired, please log in again', true);
     }
