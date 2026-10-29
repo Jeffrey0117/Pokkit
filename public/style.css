@@ -854,6 +854,10 @@ body.mode-dashboard .landing-only {
   text-align: center;
   padding: 56px 20px;
   color: var(--text-tertiary);
+  /* 放進照片/影片牆(grid)時橫跨整列才會真的置中,否則只佔第一欄偏左;
+     放進檔案清單(flex)時 width:100% 同樣讓它滿寬置中 */
+  grid-column: 1 / -1;
+  width: 100%;
 }
 
 .empty-state-icon {
