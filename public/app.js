@@ -366,16 +366,11 @@
     // 未登入不顯示「Dashboard →」後台入口(點了也進不去,只會誤導)
     var enterDash = document.getElementById('enterDashboardBtn');
     if (enterDash) enterDash.hidden = !loggedIn;
-    // Guest 快傳: 登出不再藏 dropzone — 免登入即傳即分享是試用入口。
-    // 差別在提示 (7 天過期) 和過期選項 (guest 只准 ≤7d, server 端也會鉗制)。
-    $dropzone.style.display = '';
-    document.getElementById('uploadOptions').style.display = '';
+    // 純註冊制(2026-10 砍訪客快傳):未登入不給上傳,只留 hero 的註冊引導。
+    // pokkit = 個人相簿,不做 lurl.cc 式匿名臨時分享。
+    $dropzone.style.display = loggedIn ? '' : 'none';
+    document.getElementById('uploadOptions').style.display = loggedIn ? '' : 'none';
     if (!loggedIn) $storageQuota.hidden = true;
-    var gn = document.getElementById('guestNotice');
-    if (gn) gn.hidden = loggedIn;
-    // 訪客快傳橫幅(定價頁)只給未登入訪客看 — 已登入的人看定價是想升級,不需要
-    var gb = document.getElementById('guestBanner');
-    if (gb) gb.hidden = loggedIn;
     var expSel = document.getElementById('expirySelect');
     if (expSel) {
       for (var ei = 0; ei < expSel.options.length; ei++) {
@@ -2854,8 +2849,6 @@
   function loadPricing() {
     apiRequest('GET', '/api/tiers', null, function (tiers) {
       if (!tiers) return;
-      var g = document.getElementById('priceGuestFile');
-      if (g && tiers.guest) g.textContent = Math.round(tiers.guest.maxFileBytes / (1024 * 1024)) + 'MB / ' + (window.t ? window.t('file') : 'file');
       var f = document.getElementById('priceFreeAmount');
       if (f && tiers.free) f.textContent = tiers.free.maxGB + 'GB';
       var p = document.getElementById('priceProAmount');
@@ -2877,8 +2870,6 @@
       if (currentUser) { navigate('account', true); return; }
       if (typeof letmeuse !== 'undefined') letmeuse.login(); else toast('Login service loading...');
     });
-    var guestBtn = document.getElementById('priceGuestBtn');
-    if (guestBtn) guestBtn.addEventListener('click', function () { navigate('home', true); });
     var heroBtn = document.getElementById('heroStartBtn');
     if (heroBtn) heroBtn.addEventListener('click', function () {
       if (currentUser) { navigate('account', true); return; }
