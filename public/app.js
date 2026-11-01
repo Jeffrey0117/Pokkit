@@ -73,6 +73,7 @@
   var $lightboxCover = document.getElementById('lightboxCover');
   var $lightboxDownload = document.getElementById('lightboxDownload');
   var $lightboxLocate = document.getElementById('lightboxLocate');
+  var $lightboxSendPlottr = document.getElementById('lightboxSendPlottr');
   var $lightboxCounter = document.getElementById('lightboxCounter');
   var $lightboxFilename = document.getElementById('lightboxFilename');
   var $lightboxNotes = document.getElementById('lightboxNotes');
@@ -145,6 +146,7 @@
   var $selectionCount = document.getElementById('selectionCount');
   var $selectionMove = document.getElementById('selectionMove');
   var $selectionDownload = document.getElementById('selectionDownload');
+  var $selectionSendPlottr = document.getElementById('selectionSendPlottr');
   var $selectionCancel = document.getElementById('selectionCancel');
   var $albumPicker = document.getElementById('albumPicker');
   var $albumPickerOverlay = document.getElementById('albumPickerOverlay');
@@ -609,6 +611,36 @@
       }
       updateSelectionBar();
     });
+  }
+
+  // ── 送去拍吧 (plottr) ─────
+  // 影片已經在 pokkit 就別下載再上傳: 帶 id 跳到 plottr, 由 plottr 後端從同機的 pokkit
+  // 直接拉原檔 (plottr 那邊 #pokkit=ids 會開匯入視窗預選這些片)。
+  var PLOTTR_URL = 'https://plottr.isnowfriend.com';
+  var PLOTTR_MAX_SEND = 20;
+  function sendToPlottr(ids) {
+    var vids = ids.filter(function (id) {
+      var p = findPhotoById(id);
+      return p && isVideoEntry(p);
+    });
+    if (!vids.length) { toast(window.t ? window.t('Pick at least one video') : 'Pick at least one video', true); return; }
+    if (vids.length > PLOTTR_MAX_SEND) { toast(window.t ? window.t('Max 20 videos at a time') : 'Max 20 videos at a time', true); return; }
+    window.open(PLOTTR_URL + '/#pokkit=' + vids.map(encodeURIComponent).join(','), '_blank', 'noopener');
+  }
+  function findPhotoById(id) {
+    var i;
+    for (i = 0; i < galleryPhotos.length; i++) if (galleryPhotos[i].id === id) return galleryPhotos[i];
+    for (i = 0; i < allPhotos.length; i++) if (allPhotos[i].id === id) return allPhotos[i];
+    return null;
+  }
+  if ($lightboxSendPlottr) {
+    $lightboxSendPlottr.addEventListener('click', function () {
+      if (lightboxIndex < 0 || lightboxIndex >= galleryPhotos.length) return;
+      sendToPlottr([galleryPhotos[lightboxIndex].id]);
+    });
+  }
+  if ($selectionSendPlottr) {
+    $selectionSendPlottr.addEventListener('click', function () { sendToPlottr(selectedIds.slice()); });
   }
 
   // ── Host-local file locating (server machine only) ─────
@@ -3076,6 +3108,9 @@
     if ($lightboxLocate) {
       $lightboxLocate.hidden = !isLocalhost();
     }
+    if ($lightboxSendPlottr) {
+      $lightboxSendPlottr.hidden = !isVideoEntry(photo);
+    }
 
     // Notes — collapsed by default (toggled via the Note button) so they never
     // cover the video controls. Just prime the content + flag whether any exist.
@@ -3304,6 +3339,9 @@
 
   function updateSelectionUI() {
     $selectionCount.textContent = selectedIds.length + ' selected';
+    if ($selectionSendPlottr) {
+      $selectionSendPlottr.hidden = !selectedIds.some(function (id) { var p = findPhotoById(id); return p && isVideoEntry(p); });
+    }
   }
 
   $gallerySelect.addEventListener('click', function () {

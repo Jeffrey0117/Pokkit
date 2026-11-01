@@ -172,6 +172,9 @@
     '✎ Note': '✎ 筆記',
     'Note': '筆記',
     'Locate': '定位',
+    'Send to 拍吧': '送去拍吧',
+    'Pick at least one video': '先選至少一支影片',
+    'Max 20 videos at a time': '一次最多 20 支',
     'Cover': '封面',
     'Add notes...': '新增筆記…',
     // ── Swipe cleanup ──
