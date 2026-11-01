@@ -149,6 +149,11 @@ export class Storage {
     return this.store.getPath(id)
   }
 
+  // 原始檔(_raw.*)路徑;沒有回 null(呼叫端退回 getPath 的展示版)
+  getOriginalPath(id: string): string | null {
+    return this.store.getOriginalPath(id)
+  }
+
   async getSize(id: string, _filename?: string): Promise<number | null> {
     const entry = this.store.find(id)
     return entry ? entry.size : null

@@ -430,6 +430,23 @@ class PokkitStore {
     return this._resolveFilePath(entry.bucket, entry.stored_name);
   }
 
+  /**
+   * 原始檔(uuid-dir 的 <id>/_raw.<ext>)絕對路徑。影片轉檔後 stored_name 指向
+   * 1080p video.mp4,原檔仍留在同目錄 — 跨服務匯入(plottr)要拿原檔走這裡。
+   * 沒 raw(flat 模式 / 已被歸檔清掉)回 null,呼叫端自行退回 getPath。
+   * @param {string} id
+   * @returns {string|null}
+   */
+  getOriginalPath(id) {
+    const entry = db.findFile(this._db, id);
+    if (!entry || !entry.stored_name || !entry.stored_name.includes('/')) return null;
+    const dir = path.dirname(this._resolveFilePath(entry.bucket, entry.stored_name));
+    let names;
+    try { names = fs.readdirSync(dir); } catch { return null; }
+    const raw = names.find((n) => n.startsWith('_raw.'));
+    return raw ? path.join(dir, raw) : null;
+  }
+
   // sweeper 候選:全部 ready 照片 id(最舊優先)。raw 檔是磁碟慣例
   // (<id>/_raw.<ext>),stored_name 指向展示版 photo.webp — 歸檔是純磁碟
   // 操作(jpg→avif 原地換),DB 完全不用動。

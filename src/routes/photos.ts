@@ -267,6 +267,39 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
       .send(createReadStream(filePath))
   })
 
+  // GET /api/photos/:id/original — 影片原始檔(_raw.*),給同機其他服務(plottr)
+  // 匯入用。auth + owner only;展示版 video.mp4 是 1080p 轉檔,出片要拿原檔。
+  // 沒 raw(歷史資料)退回展示版,Content-Type 跟著實際給出去的檔。
+  app.get<{ Params: { id: string } }>('/api/photos/:id/original', async (request, reply) => {
+    const user = requireAuth(request, reply, config, storage)
+    if (!user) return
+    const entry = storage.find(request.params.id)
+    if (!entry || entry.media_type !== 'video') {
+      return reply.status(404).header('Cache-Control', 'no-store').send({ error: 'Video not found' })
+    }
+    if (!canAccessEntry(user, entry)) {
+      return reply.status(403).send({ error: 'Not your file' })
+    }
+    const rawPath = storage.getOriginalPath(entry.id)
+    const filePath = rawPath ?? storage.getPath(entry.id)
+    if (!filePath) {
+      return reply.status(404).header('Cache-Control', 'no-store').send({ error: 'Video file not found on disk' })
+    }
+    let size: number
+    try { size = statSync(filePath).size } catch {
+      return reply.status(404).header('Cache-Control', 'no-store').send({ error: 'Video file not found on disk' })
+    }
+    const mime = rawPath ? (entry.mime || 'application/octet-stream') : 'video/mp4'
+    const safeName = encodeURIComponent(entry.filename || `${entry.id}.mp4`)
+    return reply
+      .header('Content-Type', mime)
+      .header('Content-Length', size)
+      .header('Content-Disposition', `attachment; filename*=UTF-8''${safeName}`)
+      .header('X-Pokkit-Original', rawPath ? '1' : '0')
+      .header('Cache-Control', 'private, no-store')
+      .send(createReadStream(filePath))
+  })
+
   // POST /api/check-hashes — given SHA-256 hashes, return which ones the current
   // user already has. Lets the client skip re-uploading exact duplicates entirely
   // (no transfer) instead of finding out server-side after the bytes are sent.

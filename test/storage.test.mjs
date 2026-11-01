@@ -98,3 +98,26 @@ test('dedup is skipped when a password or expiry is set', () => {
   const b = store.save('b.txt', 'text/plain', Buffer.from('dup'), { expires_at: Date.now() + 1000 })
   assert.notEqual(a.id, b.id, 'expiring copy stays independent')
 })
+
+// ── getOriginalPath (plottr 匯入拿原檔) ──
+test('O1: getOriginalPath finds <id>/_raw.<ext> next to the transcoded video.mp4', () => {
+  const { store, dir } = tmpStore()
+  const entry = store.saveRawPhoto('clip.mov', 'video/quicktime', Buffer.from('fake-mov-bytes'), {
+    media_type: 'video', user_id: 'usr_a',
+  })
+  const rawPath = store.getOriginalPath(entry.id)
+  assert.ok(rawPath, 'raw path resolved')
+  assert.ok(rawPath.endsWith(path.join(entry.id, '_raw.mov')), rawPath)
+  assert.ok(rawPath.startsWith(dir), 'stays inside data dir')
+  assert.equal(fs.readFileSync(rawPath, 'utf8'), 'fake-mov-bytes')
+})
+
+test('O2: getOriginalPath returns null when the raw file is gone or the entry is flat/unknown', () => {
+  const { store } = tmpStore()
+  const entry = store.saveRawPhoto('clip.mp4', 'video/mp4', Buffer.from('x'), { media_type: 'video', user_id: 'usr_a' })
+  fs.unlinkSync(store.getOriginalPath(entry.id))
+  assert.equal(store.getOriginalPath(entry.id), null)
+  assert.equal(store.getOriginalPath('nope-such-id'), null)
+  const flat = store.save('note.txt', 'text/plain', Buffer.from('hi'), { user_id: 'usr_a' })
+  assert.equal(store.getOriginalPath(flat.id), null)
+})
