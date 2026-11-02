@@ -6,24 +6,39 @@ import path from 'node:path'
 import fs from 'node:fs'
 import crypto from 'node:crypto'
 
+import http from 'node:http'
+
 process.env.POKKIT_LOG = 'silent'
+
+// HS256 已廢 (2026-10-25 資安事件) — 測試照正規路徑走: 自架迷你 JWKS server
+// 餵測試公鑰, LETMEUSE_JWKS_URL 指過去, token 用對應私鑰簽 ES256。
+const { publicKey: TEST_PUB, privateKey: TEST_PRIV } = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' })
+const TEST_KID = 'trash-test-kid'
+const jwk = { ...TEST_PUB.export({ format: 'jwk' }), kid: TEST_KID, alg: 'ES256', use: 'sig' }
+const jwksServer = http.createServer((req, res) => {
+  res.setHeader('Content-Type', 'application/json')
+  res.end(JSON.stringify({ keys: [jwk] }))
+})
+await new Promise((resolve) => jwksServer.listen(0, '127.0.0.1', resolve))
+process.env.LETMEUSE_JWKS_URL = 'http://127.0.0.1:' + jwksServer.address().port + '/jwks'
+
+// env 設好才 import (jwks-cache 在 import 時就會打一次 JWKS_URL)
 const { createServer } = await import('../src/server.ts')
 
 const API_KEY = 'trash-admin-key'
-const APP_SECRET = 'trash-test-secret'
 const APP_ID = 'app_trash_test'
 let app
 let dataDir
 
-function signHS256(payload) {
+function signES256(payload) {
   const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url')
-  const head = b64({ alg: 'HS256', typ: 'JWT' })
+  const head = b64({ alg: 'ES256', typ: 'JWT', kid: TEST_KID })
   const body = b64(payload)
-  const sig = crypto.createHmac('sha256', APP_SECRET).update(`${head}.${body}`).digest('base64url')
+  const sig = crypto.sign('sha256', Buffer.from(`${head}.${body}`), { key: TEST_PRIV, dsaEncoding: 'ieee-p1363' }).toString('base64url')
   return `${head}.${body}.${sig}`
 }
 
-const USER_TOKEN = signHS256({ sub: 'usr_human1', email: 'human@test.local', app: APP_ID, exp: Math.floor(Date.now() / 1000) + 3600 })
+const USER_TOKEN = signES256({ sub: 'usr_human1', email: 'human@test.local', app: APP_ID, exp: Math.floor(Date.now() / 1000) + 3600 })
 
 before(async () => {
   dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pk-trash-'))
@@ -36,15 +51,22 @@ before(async () => {
     publicUrl: '',
     premiumUserIds: [],
     adminUsers: [],
-    letmeuseAppSecret: APP_SECRET,
+    letmeuseAppSecret: '',
     letmeuseAppId: APP_ID,
     globalCapacityBytes: 500 * 1024 * 1024 * 1024,
   })
   await app.ready()
+  // 等 jwks-cache 把測試公鑰抓進快取 (import 時觸發的 refresh 是非同步的)
+  for (let i = 0; i < 20; i++) {
+    const probe = await app.inject({ method: 'GET', url: '/api/user/storage', headers: { authorization: `Bearer ${USER_TOKEN}` } })
+    if (probe.statusCode === 200) break
+    await new Promise((r) => setTimeout(r, 100))
+  }
 })
 
 after(async () => {
   if (app) await app.close()
+  jwksServer.close()
 })
 
 function multipart(fields) {
@@ -113,7 +135,7 @@ test('purge one + empty trash are permanent; other users cannot touch my trash',
   await app.inject({ method: 'DELETE', url: `/files/${a.id}`, headers: auth })
 
   // another (non-admin) user cannot restore mine
-  const OTHER = signHS256({ sub: 'usr_other', email: 'other@test.local', app: APP_ID, exp: Math.floor(Date.now() / 1000) + 3600 })
+  const OTHER = signES256({ sub: 'usr_other', email: 'other@test.local', app: APP_ID, exp: Math.floor(Date.now() / 1000) + 3600 })
   assert.equal((await app.inject({ method: 'POST', url: `/api/trash/${a.id}/restore`, headers: { authorization: `Bearer ${OTHER}` } })).statusCode, 403)
 
   // purge one permanently

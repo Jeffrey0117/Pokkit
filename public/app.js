@@ -2720,7 +2720,9 @@
         return;
       }
       if (photo.status === 'ready') {
-        openLightbox(index);
+        var liveIndex = galleryPhotos.indexOf(photo);
+        if (liveIndex === -1) return;
+        openLightbox(liveIndex);
       }
     });
 
@@ -2729,13 +2731,41 @@
 
   // ── Photo Actions ──────────────────────────────────────
 
+  // 刪除的唯一出口: 三個格線的 DOM cell + 三份資料陣列一起拿掉。
+  // 真錯 (2026-11-03): 燈箱刪除只重畫相簿格線, Photos/Videos 分頁的 cell
+  // 留在牆上 → 軟刪除讓縮圖立刻 404 = 死圖; 而且殘留 cell 的舊 index
+  // 讓「點 A 圖開出 B 圖」。前端畫面必須跟伺服器同一個真相。
+  function removePhotoEverywhere(id) {
+    [$allPhotoGrid, $videoGrid, $photoGrid].forEach(function (grid) {
+      if (!grid) return;
+      var cell = grid.querySelector('[data-id="' + id + '"]');
+      if (!cell) return;
+      // 月份標題跟著清: cell 走了之後, 前面的標題若直接貼著下一個標題
+      // (或後面沒東西了) 就是空月份
+      var prev = cell.previousElementSibling;
+      var next = cell.nextElementSibling;
+      cell.remove();
+      if (prev && prev.classList.contains('photo-month-header') &&
+          (!next || next.classList.contains('photo-month-header'))) {
+        prev.remove();
+      }
+    });
+    var byId = function (p) { return p.id !== id; };
+    allPhotos = allPhotos.filter(byId);
+    videosData = videosData.filter(byId);
+    // galleryPhotos 常常是 allPhotos/videosData 的同一份參考 — filter 已產新
+    // 陣列, 這裡無論如何都要重指一次, 燈箱導航才拿得到正確的集合
+    galleryPhotos = galleryPhotos.filter(byId);
+    delete processingIds[id];
+  }
+
   function deletePhoto(id) {
     if (!confirm('Delete this photo?')) return;
     apiRequest('DELETE', '/files/' + id, null, function (r) {
       toast(r && r.trashed ? (window.t ? window.t('Moved to trash') : 'Moved to trash') : 'Deleted');
-      galleryPhotos = galleryPhotos.filter(function (p) { return p.id !== id; });
+      removePhotoEverywhere(id);
       $galleryCount.textContent = galleryPhotos.length + ' photos';
-      renderPhotoGrid();
+      scheduleStatsRefresh();
     });
   }
 
@@ -3174,7 +3204,7 @@
     if (!confirm('Delete this photo?')) return;
     apiRequest('DELETE', '/files/' + photo.id, null, function (r) {
       toast(r && r.trashed ? (window.t ? window.t('Moved to trash') : 'Moved to trash') : 'Deleted');
-      galleryPhotos.splice(lightboxIndex, 1);
+      removePhotoEverywhere(photo.id);
       $galleryCount.textContent = galleryPhotos.length + ' photos';
       if (galleryPhotos.length === 0) {
         closeLightbox();
@@ -3184,7 +3214,7 @@
       } else {
         showLightboxPhoto();
       }
-      renderPhotoGrid();
+      scheduleStatsRefresh();
     });
   });
 
@@ -3438,11 +3468,13 @@
     $selectionDelete.addEventListener('click', function () {
       if (!selectedIds.length) return;
       if (!confirm('把 ' + selectedIds.length + ' 個項目移到垃圾桶?(可在 Trash 還原)')) return;
-      apiRequest('POST', '/api/photos/bulk-trash', { photo_ids: selectedIds }, function (data) {
-        toast('已移到垃圾桶:' + (data && data.trashed != null ? data.trashed : selectedIds.length) + ' 個');
+      var ids = selectedIds.slice();
+      apiRequest('POST', '/api/photos/bulk-trash', { photo_ids: ids }, function (data) {
+        toast('已移到垃圾桶:' + (data && data.trashed != null ? data.trashed : ids.length) + ' 個');
         exitSelectMode();
-        if (currentTab === 'photos') { loadAllPhotos(); }
-        else if (currentAlbumId) { openAlbum(currentAlbumId, currentAlbumName); }
+        // surgical: 三個分頁 (含之前漏掉的 Videos) 即刪即消失, 不用整頁重載
+        ids.forEach(removePhotoEverywhere);
+        if (currentAlbumId) $galleryCount.textContent = galleryPhotos.length + ' photos';
         scheduleStatsRefresh();
       });
     });
@@ -3594,8 +3626,11 @@
         return;
       }
       if (photo.status === 'ready') {
-        lightboxIndex = index;
+        // index 點擊當下才算 — 陣列刪過東西後, 建立時捕捉的 index 會偏移
         galleryPhotos = allPhotos;
+        var liveIndex = allPhotos.indexOf(photo);
+        if (liveIndex === -1) return; // 已被刪掉的殘影, 不開
+        lightboxIndex = liveIndex;
         showLightboxPhoto();
         $lightbox.classList.add('active');
       }
@@ -3721,8 +3756,10 @@
         return;
       }
       if (video.status === 'ready') {
-        lightboxIndex = index;
         galleryPhotos = videosData;
+        var liveIndex = videosData.indexOf(video);
+        if (liveIndex === -1) return;
+        lightboxIndex = liveIndex;
         showLightboxPhoto();
         $lightbox.classList.add('active');
       }
