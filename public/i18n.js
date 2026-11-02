@@ -5,6 +5,14 @@
   var LANG_KEY = 'pokkit_lang';
 
   var ZH = {
+    'Delete this file?': '\u522a\u9664\u9019\u500b\u6a94\u6848\uff1f',
+    'Delete this photo?': '\u522a\u9664\u9019\u5f35\u7167\u7247\uff1f',
+    'Delete album': '\u522a\u9664\u76f8\u7c3f',
+    'Photos will be kept.': '\u7167\u7247\u6703\u4fdd\u7559\u3002',
+    'Delete': '\u522a\u9664',
+    'OK': '\u78ba\u5b9a',
+    'Reset': '\u91cd\u4f86',
+
     'Taken · newest': '\u62cd\u651d \u65b0\u2192\u820a',
     'Taken · oldest': '\u62cd\u651d \u820a\u2192\u65b0',
     'Uploaded · newest': '\u4e0a\u50b3 \u65b0\u2192\u820a',

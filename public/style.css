@@ -3047,3 +3047,23 @@ body.mode-dashboard .landing-only {
 .quota-text { white-space: nowrap; flex-basis: 100%; }
 /* 上傳選項列和下方區塊之間留口氣 (之前貼死) */
 .upload-options { margin-bottom: 20px; }
+
+
+/* ── Custom confirm dialog (goodbye native alert) ── */
+.confirm-modal {
+  position: fixed; inset: 0; z-index: 10010;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 16px;
+}
+.confirm-modal[hidden] { display: none; }
+.confirm-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  padding: 20px;
+  width: 360px; max-width: 100%;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+}
+.confirm-msg { white-space: pre-line; line-height: 1.6; margin-bottom: 18px; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }

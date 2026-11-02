@@ -428,6 +428,34 @@
     });
   }
 
+  // ── Custom confirm (取代原生 confirm — 樣式統一, 文案可 i18n) ──
+  var _confirmResolve = null;
+  function confirmDialog(message, opts) {
+    opts = opts || {};
+    var modal = document.getElementById('confirmModal');
+    if (!modal) return Promise.resolve(window.confirm(message)); // 極端保底
+    document.getElementById('confirmMsg').textContent = message;
+    var okBtn = document.getElementById('confirmOk');
+    okBtn.textContent = opts.okLabel || (window.t ? window.t('Delete') : 'Delete');
+    okBtn.className = opts.danger === false ? 'btn btn-upgrade' : 'btn btn-danger';
+    modal.hidden = false;
+    okBtn.focus();
+    return new Promise(function (resolve) { _confirmResolve = resolve; });
+  }
+  (function bindConfirmModal() {
+    var modal = document.getElementById('confirmModal');
+    if (!modal) return;
+    function settle(v) {
+      modal.hidden = true;
+      var r = _confirmResolve; _confirmResolve = null;
+      if (r) r(v);
+    }
+    document.getElementById('confirmOk').addEventListener('click', function () { settle(true); });
+    document.getElementById('confirmCancel').addEventListener('click', function () { settle(false); });
+    modal.addEventListener('click', function (e) { if (e.target === modal) settle(false); });
+    document.addEventListener('keydown', function (e) { if (!modal.hidden && e.key === 'Escape') settle(false); });
+  })();
+
   // ── Helpers ─────────────────────────────────────────────
   function formatBytes(bytes) {
     if (bytes === 0) return '0 B';
@@ -1871,7 +1899,8 @@
   }
 
   function deleteFile(id, rowEl) {
-    if (!confirm('Delete this file?')) return;
+    confirmDialog(window.t ? window.t('Delete this file?') : 'Delete this file?').then(function (ok) {
+    if (!ok) return;
 
     var xhr = new XMLHttpRequest();
     xhr.open('DELETE', '/files/' + id);
@@ -1900,6 +1929,7 @@
 
     xhr.addEventListener('error', function () { toast('Network error', true); });
     xhr.send();
+    });
   }
 
   // ── Stats / Quota ──────────────────────────────────────
@@ -2264,19 +2294,23 @@
   }
 
   function rotateKey(id, name) {
-    if (!window.confirm((window.t ? window.t('Rotate key — the old key stops working.') : 'Rotate key — the old key stops working.') + '\n' + name)) return;
-    apiRequest('POST', '/api/admin/accounts/' + encodeURIComponent(id) + '/rotate', {}, function (data) {
-      if (!data || !data.key) return;
-      showKeyModal(name, data.key);
+    confirmDialog((window.t ? window.t('Rotate key — the old key stops working.') : 'Rotate key — the old key stops working.') + '\n' + name, { okLabel: window.t ? window.t('OK') : 'OK' }).then(function (ok) {
+      if (!ok) return;
+      apiRequest('POST', '/api/admin/accounts/' + encodeURIComponent(id) + '/rotate', {}, function (data) {
+        if (!data || !data.key) return;
+        showKeyModal(name, data.key);
+      });
     });
   }
 
   function deleteProject(id, name, fileCount) {
     var msg = (window.t ? window.t('Delete project') : 'Delete project') + ' "' + name + '"?';
     if (fileCount > 0) msg += '\n' + fileCount + ' ' + (window.t ? window.t('files will be permanently deleted.') : 'files will be permanently deleted.');
-    if (!window.confirm(msg)) return;
-    var url = '/api/admin/accounts/' + encodeURIComponent(id) + (fileCount > 0 ? '?force=1' : '');
-    apiRequest('DELETE', url, null, function () { loadProjects(); });
+    confirmDialog(msg).then(function (ok) {
+      if (!ok) return;
+      var url = '/api/admin/accounts/' + encodeURIComponent(id) + (fileCount > 0 ? '?force=1' : '');
+      apiRequest('DELETE', url, null, function () { loadProjects(); });
+    });
   }
 
   function viewProjectFiles(id, name) {
@@ -2523,7 +2557,8 @@
   }
 
   function deleteAlbum(id, name) {
-    if (!confirm('Delete album "' + name + '"? Photos will be kept.')) return;
+    confirmDialog((window.t ? window.t('Delete album') : 'Delete album') + ' \u300c' + name + '\u300d?\n' + (window.t ? window.t('Photos will be kept.') : 'Photos will be kept.')).then(function (ok) {
+    if (!ok) return;
     apiRequest('DELETE', '/api/albums/' + id, null, function () {
       toast('Album deleted');
       if (currentAlbumId === id) {
@@ -2533,6 +2568,7 @@
         $albumsSection.hidden = false;
       }
       loadAlbums();
+    });
     });
   }
 
@@ -2760,12 +2796,14 @@
   }
 
   function deletePhoto(id) {
-    if (!confirm('Delete this photo?')) return;
-    apiRequest('DELETE', '/files/' + id, null, function (r) {
-      toast(r && r.trashed ? (window.t ? window.t('Moved to trash') : 'Moved to trash') : 'Deleted');
-      removePhotoEverywhere(id);
-      $galleryCount.textContent = galleryPhotos.length + ' photos';
-      scheduleStatsRefresh();
+    confirmDialog(window.t ? window.t('Delete this photo?') : 'Delete this photo?').then(function (ok) {
+      if (!ok) return;
+      apiRequest('DELETE', '/files/' + id, null, function (r) {
+        toast(r && r.trashed ? (window.t ? window.t('Moved to trash') : 'Moved to trash') : 'Deleted');
+        removePhotoEverywhere(id);
+        $galleryCount.textContent = galleryPhotos.length + ' photos';
+        scheduleStatsRefresh();
+      });
     });
   }
 
@@ -2814,9 +2852,11 @@
         purgeBtn.className = 'btn btn-danger account-recent-copy';
         purgeBtn.textContent = window.t ? window.t('Delete forever') : 'Delete forever';
         purgeBtn.addEventListener('click', function () {
-          if (!confirm(window.t ? window.t('Delete forever? This cannot be undone.') : 'Delete forever? This cannot be undone.')) return;
-          apiRequest('DELETE', '/api/trash/' + f.id, null, function (r) {
-            if (r && r.ok) { loadTrash(); loadStats(); }
+          confirmDialog(window.t ? window.t('Delete forever? This cannot be undone.') : 'Delete forever? This cannot be undone.', { okLabel: window.t ? window.t('Delete forever') : 'Delete forever' }).then(function (ok) {
+            if (!ok) return;
+            apiRequest('DELETE', '/api/trash/' + f.id, null, function (r) {
+              if (r && r.ok) { loadTrash(); loadStats(); }
+            });
           });
         });
         row.appendChild(name); row.appendChild(meta); row.appendChild(restoreBtn); row.appendChild(purgeBtn);
@@ -2828,9 +2868,11 @@
     var btn = document.getElementById('emptyTrashBtn');
     if (!btn) return;
     btn.addEventListener('click', function () {
-      if (!confirm(window.t ? window.t('Empty trash? Everything in it is deleted forever.') : 'Empty trash? Everything in it is deleted forever.')) return;
-      apiRequest('DELETE', '/api/trash', null, function (r) {
-        if (r && r.ok) { toast((window.t ? window.t('Trash emptied') : 'Trash emptied')); loadTrash(); loadStats(); }
+      confirmDialog(window.t ? window.t('Empty trash? Everything in it is deleted forever.') : 'Empty trash? Everything in it is deleted forever.', { okLabel: window.t ? window.t('Empty trash') : 'Empty trash' }).then(function (ok) {
+        if (!ok) return;
+        apiRequest('DELETE', '/api/trash', null, function (r) {
+          if (r && r.ok) { toast((window.t ? window.t('Trash emptied') : 'Trash emptied')); loadTrash(); loadStats(); }
+        });
       });
     });
   })();
@@ -2951,11 +2993,12 @@
         if (st && st.isPremium) {
           checkoutBtn.disabled = false;
           var msg = window.t ? window.t('You are already Pro. Cancel your subscription?') : 'You are already Pro. Cancel your subscription?';
-          if (confirm(msg)) {
+          confirmDialog(msg, { okLabel: window.t ? window.t('OK') : 'OK' }).then(function (ok) {
+            if (!ok) return;
             apiRequest('POST', '/api/billing/cancel', {}, function (d) {
               if (d && d.ok) toast(window.t ? window.t('Subscription cancelled — Pro stays until the end of the paid period.') : 'Subscription cancelled — Pro stays until the end of the paid period.');
             });
-          }
+          });
           return;
         }
         toast(window.t ? window.t('Redirecting to secure checkout…') : 'Redirecting to secure checkout…');
@@ -3201,7 +3244,8 @@
   $lightboxDelete.addEventListener('click', function () {
     if (lightboxIndex < 0 || lightboxIndex >= galleryPhotos.length) return;
     var photo = galleryPhotos[lightboxIndex];
-    if (!confirm('Delete this photo?')) return;
+    confirmDialog(window.t ? window.t('Delete this photo?') : 'Delete this photo?').then(function (ok) {
+    if (!ok) return;
     apiRequest('DELETE', '/files/' + photo.id, null, function (r) {
       toast(r && r.trashed ? (window.t ? window.t('Moved to trash') : 'Moved to trash') : 'Deleted');
       removePhotoEverywhere(photo.id);
@@ -3215,6 +3259,7 @@
         showLightboxPhoto();
       }
       scheduleStatsRefresh();
+    });
     });
   });
 
@@ -3467,8 +3512,9 @@
   if ($selectionDelete) {
     $selectionDelete.addEventListener('click', function () {
       if (!selectedIds.length) return;
-      if (!confirm('把 ' + selectedIds.length + ' 個項目移到垃圾桶?(可在 Trash 還原)')) return;
       var ids = selectedIds.slice();
+      confirmDialog('把 ' + ids.length + ' 個項目移到垃圾桶？\n(可在垃圾桶還原)', { okLabel: window.t ? window.t('OK') : 'OK' }).then(function (ok) {
+      if (!ok) return;
       apiRequest('POST', '/api/photos/bulk-trash', { photo_ids: ids }, function (data) {
         toast('已移到垃圾桶:' + (data && data.trashed != null ? data.trashed : ids.length) + ' 個');
         exitSelectMode();
@@ -3476,6 +3522,7 @@
         ids.forEach(removePhotoEverywhere);
         if (currentAlbumId) $galleryCount.textContent = galleryPhotos.length + ' photos';
         scheduleStatsRefresh();
+      });
       });
     });
   }
@@ -3853,12 +3900,12 @@
     swipePhotos = readyPhotos.filter(function (p) { return reviewed.indexOf(p.id) === -1; });
 
     if (swipePhotos.length === 0 && readyPhotos.length > 0) {
-      if (confirm('All ' + readyPhotos.length + ' photos already reviewed.\nReset and review all again?')) {
+      confirmDialog('All ' + readyPhotos.length + ' photos already reviewed.\nReset and review all again?', { okLabel: window.t ? window.t('Reset') : 'Reset', danger: false }).then(function (ok) {
+        if (!ok) return;
         resetReviewed(currentAlbumId);
-        swipePhotos = readyPhotos;
-      } else {
-        return;
-      }
+        enterSwipeMode(); // reviewed 已清空, 重入直接開始
+      });
+      return;
     }
     if (swipePhotos.length === 0) { toast('No photos to review'); return; }
 
