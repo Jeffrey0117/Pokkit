@@ -17,6 +17,9 @@ export interface UploadFields {
   password?: string
   expiresIn?: string
   album_id?: string
+  /** 🆕 11-06 keep_duplicate=1: 入庫感知去重 (dHash) 不要把這份自動丟垃圾桶 —
+   *  給「刻意跟既有影片長得一樣」的上傳用, 例如拍吧燒好字幕的成品回存 (畫面 = 原片 + 字幕)。 */
+  keepDuplicate?: boolean
 }
 
 // Exactly one of buffer / filePath. filePath (chunked uploads: the assembled
@@ -41,6 +44,7 @@ export function normalizeFields(raw: Record<string, unknown> | null | undefined)
   if (typeof raw.password === 'string' && raw.password.length > 0) out.password = raw.password
   if (typeof raw.expiresIn === 'string' && VALID_EXPIRY.includes(raw.expiresIn)) out.expiresIn = raw.expiresIn
   if (typeof raw.album_id === 'string' && raw.album_id.length > 0) out.album_id = raw.album_id
+  if (raw.keep_duplicate === true || raw.keep_duplicate === '1' || raw.keep_duplicate === 'true') out.keepDuplicate = true
   return out
 }
 
@@ -171,12 +175,13 @@ export async function finalizeUpload(
   if (quota) return quota
 
   const baseUrl = resolveBaseUrl(request, config)
+  const metadata = fields.keepDuplicate ? { keep_duplicate: true } : undefined
 
   // Photo branch: images get deferred processing
   if (!isGuest && storage.isImage(mime)) {
     const entry = filePath
-      ? await storage.savePhotoFromFile(filename, mime, filePath, { album_id: albumId, userId: user.userId })
-      : storage.savePhoto(filename, mime, buffer as Buffer, { album_id: albumId, userId: user.userId })
+      ? await storage.savePhotoFromFile(filename, mime, filePath, { album_id: albumId, userId: user.userId, metadata })
+      : storage.savePhoto(filename, mime, buffer as Buffer, { album_id: albumId, userId: user.userId, metadata })
     if (!entry.deduplicated && entry.rawPath) {
       processPhoto(entry.id, entry.rawPath)
     }
@@ -202,8 +207,8 @@ export async function finalizeUpload(
       return { status: 400, body: { error: 'Video upload not available — ffmpeg not installed on server' } }
     }
     const entry = filePath
-      ? await storage.saveVideoFromFile(filename, mime, filePath, { album_id: albumId, userId: user.userId })
-      : storage.saveVideo(filename, mime, buffer as Buffer, { album_id: albumId, userId: user.userId })
+      ? await storage.saveVideoFromFile(filename, mime, filePath, { album_id: albumId, userId: user.userId, metadata })
+      : storage.saveVideo(filename, mime, buffer as Buffer, { album_id: albumId, userId: user.userId, metadata })
     if (entry.rawPath) {
       try {
         processVideo(entry.id, entry.rawPath)

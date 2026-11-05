@@ -121,3 +121,24 @@ test('O2: getOriginalPath returns null when the raw file is gone or the entry is
   const flat = store.save('note.txt', 'text/plain', Buffer.from('hi'), { user_id: 'usr_a' })
   assert.equal(store.getOriginalPath(flat.id), null)
 })
+
+test('D1: keep_duplicate metadata → 感知去重不把它丟垃圾桶; 沒標的同圖照樣進垃圾桶', () => {
+  const { store } = tmpStore()
+  const mk = (name, metadata) => {
+    const e = store.saveRawPhoto(name, 'video/mp4', Buffer.from(name), { user_id: 'u1', media_type: 'video', metadata })
+    store._db.prepare("UPDATE files SET width = 1080, height = 1920, duration = 5, status = 'ready' WHERE id = ?").run(e.id)
+    return e.id
+  }
+  const orig = mk('orig.mp4')
+  const kept = mk('orig・完成.mp4', { keep_duplicate: true })
+  const plain = mk('orig-again.mp4')
+  const bits = '0101'.repeat(16)
+  assert.deepEqual(store.setDhashAndAutoDedup(orig, bits), { duplicate: false })
+  const r2 = store.setDhashAndAutoDedup(kept, bits)
+  assert.equal(r2.duplicate, false, '標了 keep_duplicate 不算重複')
+  assert.equal(store.findAny(kept).deleted_at ?? null, null, '不可進垃圾桶')
+  assert.equal(store.findAny(kept).metadata.keep_duplicate, true, 'metadata 要落庫')
+  const r3 = store.setDhashAndAutoDedup(plain, bits)
+  assert.equal(r3.duplicate, true, '沒標的同圖照樣去重')
+  assert.ok(store.findAny(plain).deleted_at, '進垃圾桶')
+})

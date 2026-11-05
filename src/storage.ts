@@ -232,37 +232,41 @@ export class Storage {
     return videoTypes.includes(mime.toLowerCase())
   }
 
-  savePhoto(filename: string, mime: string, buffer: Buffer, opts?: { album_id?: string; userId?: string }): PhotoEntry {
+  savePhoto(filename: string, mime: string, buffer: Buffer, opts?: { album_id?: string; userId?: string; metadata?: object }): PhotoEntry {
     return this.store.saveRawPhoto(filename, mime, buffer, {
       bucket: 'default',
       album_id: opts?.album_id,
       user_id: opts?.userId,
+      metadata: opts?.metadata,
     })
   }
 
-  saveVideo(filename: string, mime: string, buffer: Buffer, opts?: { album_id?: string; userId?: string }): PhotoEntry {
+  saveVideo(filename: string, mime: string, buffer: Buffer, opts?: { album_id?: string; userId?: string; metadata?: object }): PhotoEntry {
     return this.store.saveRawPhoto(filename, mime, buffer, {
       bucket: 'default',
       album_id: opts?.album_id,
       user_id: opts?.userId,
+      metadata: opts?.metadata,
       media_type: 'video',
     })
   }
 
   // File-path variants (chunked uploads): zero-copy into storage, nothing buffered.
-  savePhotoFromFile(filename: string, mime: string, srcPath: string, opts?: { album_id?: string; userId?: string }): Promise<PhotoEntry> {
+  savePhotoFromFile(filename: string, mime: string, srcPath: string, opts?: { album_id?: string; userId?: string; metadata?: object }): Promise<PhotoEntry> {
     return this.store.saveRawPhotoFromFile(filename, mime, srcPath, {
       bucket: 'default',
       album_id: opts?.album_id,
       user_id: opts?.userId,
+      metadata: opts?.metadata,
     })
   }
 
-  saveVideoFromFile(filename: string, mime: string, srcPath: string, opts?: { album_id?: string; userId?: string }): Promise<PhotoEntry> {
+  saveVideoFromFile(filename: string, mime: string, srcPath: string, opts?: { album_id?: string; userId?: string; metadata?: object }): Promise<PhotoEntry> {
     return this.store.saveRawPhotoFromFile(filename, mime, srcPath, {
       bucket: 'default',
       album_id: opts?.album_id,
       user_id: opts?.userId,
+      metadata: opts?.metadata,
       media_type: 'video',
     })
   }

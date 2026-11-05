@@ -34,6 +34,7 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
       password: rawFields.password?.value,
       expiresIn: rawFields.expiresIn?.value,
       album_id: rawFields.album_id?.value,
+      keep_duplicate: rawFields.keep_duplicate?.value,
     })
 
     const buffer = await file.toBuffer()

@@ -359,6 +359,8 @@ class PokkitStore {
     if (!entry || !dhash) return { duplicate: false };
     this._db.prepare('UPDATE files SET dhash = ? WHERE id = ?').run(dhash, id);
     if (entry.deleted_at) return { duplicate: false }; // 已在垃圾桶,不用再去重
+    // 🆕 11-06 上傳時標了 keep_duplicate (metadata) 的不去重: 刻意長得一樣的檔 (拍吧成品 = 原片 + 燒進去的字幕)
+    if (entry.metadata && entry.metadata.keep_duplicate) return { duplicate: false, kept: 'flag' };
     // 同人+同尺寸+同類型的候選全撈,JS 算 hamming 距離 ≤6 即同圖
     // (重編碼會翻 1~4 個位元,精確比對會漏;幾千筆字串比對是毫秒級)
     const candidates = this._db.prepare(`
@@ -828,7 +830,7 @@ class PokkitStore {
       hash,
       is_directory: false,
       uploaded_at: Date.now(),
-      metadata: null,
+      metadata: opts.metadata || null,
       password_hash: opts.password_hash || null,
       expires_at: opts.expires_at || null,
       download_count: 0,
@@ -895,7 +897,7 @@ class PokkitStore {
       hash,
       is_directory: false,
       uploaded_at: Date.now(),
-      metadata: null,
+      metadata: opts.metadata || null,
       password_hash: opts.password_hash || null,
       expires_at: opts.expires_at || null,
       download_count: 0,
