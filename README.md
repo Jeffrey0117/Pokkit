@@ -1,8 +1,19 @@
 # Pokkit
 
-Self-hosted file storage server for [MemoryGuy](https://github.com/Jeffrey0117/MemoryGuy).
+Your own cloud drive, self-hosted. Upload photos, videos and documents, get a share link, decide who can open it and for how long.
 
-Upload files, get a URL back, stream them anywhere. Designed as the backend for MemoryGuy's disk virtualizer — push large files to Pokkit, keep tiny pointer files locally.
+📖 Intro page: https://jeffrey0117.github.io/pokkit/
+
+## What it does
+
+- **Share links** — every upload gets a `/f/{id}` page with inline preview; no login needed to view.
+- **Password & expiry** — protect a link with a password (10 guesses / minute) and pick 1h · 1d · 7d · 30d · forever. Expired links return 410 and the file is swept.
+- **Big files** — files over 64 MB upload in 16 MB chunks (3 in parallel, retries, resumable for 24h), so they get past proxies that cap request bodies (e.g. Cloudflare's 100 MB).
+- **LAN fast mode** — on the same Wi-Fi as the server, uploads go straight over the LAN instead of out and back through the internet.
+- **Photos & albums** — timeline by capture date, albums with revocable public `/a/:token` links, 30-day trash.
+- **Plans** — Free 2 GB, Pro 100 GB (billing through PayGate; waitlist when billing isn't configured). Guest uploads: single file ≤ 64 MB, forced expiry ≤ 7 days.
+- **Per-project API accounts** — each project gets its own `pk_…` key and only sees its own files (keys stored as hashes, rotatable).
+- Also the storage backend for [MemoryGuy](https://github.com/Jeffrey0117/MemoryGuy)'s disk virtualizer.
 
 ## Quick Start
 
@@ -11,29 +22,31 @@ npm install
 npm start
 ```
 
-Server starts on `http://0.0.0.0:8877`.
+## Usage (HTTP)
 
-## Usage
+Send your key as `X-Pokkit-Key: pk_…` (or `Authorization: Bearer pk_…`).
 
 ```bash
-# Upload a file
-curl -F "file=@photo.jpg" http://localhost:8877/upload
-# → { "url": "http://localhost:8877/files/{id}/photo.jpg", "id": "..." }
+# Upload (optional: password, expiresIn=1h|1d|7d|30d)
+curl -H "X-Pokkit-Key: pk_…" -F "file=@photo.jpg" -F "expiresIn=7d" https://your-pokkit.example/upload
+# → { "id": "...", "url": "https://your-pokkit.example/f/{id}", "directUrl": ".../files/{id}/photo.jpg" }
 
-# Download / view
-curl http://localhost:8877/files/{id}/photo.jpg
+# List your files / delete one
+curl -H "X-Pokkit-Key: pk_…" -H "Accept: application/json" "https://your-pokkit.example/files?limit=50"
+curl -H "X-Pokkit-Key: pk_…" -X DELETE https://your-pokkit.example/files/{id}
+```
 
-# Check existence
-curl -I http://localhost:8877/files/{id}/photo.jpg
+## Usage (JS SDK)
 
-# List all files
-curl http://localhost:8877/files
+`sdk/pokkit-client.mjs` — zero dependencies, Node 18+. Files over 64 MB switch to chunked upload automatically (install `github:Jeffrey0117/chunked-upload-kit` for that path).
 
-# Storage stats
-curl http://localhost:8877/status
-
-# Delete a file
-curl -X DELETE http://localhost:8877/files/{id}
+```js
+import { createPokkit } from './pokkit-client.mjs'
+const pokkit = createPokkit({ baseUrl: 'https://your-pokkit.example', key: process.env.POKKIT_KEY })
+const { id } = await pokkit.upload('./video.mp4')
+pokkit.url(id)          // share link
+await pokkit.list()     // only this account's files
+await pokkit.remove(id)
 ```
 
 ## Configuration

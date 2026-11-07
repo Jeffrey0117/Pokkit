@@ -1,7 +1,7 @@
 {
   "name": "pokkit",
   "version": "1.0.0",
-  "description": "Self-hosted file storage server for MemoryGuy",
+  "description": "Self-hosted cloud drive & file API — share links with password/expiry, chunked big-file uploads, per-project keys",
   "type": "module",
   "scripts": {
     "start": "tsx src/index.ts",
