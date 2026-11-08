@@ -38,7 +38,6 @@ export interface PokkitConfig {
   adminUsers: string[]
   // 🔒 LetMeUse HS256 signing secret — 用來「驗」token 簽章 (不是只 decode)。
   // 缺它 = 拒絕所有 LetMeUse token (fail-closed), 別讓偽造 token 闖進來。
-  letmeuseAppSecret: string
   letmeuseAppId: string
   // 全站總容量保險絲 (bytes): 家機硬碟有限, 超線後非 admin 上傳一律 507。
   globalCapacityBytes: number
@@ -70,7 +69,6 @@ export function loadConfig(): PokkitConfig {
     publicUrl: (cliArgs.publicUrl ?? process.env.POKKIT_PUBLIC_URL ?? '').replace(/\/$/, ''),
     premiumUserIds: (process.env.POKKIT_PREMIUM_USERS ?? '').split(',').filter(Boolean),
     adminUsers: (process.env.POKKIT_ADMIN_USERS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
-    letmeuseAppSecret: process.env.LETMEUSE_APP_SECRET ?? '',
     letmeuseAppId: process.env.LETMEUSE_APP_ID ?? '',
     globalCapacityBytes: (Number(process.env.GLOBAL_CAPACITY_GB) || 500) * GB,
   }

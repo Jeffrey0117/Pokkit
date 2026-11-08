@@ -1,4 +1,5 @@
 import { join } from 'node:path'
+import { getJwksStats } from './jwks-cache.js'
 import { readFileSync, statSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { networkInterfaces } from 'node:os'
@@ -116,7 +117,16 @@ export async function createServer(config: PokkitConfig) {
   const startedAt = new Date().toISOString()
 
   // API routes
-  app.get('/api/health', async () => ({ ok: true }))
+  // 健檢。刻意一律回 200: JWKS 抓不到時重啟本服務救不了(問題在上游), 而
+  // cloudpipe 的 watchdog 探的就是這支 → 回 5xx 只會換來無用的重啟迴圈。
+  // 但依賴的狀態一定要露出來, 否則就是 areyoubot 那種「全部 401 卻一片綠燈」。
+  //
+  // ⚠️ 公開版只給最小狀態。完整 stats() 會洩漏內部 JWKS 網址, 而 lastMissKid 是
+  // 「呼叫端送來的 kid」—— 原樣回去等於反射式資訊外洩(我在 selfize 犯過)。
+  app.get('/api/health', async () => {
+    const jwks = getJwksStats()
+    return { ok: true, jwks: { ok: jwks.keys > 0, keys: jwks.keys, degraded: jwks.stale } }
+  })
   app.get('/api/version', async () => ({ commit: buildCommit, startedAt, pid: process.pid }))
   // AVIF 閒時歸檔 sweeper:手動觸發一輪(admin 限定,驗證/營運用)
   app.post('/api/admin/avif-sweep', async (request, reply) => {

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import { verifyJwt, type Claims } from 'jwks-verify-kit'
 import { getJwksPublicKey } from './jwks-cache.js'
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import type { PokkitConfig } from './config.js'
@@ -13,46 +14,69 @@ export interface AuthUser {
 }
 
 /**
- * 🔒 驗 LetMeUse token 的 HS256 簽章 (取代舊的「只 decode」)。
- * 舊版只 base64 解 payload → 任何人自編 payload (sub/email 隨便填) 就能闖進來,
- * 還能把 email 填成 admin 拿全權限。這版用 app secret 驗簽 → 偽造直接擋。
- * 偽造 / 過期 / 別 app / 沒設 secret → null (fail-closed)。
+ * 🔒 驗 LetMeUse token — **只收 ES256**, 公鑰從 JWKS 拿。
+ *
+ * 2026-11-08: 驗章實作搬進 `jwks-verify-kit`(生態系原本有十份各自獨立的拷貝,
+ * 每份踩到不同的一半坑)。這份原本中的兩個 fail-open:
+ *
+ *   1. `if (payload.exp && payload.exp * 1000 < Date.now())` —— **沒有 exp 的
+ *      token 等於永不過期**(字串型 exp 也躲過: `"abc" * 1000` 是 NaN, NaN 的
+ *      比較恆為 false)。4h 的 exp 是這套設計唯一的撤銷機制: 登出、停用帳號、
+ *      資安事件後強制登出, 全靠它。
+ *   2. `if (appId && payload.app !== appId)` —— 自己忘了設 LETMEUSE_APP_ID 就
+ *      等於接受任何 LetMeUse app 的任何使用者。LetMeUse 用同一把 ES256 金鑰簽發
+ *      所有 app 的 token, 所以 `app` claim 是唯一的租戶邊界。現在 appId 缺了會
+ *      在啟動時 throw(或注入 getKey 時 fail-closed), 不是靜默放行。
+ *
+ * 另外撿到的: nbf 沒檢查、簽章段的非正規化寫法(同一個簽章 16 種等價編碼)、
+ * claims 走原型鏈(prototype pollution ＋ 無 exp token = 永久通行證)、`crit`
+ * header 沒擋、金鑰曲線沒對照。
+ *
+ * ⚠️ 2026-10-25 資安事件: HS256 過渡路徑是入侵面 —— 攻擊者取得 app secret 後
+ * 用 HS256 自簽任意 sub 闖進來當免費圖床。HS256 的根本問題是「驗證方必須握著
+ * 簽發金鑰」; 改成只收 ES256 之後驗證只需要公鑰, **這台機器完全不需要 app
+ * secret**(所以 2026-11-08 一併把 `letmeuseAppSecret` 從 config 與 .env 移除,
+ * 少一個外洩點 —— 而上次洩的就是它)。
+ *
+ * 偽造 / 過期 / 尚未生效 / 別 app / 沒帶 app → null (fail-closed, 從不丟例外)。
+ *
+ * getKey 可注入(測試用), 預設走行程共用的 JWKS 快取。
  */
-export function verifyLetMeUseToken(token: string, secret: string, appId: string): AuthUser | null {
-  try {
-    const [headerB64, payloadB64, sigB64] = token.split('.')
-    if (!headerB64 || !payloadB64 || !sigB64) return null
-    const header = JSON.parse(Buffer.from(headerB64, 'base64url').toString('utf-8'))
-
-    // 1. 只收 ES256 (JWKS 公鑰驗)。
-    // ⚠️ 2026-10-25 資安事件:HS256 過渡路徑是入侵面 — 攻擊者取得 app secret 後
-    // 用 HS256 自簽任意 sub (usr_3kxvW3qwFYqe) 闖進來當免費圖床。LetMeUse 早已全面
-    // ES256,真實用戶的 token 都走 JWKS 公鑰(無法偽造,除非 LetMeUse 私鑰外洩),
-    // 故直接廢掉 HS256 — 就算 secret 已洩,偽造 token 也一律被擋。
-    if (header.alg === 'ES256') {
-      const pub = getJwksPublicKey(header.kid)
-      if (!pub) return null
-      const ok = crypto.verify(
-        'sha256',
-        Buffer.from(`${headerB64}.${payloadB64}`),
-        { key: pub, dsaEncoding: 'ieee-p1363' },
-        Buffer.from(sigB64, 'base64url'),
-      )
-      if (!ok) return null
-    } else {
-      return null // HS256 / none / 其他 → 一律擋
-    }
-    void secret // 保留簽名相容;HS256 已廢除後不再使用
-
-    // 2. payload 檢查
-    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf-8'))
-    if (payload.exp && payload.exp * 1000 < Date.now()) return null
-    if (appId && payload.app !== appId) return null // 別 app 的 token 不準借用
-    const userId = payload.sub || payload.userId
-    if (!userId) return null
-    return { userId, email: payload.email || '', name: payload.name }
-  } catch {
+export function verifyLetMeUseToken(
+  token: string,
+  appId: string,
+  getKey: (kid: string) => crypto.KeyObject | null = getJwksPublicKey,
+): AuthUser | null {
+  // 🔒 appId 必填, 而且要壞得大聲。LetMeUse 用同一把 ES256 金鑰簽發**所有** app
+  // 的 token, 所以 `app` claim 是唯一的租戶邊界 —— 沒有它不是「少一道檢查」,
+  // 而是「生態系任何 app 的任何使用者都進得來」。kit 的 requiredClaims 本身就會
+  // fail-closed, 但那會變成「全部 401 且零線索」, 所以這裡自己講一句。
+  if (!appId) {
+    console.error('[auth] 401: 沒設 LETMEUSE_APP_ID, 一律拒絕 (JWKS 全 app 共用金鑰)')
     return null
+  }
+
+  const claims: Claims | null = verifyJwt(token, {
+    getKey,
+    algorithms: ['ES256'],
+    requiredClaims: { app: appId },
+    // 逐顆 token 的拒絕原因。只進 stderr —— info 裡的值多半是呼叫端送來的,
+    // 原樣回給對方等於反射式資訊外洩。
+    onReject: (info) => {
+      if (process.env.POKKIT_LOG !== 'silent') console.error(`[auth] 401: ${info.reason}`)
+    },
+  })
+  if (!claims) return null
+
+  // kit 已保證 sub 是非空字串; userId 是歷史相容的別名
+  const userId = typeof claims.sub === 'string' && claims.sub
+    ? claims.sub
+    : (claims as Record<string, unknown>).userId
+  if (typeof userId !== 'string' || !userId) return null
+  return {
+    userId,
+    email: typeof claims.email === 'string' ? claims.email : '',
+    name: typeof claims.name === 'string' ? claims.name : undefined,
   }
 }
 
@@ -122,7 +146,7 @@ export function requireAuth(
   }
 
   // LetMeUse JWT (a human) — 🔒 驗簽章, 不是只 decode
-  const user = verifyLetMeUseToken(token, config.letmeuseAppSecret, config.letmeuseAppId)
+  const user = verifyLetMeUseToken(token, config.letmeuseAppId)
   if (!user) {
     reply.status(401).send({ error: 'Invalid or expired token' })
     return null
