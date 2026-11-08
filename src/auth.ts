@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import { verifyJwt, type Claims } from 'jwks-verify-kit'
+import { verifyJwt, bearerToken, type Claims } from 'jwks-verify-kit'
 import { getJwksPublicKey } from './jwks-cache.js'
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import type { PokkitConfig } from './config.js'
@@ -99,8 +99,11 @@ export function hasAuthToken(request: FastifyRequest): boolean {
 
 /** Extract the bearer/X-Pokkit-Key token from a request, if any. */
 function extractToken(request: FastifyRequest): string | null {
-  const auth = request.headers.authorization
-  if (auth && auth.startsWith('Bearer ')) return auth.slice(7)
+  // scheme 比對用 kit 的（RFC 7235 §2.1: auth-scheme 不分大小寫）。自己寫
+  // `startsWith('Bearer ')` 的話,送 `bearer xxx` 的 client 在這個服務會 401 而在
+  // 生態系其他服務正常 —— 那種不一致會害人查很久。
+  const bearer = bearerToken(request.headers.authorization)
+  if (bearer) return bearer
   const headerKey = request.headers['x-pokkit-key']
   if (typeof headerKey === 'string' && headerKey.length > 0) return headerKey
   return null
