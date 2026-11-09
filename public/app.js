@@ -368,18 +368,31 @@
     // 未登入不顯示「Dashboard →」後台入口(點了也進不去,只會誤導)
     var enterDash = document.getElementById('enterDashboardBtn');
     if (enterDash) enterDash.hidden = !loggedIn;
-    // 純註冊制(2026-10 砍訪客快傳):未登入不給上傳,只留 hero 的註冊引導。
-    // pokkit = 個人相簿,不做 lurl.cc 式匿名臨時分享。
-    $dropzone.style.display = loggedIn ? '' : 'none';
-    document.getElementById('uploadOptions').style.display = loggedIn ? '' : 'none';
+    // 訪客快傳:免登入可傳,每天 10 部,最多留 24 小時(server 端也會鉗制)。
+    $dropzone.style.display = '';
+    document.getElementById('uploadOptions').style.display = '';
+    var gn = document.getElementById('guestNotice');
+    if (gn) gn.hidden = loggedIn;
     if (!loggedIn) $storageQuota.hidden = true;
     var expSel = document.getElementById('expirySelect');
     if (expSel) {
+      // 長效選項對訪客保留但鎖住,讓人看得到「登入才有」
+      var lockedForGuest = { forever: 'Never', '7d': '7 days', '30d': '30 days' };
       for (var ei = 0; ei < expSel.options.length; ei++) {
         var opt = expSel.options[ei];
-        if (opt.value === 'forever' || opt.value === '30d') opt.hidden = !loggedIn;
+        var base = lockedForGuest[opt.value];
+        if (!base) continue;
+        var baseLabel = window.t ? window.t(base) : base;
+        var signUp = window.t ? window.t('Sign up to choose') : 'Sign up to choose';
+        opt.disabled = !loggedIn;
+        opt.textContent = loggedIn ? baseLabel : baseLabel + ' (' + signUp + ')';
       }
-      if (!loggedIn && (expSel.value === 'forever' || expSel.value === '30d')) expSel.value = '7d';
+      if (!loggedIn && lockedForGuest[expSel.value]) expSel.value = '1d';
+      if (loggedIn && !expSel.dataset.memberDefault) {
+        expSel.value = 'forever';
+        expSel.dataset.memberDefault = '1';
+      }
+      if (!loggedIn) delete expSel.dataset.memberDefault;
     }
   }
 
@@ -1484,6 +1497,13 @@
       clearStallTimer();
       // Rate limited — always retry (separate from the transient-error budget)
       if (xhr.status === 429) {
+        // 訪客今日額度用完:重試也沒用,別卡在無限重試
+        var limitBody = null;
+        try { limitBody = JSON.parse(xhr.responseText); } catch (_) { /* */ }
+        if (limitBody && limitBody.code === 'guest_daily_limit') {
+          failPermanently(window.t ? window.t(limitBody.error) : limitBody.error);
+          return;
+        }
         settleInflight();
         uploading--;
         row.remove();

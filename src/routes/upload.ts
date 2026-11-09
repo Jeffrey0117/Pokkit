@@ -2,7 +2,8 @@ import type { FastifyInstance } from 'fastify'
 import type { Storage } from '../storage.js'
 import type { PokkitConfig } from '../config.js'
 import { requireAuth, hasAuthToken, type AuthUser } from '../auth.js'
-import { GUEST_USER_ID } from '../config.js'
+import { GUEST_DAILY_UPLOADS, GUEST_USER_ID } from '../config.js'
+import { guestKey } from '../guest-limit.js'
 import { finalizeUpload, normalizeFields } from '../upload-finalize.js'
 
 // Single-request multipart upload. Fine for small/medium files; anything that
@@ -23,8 +24,20 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
       user = { userId: GUEST_USER_ID, email: '' }
     }
 
+    const reservedFor = user.userId === GUEST_USER_ID ? guestKey(request) : null
+    if (reservedFor && !storage.reserveGuestUpload(reservedFor, GUEST_DAILY_UPLOADS)) {
+      return reply.status(429).send({
+        error: `Guests can upload ${GUEST_DAILY_UPLOADS} files a day. Sign up free for more.`,
+        code: 'guest_daily_limit',
+      })
+    }
+    const refund = () => {
+      if (reservedFor) storage.releaseGuestUpload(reservedFor)
+    }
+
     const file = await request.file()
     if (!file) {
+      refund()
       return reply.status(400).send({ error: 'No file provided. Use multipart field "file".' })
     }
 
@@ -37,14 +50,20 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
       keep_duplicate: rawFields.keep_duplicate?.value,
     })
 
-    const buffer = await file.toBuffer()
-    const result = await finalizeUpload(
-      { filename: file.filename, mime: file.mimetype, buffer, fields },
-      user,
-      request,
-      storage,
-      config,
-    )
-    return reply.status(result.status).send(result.body)
+    try {
+      const buffer = await file.toBuffer()
+      const result = await finalizeUpload(
+        { filename: file.filename, mime: file.mimetype, buffer, fields },
+        user,
+        request,
+        storage,
+        config,
+      )
+      if (result.status >= 400) refund()
+      return reply.status(result.status).send(result.body)
+    } catch (err) {
+      refund()
+      throw err
+    }
   })
 }

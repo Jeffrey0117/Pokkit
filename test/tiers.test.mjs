@@ -63,7 +63,7 @@ async function guestUpload(fields) {
 
 const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000
 
-test('guest upload (no credential) succeeds and is force-expired within 7 days', async () => {
+test('guest upload (no credential) succeeds and is force-expired', async () => {
   const res = await guestUpload([{ name: 'file', filename: 'hi.txt', contentType: 'text/plain', value: 'hello' }])
   assert.equal(res.statusCode, 200)
   const body = res.json()
@@ -71,7 +71,7 @@ test('guest upload (no credential) succeeds and is force-expired within 7 days',
   assert.ok(body.expires_at <= Date.now() + SEVEN_DAYS + 60_000, 'expiry is at most ~7 days out')
 })
 
-test('guest cannot opt out of expiry — forever/30d are clamped to 7d', async () => {
+test('guest cannot opt out of expiry — forever/30d are clamped', async () => {
   const res = await guestUpload([
     { name: 'expiresIn', value: 'forever' },
     { name: 'file', filename: 'sneaky.txt', contentType: 'text/plain', value: 'x' },
@@ -103,13 +103,13 @@ test('a PRESENT but invalid token 401s — never silently demotes to guest', asy
   assert.equal(res.statusCode, 401)
 })
 
-test('clampGuestExpiry: short options pass, long/empty clamp to 7d', () => {
+test('clampGuestExpiry: short options pass, long/empty clamp to 1d', () => {
   assert.equal(clampGuestExpiry('1h'), '1h')
   assert.equal(clampGuestExpiry('1d'), '1d')
-  assert.equal(clampGuestExpiry('7d'), '7d')
-  assert.equal(clampGuestExpiry('30d'), '7d')
-  assert.equal(clampGuestExpiry('forever'), '7d')
-  assert.equal(clampGuestExpiry(undefined), '7d')
+  assert.equal(clampGuestExpiry('7d'), '1d')
+  assert.equal(clampGuestExpiry('30d'), '1d')
+  assert.equal(clampGuestExpiry('forever'), '1d')
+  assert.equal(clampGuestExpiry(undefined), '1d')
 })
 
 // ── checkQuota unit tests (fake storage, no HTTP) ──

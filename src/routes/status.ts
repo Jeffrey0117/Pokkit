@@ -4,7 +4,7 @@ import type { PokkitConfig } from '../config.js'
 import { requireAuth } from '../auth.js'
 import { billingEnabled } from './billing.js'
 import { checkPremium, fetchPlans } from '../subscription.js'
-import { GB, GUEST_MAX_FILE_BYTES, PRO_PRICE_NTD, STORAGE_TIERS } from '../config.js'
+import { GB, GUEST_DAILY_UPLOADS, GUEST_EXPIRY_HOURS, GUEST_MAX_FILE_BYTES, PRO_PRICE_NTD, STORAGE_TIERS } from '../config.js'
 import { appendFileSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -30,7 +30,7 @@ export function statusRoute(app: FastifyInstance, storage: Storage, config: Pokk
   // can never drift.
   app.get('/api/tiers', async () => {
     return {
-      guest: { name: 'Guest', maxFileBytes: GUEST_MAX_FILE_BYTES, expiryDays: 7 },
+      guest: { name: 'Guest', maxFileBytes: GUEST_MAX_FILE_BYTES, expiryHours: GUEST_EXPIRY_HOURS, dailyUploads: GUEST_DAILY_UPLOADS },
       free: { name: STORAGE_TIERS.free.name, maxBytes: STORAGE_TIERS.free.maxBytes, maxGB: STORAGE_TIERS.free.maxBytes / GB },
       // available = 金流已接上(PAYGATE_TOKEN 在 → 走藍新定期定額結帳)
       pro: { name: STORAGE_TIERS.premium.name, maxBytes: STORAGE_TIERS.premium.maxBytes, maxGB: STORAGE_TIERS.premium.maxBytes / GB, priceNTD: PRO_PRICE_NTD, available: billingEnabled() },

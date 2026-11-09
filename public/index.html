@@ -155,7 +155,7 @@
         </div>
         <p class="drop-text" data-i18n="Drop files here to upload">Drop files here to upload</p>
         <p class="drop-hint" data-i18n="or click to browse · supports folders">or click to browse &middot; supports folders</p>
-        <p class="drop-hint guest-notice" id="guestNotice" hidden data-i18n="Instant share, no login — files expire in 7 days. Sign up free to keep them.">Instant share, no login &mdash; files expire in 7 days. Sign up free to keep them.</p>
+        <p class="drop-hint guest-notice" id="guestNotice" hidden data-i18n="No login: files last up to 24 hours, 10 a day. Sign up free to keep them.">No login: files last up to 24 hours, 10 a day. Sign up free to keep them.</p>
       </div>
       <input type="file" id="fileInput" multiple hidden>
     </section>
@@ -170,6 +170,9 @@
         <select id="expirySelect" class="option-select">
           <option value="forever" data-i18n-opt="Never" selected>Never</option>
           <option value="1h" data-i18n-opt="1 hour">1 hour</option>
+          <option value="3h" data-i18n-opt="3 hours">3 hours</option>
+          <option value="6h" data-i18n-opt="6 hours">6 hours</option>
+          <option value="12h" data-i18n-opt="12 hours">12 hours</option>
           <option value="1d" data-i18n-opt="1 day">1 day</option>
           <option value="7d" data-i18n-opt="7 days">7 days</option>
           <option value="30d" data-i18n-opt="30 days">30 days</option>

@@ -110,6 +110,9 @@ export class Storage {
     if (opts?.expiresIn && opts.expiresIn !== 'forever') {
       const durations: Record<string, number> = {
         '1h': 60 * 60 * 1000,
+        '3h': 3 * 60 * 60 * 1000,
+        '6h': 6 * 60 * 60 * 1000,
+        '12h': 12 * 60 * 60 * 1000,
         '1d': 24 * 60 * 60 * 1000,
         '7d': 7 * 24 * 60 * 60 * 1000,
         '30d': 30 * 24 * 60 * 60 * 1000,
@@ -150,6 +153,35 @@ export class Storage {
   }
 
   // 原始檔(_raw.*)路徑;沒有回 null(呼叫端退回 getPath 的展示版)
+  private guestDb() {
+    const db = (this.store as any)._db
+    db.exec('CREATE TABLE IF NOT EXISTS guest_daily_uploads (guest_key TEXT NOT NULL, day TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (guest_key, day))')
+    return db
+  }
+
+  private today(): string {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  }
+
+  // 先佔額度再收檔,同時丟 15 個也只會放行 10 個。單一 SQL 敘述,沒有競態。
+  reserveGuestUpload(guestKey: string, limit: number): boolean {
+    const result = this.guestDb().prepare(
+      'INSERT INTO guest_daily_uploads (guest_key, day, count) VALUES (?, ?, 1) ON CONFLICT(guest_key, day) DO UPDATE SET count = count + 1 WHERE count < ?'
+    ).run(guestKey, this.today(), limit)
+    return result.changes > 0
+  }
+
+  releaseGuestUpload(guestKey: string): void {
+    this.guestDb().prepare(
+      'UPDATE guest_daily_uploads SET count = count - 1 WHERE guest_key = ? AND day = ? AND count > 0'
+    ).run(guestKey, this.today())
+  }
+
+  pruneGuestUploads(): void {
+    this.guestDb().prepare('DELETE FROM guest_daily_uploads WHERE day < ?').run(this.today())
+  }
+
   setRawSize(id: string, bytes: number): boolean {
     return this.store.setRawSize(id, bytes)
   }

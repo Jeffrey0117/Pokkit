@@ -184,13 +184,14 @@ export async function createServer(config: PokkitConfig) {
   })
 
   // Expired-file sweep: delete shares past their expiry so they stop being
-  // served and stop occupying disk/quota. Runs shortly after boot, then hourly.
+  // served and stop occupying disk/quota. Runs shortly after boot, then every 5 minutes.
   // .unref() so it never keeps the process alive on shutdown.
   const runSweep = () => {
     try {
       const n = storage.sweepExpired()
       if (n > 0) console.log(`[Pokkit] Swept ${n} expired file(s)`)
       const p = storage.purgeOldTrash()
+      storage.pruneGuestUploads()
       if (p > 0) console.log(`[Pokkit] Purged ${p} trashed file(s) past 30 days`)
     } catch (err) {
       console.error('[Pokkit] Expired sweep failed:', err)
@@ -198,7 +199,8 @@ export async function createServer(config: PokkitConfig) {
   }
   const bootSweep = setTimeout(runSweep, 60_000)
   bootSweep.unref?.()
-  const sweepTimer = setInterval(runSweep, 60 * 60 * 1000)
+  // 訪客可選 1 小時,掃描要夠勤,檔案才會真的準時消失
+  const sweepTimer = setInterval(runSweep, 5 * 60 * 1000)
   sweepTimer.unref?.()
 
   // Graceful shutdown: stop the sweep, terminate workers, close the DB

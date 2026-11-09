@@ -36,7 +36,7 @@ export interface FinalizeInput {
 export type FinalizeResult =
   | { status: number; body: Record<string, unknown> }
 
-const VALID_EXPIRY = ['1h', '1d', '7d', '30d', 'forever']
+const VALID_EXPIRY = ['1h', '3h', '6h', '12h', '1d', '7d', '30d', 'forever']
 
 export function normalizeFields(raw: Record<string, unknown> | null | undefined): UploadFields {
   const out: UploadFields = {}
@@ -160,9 +160,9 @@ export async function checkQuota(
 }
 
 // Guest files must never outlive 7 days — clamp whatever the form sent.
-const GUEST_ALLOWED_EXPIRY = new Set(['1h', '1d', '7d'])
+const GUEST_ALLOWED_EXPIRY = new Set(['1h', '3h', '6h', '12h', '1d'])
 export function clampGuestExpiry(expiresIn: string | undefined): string {
-  return expiresIn && GUEST_ALLOWED_EXPIRY.has(expiresIn) ? expiresIn : '7d'
+  return expiresIn && GUEST_ALLOWED_EXPIRY.has(expiresIn) ? expiresIn : '1d'
 }
 
 export async function finalizeUpload(

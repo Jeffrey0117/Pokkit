@@ -19,9 +19,11 @@ export const STORAGE_TIERS: Record<string, StorageTier> = {
 }
 
 // Guest 快傳 (試用入口): 免登入、單檔上限、強制短壽命。
-// GUEST_USER_ID 是這類檔案共同的 user_id — 無帳號可管理, 7 天內清掃掉。
+// GUEST_USER_ID 是這類檔案共同的 user_id — 無帳號可管理, 最多留 24 小時。
 export const GUEST_USER_ID = 'guest'
 export const GUEST_MAX_FILE_BYTES = 64 * 1024 * 1024
+export const GUEST_DAILY_UPLOADS = 10
+export const GUEST_EXPIRY_HOURS = 24
 // 方案頁顯示用的佔位月費 (NTD) — 金流接上前純展示, 不是扣款依據。
 export const PRO_PRICE_NTD = 149
 
