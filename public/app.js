@@ -1506,6 +1506,8 @@
         try { limitBody = JSON.parse(xhr.responseText); } catch (_) { /* */ }
         if (limitBody && limitBody.code === 'guest_daily_limit') {
           failPermanently(window.t ? window.t(limitBody.error) : limitBody.error);
+          // 原因要講在登入視窗之前,不然使用者只看到突然跳登入
+          toast(limitBody.error);
           if (typeof letmeuse !== 'undefined') letmeuse.login();
           return;
         }
