@@ -89,6 +89,12 @@ test('the download button starts locked and explains itself before any login win
   assert.match(html, /id="gateLogin"/)
 })
 
+test('the Chinese brand name is only filled in for Chinese browsers', async () => {
+  const { id } = await upload('a.mp4', 'video/mp4')
+  const html = await page(id)
+  assert.match(html, /<span class="brand-zh" data-zh="帕奇縮縮"><\/span>/)
+})
+
 test('the share page speaks Chinese to Chinese browsers', async () => {
   const { id } = await upload('a.mp4', 'video/mp4')
   const html = await page(id)

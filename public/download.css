@@ -277,3 +277,6 @@ body {
 .login-gate-text { margin: 0 0 22px; font-size: 14px; line-height: 1.6; color: #66665f; }
 .login-gate-login { margin-top: 10px; }
 .login-gate-close { margin-top: 14px; padding: 4px 8px; border: 0; background: none; color: #8a8a84; font-family: inherit; font-size: 13px; cursor: pointer; }
+
+/* 中文品牌名:英文介面維持空白 */
+.brand-zh { margin-left: 8px; font-size: 13px; font-weight: 500; color: #8a8a84; }

@@ -3112,3 +3112,7 @@ body.mode-landing .feature-desc { font-size: 0.9375rem; }
   .lp-grid-3,
   .lp-grid-2 { grid-template-columns: 1fr; }
 }
+
+/* 中文品牌名:只在中文介面顯示,接在 POKKIT 右邊 */
+.brand-zh { display: none; margin-left: 2px; font-size: 0.8125rem; font-weight: 500; letter-spacing: 0.04em; text-transform: none; color: var(--text-tertiary); white-space: nowrap; }
+html[lang^="zh"] .brand-zh { display: inline; }

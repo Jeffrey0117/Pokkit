@@ -146,7 +146,7 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
 <body>
   <div class="container">
     <nav class="nav">
-      <a href="/" class="nav-logo">Pokkit</a>
+      <a href="/" class="nav-logo">Pokkit<span class="brand-zh" data-zh="帕奇縮縮"></span></a>
     </nav>
     ${countdownBlock}
     <main class="download-card">
