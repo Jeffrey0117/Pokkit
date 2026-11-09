@@ -1597,7 +1597,7 @@
 
     var label = document.createElement('label');
     label.className = 'url-label';
-    label.textContent = 'File URL';
+    label.textContent = window.t ? window.t('File URL') : 'File URL';
 
     var urlBox = document.createElement('div');
     urlBox.className = 'url-box';
@@ -1611,7 +1611,7 @@
 
     var copyBtn = document.createElement('button');
     copyBtn.className = 'btn btn-primary';
-    copyBtn.textContent = 'Copy';
+    copyBtn.textContent = window.t ? window.t('Copy') : 'Copy';
     copyBtn.addEventListener('click', function () { copyUrl(fullUrl); });
 
     urlBox.appendChild(input);
@@ -1861,7 +1861,7 @@
 
     var cpBtn = document.createElement('button');
     cpBtn.className = 'btn';
-    cpBtn.textContent = 'Copy';
+    cpBtn.textContent = window.t ? window.t('Copy') : 'Copy';
     cpBtn.addEventListener('click', function () { copyUrl(fullUrl); });
 
     var rnBtn = document.createElement('button');
