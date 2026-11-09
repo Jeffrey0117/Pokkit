@@ -122,6 +122,7 @@ class PokkitStore {
     // Open SQLite
     const dbPath = path.join(this.dataDir, this.dbName);
     this._db = db.openDb(dbPath);
+    this.backfillRawSizes();
   }
 
   // ══════════════════════════════════════════
@@ -630,6 +631,35 @@ class PokkitStore {
     return db.getUserStats(this._db, userId);
   }
 
+  // 展示版之外保留在同目錄的原檔大小;沒有原檔回 0
+  _measureRaw(bucket, storedName) {
+    if (!storedName || !storedName.includes('/') || path.basename(storedName).startsWith('_raw.')) return 0;
+    const dir = path.dirname(this._resolveFilePath(bucket, storedName));
+    let names;
+    try { names = fs.readdirSync(dir); } catch { return 0; }
+    const raw = names.find((n) => n.startsWith('_raw.'));
+    if (!raw) return 0;
+    try { return fs.statSync(path.join(dir, raw)).size; } catch { return 0; }
+  }
+
+  // 只處理還沒盤點過的列,第一次開店後每次只會碰到新增的少數幾筆
+  backfillRawSizes() {
+    const rows = this._db.prepare(
+      "SELECT id, bucket, stored_name FROM files WHERE raw_size IS NULL AND status != 'processing'"
+    ).all();
+    const update = this._db.prepare('UPDATE files SET raw_size = ? WHERE id = ?');
+    const run = this._db.transaction((items) => {
+      for (const row of items) update.run(this._measureRaw(row.bucket, row.stored_name), row.id);
+    });
+    run(rows);
+    return rows.length;
+  }
+
+  // 原檔被重新壓縮後(AVIF 歸檔)用這個更新額度
+  setRawSize(id, bytes) {
+    return db.updateFilePhoto(this._db, id, { raw_size: bytes });
+  }
+
   userMediaCounts(userId) {
     return db.userMediaCounts(this._db, userId);
   }
@@ -938,6 +968,7 @@ class PokkitStore {
       thumb_stored_name: thumbName,
       mime: 'image/webp',
       size: webpBuffer.length,
+      raw_size: this._measureRaw(bucket, photoName),
       width,
       height,
       taken_at: takenAt,
@@ -974,6 +1005,7 @@ class PokkitStore {
       thumb_stored_name: thumbName,
       mime: 'video/mp4',
       size: videoSize,
+      raw_size: this._measureRaw(bucket, videoName),
       width,
       height,
       duration,

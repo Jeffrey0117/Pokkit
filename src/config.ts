@@ -41,6 +41,7 @@ export interface PokkitConfig {
   letmeuseAppId: string
   // 全站總容量保險絲 (bytes): 家機硬碟有限, 超線後非 admin 上傳一律 507。
   globalCapacityBytes: number
+  minFreeDiskBytes?: number
 }
 
 function parseArgs(args: string[]): Partial<PokkitConfig> {
@@ -71,5 +72,6 @@ export function loadConfig(): PokkitConfig {
     adminUsers: (process.env.POKKIT_ADMIN_USERS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
     letmeuseAppId: process.env.LETMEUSE_APP_ID ?? '',
     globalCapacityBytes: (Number(process.env.GLOBAL_CAPACITY_GB) || 500) * GB,
+    minFreeDiskBytes: (Number(process.env.MIN_FREE_DISK_GB) || 20) * GB,
   }
 }

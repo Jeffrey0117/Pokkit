@@ -70,6 +70,7 @@ export async function sweepOnce(storage: Storage, dataDir: string): Promise<{ ac
       continue
     }
     renameSync(tmpOut, avifPath)
+    storage.setRawSize(c.id, r.outBytes)
     try { unlinkSync(rawPath) } catch { /* */ }
     swept++
     savedBytes += inBytes - r.outBytes

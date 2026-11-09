@@ -150,6 +150,10 @@ export class Storage {
   }
 
   // 原始檔(_raw.*)路徑;沒有回 null(呼叫端退回 getPath 的展示版)
+  setRawSize(id: string, bytes: number): boolean {
+    return this.store.setRawSize(id, bytes)
+  }
+
   getOriginalPath(id: string): string | null {
     return this.store.getOriginalPath(id)
   }

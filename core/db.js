@@ -102,6 +102,10 @@ function openDb(dbPath) {
     _db.exec('ALTER TABLE files ADD COLUMN dhash TEXT');
   }
   _db.exec('CREATE INDEX IF NOT EXISTS idx_files_user_dhash ON files(user_id, dhash)');
+  // 保留的原檔大小。NULL = 還沒盤點,開店時從硬碟補上(見 PokkitStore.backfillRawSizes)
+  if (!cols.includes('raw_size')) {
+    _db.exec('ALTER TABLE files ADD COLUMN raw_size INTEGER');
+  }
   if (!cols.includes('media_type')) {
     _db.exec("ALTER TABLE files ADD COLUMN media_type TEXT DEFAULT 'file'");
     // Backfill existing photos
@@ -419,14 +423,14 @@ function setTags(db, fileId, tags) {
  */
 function getStats(db, bucket) {
   if (bucket) {
-    const row = db.prepare('SELECT COUNT(*) as count, COALESCE(SUM(size),0) as bytes FROM files WHERE bucket = ?')
+    const row = db.prepare('SELECT COUNT(*) as count, COALESCE(SUM(size + COALESCE(raw_size,0)),0) as bytes FROM files WHERE bucket = ?')
       .get(bucket);
     return { totalFiles: row.count, totalBytes: row.bytes };
   }
 
-  const overall = db.prepare('SELECT COUNT(*) as count, COALESCE(SUM(size),0) as bytes FROM files').get();
+  const overall = db.prepare('SELECT COUNT(*) as count, COALESCE(SUM(size + COALESCE(raw_size,0)),0) as bytes FROM files').get();
   const bucketRows = db.prepare(
-    'SELECT bucket, COUNT(*) as count, COALESCE(SUM(size),0) as bytes FROM files GROUP BY bucket'
+    'SELECT bucket, COUNT(*) as count, COALESCE(SUM(size + COALESCE(raw_size,0)),0) as bytes FROM files GROUP BY bucket'
   ).all();
 
   const buckets = {};
@@ -444,7 +448,7 @@ function getStats(db, bucket) {
  */
 function getUserStats(db, userId) {
   const row = db.prepare(
-    'SELECT COUNT(*) as count, COALESCE(SUM(size),0) as bytes FROM files WHERE user_id = ?'
+    'SELECT COUNT(*) as count, COALESCE(SUM(size + COALESCE(raw_size,0)),0) as bytes FROM files WHERE user_id = ?'
   ).get(userId);
   return { totalFiles: row.count, totalBytes: row.bytes };
 }
@@ -457,7 +461,7 @@ function getUserStats(db, userId) {
  */
 function userMediaCounts(db, userId) {
   return db.prepare(
-    'SELECT media_type, COUNT(*) as c, COALESCE(SUM(size),0) as b FROM files WHERE user_id = ? GROUP BY media_type'
+    'SELECT media_type, COUNT(*) as c, COALESCE(SUM(size + COALESCE(raw_size,0)),0) as b FROM files WHERE user_id = ? GROUP BY media_type'
   ).all(userId);
 }
 
@@ -567,7 +571,7 @@ function listPhotosByAlbum(db, albumId, opts = {}) {
 function updateFilePhoto(db, id, updates) {
   const fields = [];
   const values = { id };
-  for (const key of ['status', 'width', 'height', 'taken_at', 'thumb_stored_name', 'stored_name', 'mime', 'size', 'album_id', 'duration', 'media_type', 'notes', 'filename']) {
+  for (const key of ['raw_size', 'status', 'width', 'height', 'taken_at', 'thumb_stored_name', 'stored_name', 'mime', 'size', 'album_id', 'duration', 'media_type', 'notes', 'filename']) {
     if (updates[key] !== undefined) {
       fields.push(`${key} = @${key}`);
       values[key] = updates[key];

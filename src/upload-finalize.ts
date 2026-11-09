@@ -1,4 +1,4 @@
-import { statSync } from 'node:fs'
+import { statSync, statfsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { markIngest } from './avif-sweeper.js'
 import type { FastifyRequest } from 'fastify'
@@ -80,6 +80,23 @@ function fmtGB(bytes: number): string {
   return (bytes / (1024 * 1024 * 1024)).toFixed(bytes >= 10 * 1024 * 1024 * 1024 ? 0 : 1) + ' GB'
 }
 
+// 硬碟比全站上限更早滿的時候,這條才是真正的保險絲。影片會留原檔再多一份
+// 轉檔版,所以預留兩倍。量不到就放行並留紀錄,別因為監測失敗把上傳全擋掉。
+function diskTooFull(config: PokkitConfig, incomingBytes: number): boolean {
+  const minFree = config.minFreeDiskBytes
+  if (!minFree) return false
+  try {
+    const disk = statfsSync(config.dataDir)
+    const free = Number(disk.bavail) * Number(disk.bsize)
+    if (free - incomingBytes * 2 >= minFree) return false
+    console.error(`[Pokkit] ⛔ DISK FUSE: ${fmtGB(free)} free, need ${fmtGB(minFree)} after this upload`)
+    return true
+  } catch (err) {
+    console.error('[Pokkit] disk check failed:', (err as Error).message)
+    return false
+  }
+}
+
 export async function checkQuota(
   user: AuthUser,
   storage: Storage,
@@ -90,6 +107,12 @@ export async function checkQuota(
   // locked out of their own box by the per-user quota (2026-10-04 實案: Jeff
   // 4.3GB 既有資料被新 Free 2GB 制當場鎖死)。
   if (user.isAdmin) return null
+  if (diskTooFull(config, incomingBytes)) {
+    return {
+      status: 507,
+      body: { error: 'Server storage is full — uploads are temporarily paused. Please try again later.' }
+    }
+  }
   const globalCap = config.globalCapacityBytes ?? Number.POSITIVE_INFINITY
   if (globalBytes(storage) + incomingBytes > globalCap) {
     console.error(`[Pokkit] ⛔ GLOBAL CAPACITY FUSE: ${fmtGB(globalBytes(storage))} stored, cap ${fmtGB(config.globalCapacityBytes)} — rejecting uploads`)
