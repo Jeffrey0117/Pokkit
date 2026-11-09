@@ -93,7 +93,7 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
         <input type="password" name="password" placeholder="Enter password" class="password-input" data-zh-ph="輸入密碼" autofocus required>
         <button type="submit" class="btn btn-primary btn-large" data-zh="解鎖">Unlock</button>
       </form>`
-    : `<button type="button" id="downloadBtn" class="btn btn-primary btn-large" data-dl="/f/${entry.id}?dl=1" data-zh="下載">Download</button>`
+    : `<button type="button" id="downloadBtn" class="btn btn-primary btn-large is-locked" data-dl="/f/${entry.id}?dl=1"><svg class="lock-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span data-zh="下載">Download</span></button>`
 
   const countdownScript = entry.expires_at && !isExpired
     ? `<script>
@@ -164,6 +164,15 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
         ${actionBlock}
       </div>
     </main>
+    <div class="login-gate" id="loginGate" role="dialog" aria-modal="true" aria-labelledby="loginGateTitle" hidden>
+      <div class="login-gate-card">
+        <h2 class="login-gate-title" id="loginGateTitle" data-zh="要登入才能下載喔">Log in to download</h2>
+        <p class="login-gate-text" data-zh="免費註冊,馬上就能下載。">Sign up free and download right away.</p>
+        <button type="button" class="btn btn-primary btn-large" id="gateRegister" data-zh="免費註冊">Sign up free</button>
+        <button type="button" class="btn btn-large login-gate-login" id="gateLogin" data-zh="我有帳號,登入">I have an account</button>
+        <button type="button" class="login-gate-close" id="gateClose" data-zh="先不用">Not now</button>
+      </div>
+    </div>
     <footer class="footer">
       <a class="footer-brand" href="/" data-zh="Pokkit 隨手一丟就分享">Pokkit: drop it, share it</a>
     </footer>
@@ -180,19 +189,34 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
   }
   var btn = document.getElementById('downloadBtn');
   if (!btn) return;
+  var gate = document.getElementById('loginGate');
   var pending = false;
+  function sdk() { return window.letmeuse; }
+  function signedIn() { return sdk() && sdk().user; }
   function download() { location.href = btn.getAttribute('data-dl'); }
-  function signedIn() { return window.letmeuse && window.letmeuse.user; }
+  function setLocked(locked) { btn.classList.toggle('is-locked', locked); }
+  function closeGate() { gate.hidden = true; }
+  function openWith(method) {
+    if (!sdk()) return;
+    pending = true;
+    closeGate();
+    sdk()[method]();
+  }
   btn.addEventListener('click', function () {
     if (signedIn()) { download(); return; }
-    if (!window.letmeuse) return;
-    pending = true;
-    window.letmeuse.login();
+    gate.hidden = false;
   });
+  document.getElementById('gateRegister').addEventListener('click', function () { openWith('register'); });
+  document.getElementById('gateLogin').addEventListener('click', function () { openWith('login'); });
+  document.getElementById('gateClose').addEventListener('click', closeGate);
+  gate.addEventListener('click', function (e) { if (e.target === gate) closeGate(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeGate(); });
   var tries = 0;
   (function subscribe() {
-    if (window.letmeuse && window.letmeuse.onAuthChange) {
-      window.letmeuse.onAuthChange(function (user) {
+    if (sdk() && sdk().onAuthChange) {
+      setLocked(!signedIn());
+      sdk().onAuthChange(function (user) {
+        setLocked(!user);
         if (user && pending) { pending = false; download(); }
       });
     } else if (tries++ < 50) {

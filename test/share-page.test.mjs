@@ -79,6 +79,16 @@ test('the download button is a login gate, with no direct file link', async () =
   assert.match(html, /letmeuse\.js/)
 })
 
+test('the download button starts locked and explains itself before any login window', async () => {
+  const { id } = await upload('a.mp4', 'video/mp4')
+  const html = await page(id)
+  assert.match(html, /id="downloadBtn" class="[^"]*is-locked/)
+  assert.match(html, /class="lock-icon"/)
+  assert.match(html, /要登入才能下載喔/)
+  assert.match(html, /id="gateRegister"/)
+  assert.match(html, /id="gateLogin"/)
+})
+
 test('the share page speaks Chinese to Chinese browsers', async () => {
   const { id } = await upload('a.mp4', 'video/mp4')
   const html = await page(id)

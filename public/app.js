@@ -1614,7 +1614,16 @@
     copyBtn.textContent = window.t ? window.t('Copy') : 'Copy';
     copyBtn.addEventListener('click', function () { copyUrl(fullUrl); });
 
+    // 傳完想馬上看成果:一鍵開新分頁
+    var openBtn = document.createElement('a');
+    openBtn.className = 'btn';
+    openBtn.href = fullUrl;
+    openBtn.target = '_blank';
+    openBtn.rel = 'noopener';
+    openBtn.textContent = window.t ? window.t('Open') : 'Open';
+
     urlBox.appendChild(input);
+    urlBox.appendChild(openBtn);
     urlBox.appendChild(copyBtn);
     urlRow.appendChild(label);
     urlRow.appendChild(urlBox);
