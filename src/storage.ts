@@ -1,3 +1,4 @@
+import { Moderation } from './moderation.js'
 import { createRequire } from 'node:module'
 import { existsSync, readFileSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
@@ -79,6 +80,7 @@ export interface AccountUsage extends Account {
 
 export class Storage {
   private store: InstanceType<typeof PokkitStore>
+  readonly moderation: Moderation
 
   constructor(private dataDir: string) {
     this.store = new PokkitStore({
@@ -87,6 +89,7 @@ export class Storage {
         default: { mode: 'uuid-dir' },
       },
     })
+    this.moderation = new Moderation((this.store as any)._db)
   }
 
   async init(): Promise<void> {
@@ -184,6 +187,10 @@ export class Storage {
 
   setRawSize(id: string, bytes: number): boolean {
     return this.store.setRawSize(id, bytes)
+  }
+
+  getEntryDir(id: string): string | null {
+    return this.store.getEntryDir(id)
   }
 
   getOriginalPath(id: string): string | null {

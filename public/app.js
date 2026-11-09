@@ -2418,10 +2418,17 @@
   });
 
   // Reveal the admin-only Projects nav when the signed-in caller is an admin.
+  function showAdminLinks(me) {
+    var isAdmin = !!(me && me.isAdmin);
+    var nav = document.getElementById('projectsNav');
+    if (nav) nav.hidden = !isAdmin;
+    var adminNav = document.getElementById('adminNav');
+    if (adminNav) adminNav.hidden = !isAdmin;
+  }
+
   function checkAdmin() {
     apiRequest('GET', '/api/me', null, function (me) {
-      var nav = document.getElementById('projectsNav');
-      if (nav) nav.hidden = !(me && me.isAdmin);
+      showAdminLinks(me);
     });
   }
 
@@ -4221,6 +4228,7 @@
     if (!getToken()) { applyLoggedOut(); return; }
     apiRequest('GET', '/api/me', null, function (me) {
       if (!me) return; // 401 already reset state via apiRequest's handler
+      showAdminLinks(me);
       var changed = !currentUser || currentUser.userId !== me.userId;
       currentUser = {
         userId: me.userId,

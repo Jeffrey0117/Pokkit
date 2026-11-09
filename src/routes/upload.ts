@@ -25,6 +25,9 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
     }
 
     const reservedFor = user.userId === GUEST_USER_ID ? guestKey(request) : null
+    if (reservedFor && storage.moderation.isGuestBlocked(reservedFor)) {
+      return reply.status(403).send({ error: 'Uploads from here have been suspended.', code: 'account_blocked' })
+    }
     if (reservedFor && !storage.reserveGuestUpload(reservedFor, GUEST_DAILY_UPLOADS)) {
       return reply.status(429).send({
         error: `You've used today's ${GUEST_DAILY_UPLOADS} uploads. Log in to keep going.`,
@@ -60,6 +63,10 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
         config,
       )
       if (result.status >= 400) refund()
+      const fileId = (result.body as { id?: unknown }).id
+      if (reservedFor && result.status < 400 && typeof fileId === 'string') {
+        storage.moderation.rememberGuestFile(fileId, reservedFor)
+      }
       return reply.status(result.status).send(result.body)
     } catch (err) {
       refund()

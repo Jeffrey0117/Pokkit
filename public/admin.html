@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>會員管理 | Pokkit</title>
+<style>
+  :root { --bg:#fafaf7; --panel:#f2f0ea; --line:#ddd9cf; --text:#1b1b18; --muted:#85837a; --hot:#b42318; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.6 'Noto Sans TC',system-ui,sans-serif; }
+  .wrap { max-width:1100px; margin:0 auto; padding:24px 16px 64px; }
+  header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:20px; }
+  h1 { margin:0; font-size:22px; }
+  a { color:inherit; }
+  .muted { color:var(--muted); }
+  .zero { color:var(--muted); }
+  .tabs { display:flex; gap:4px; margin-bottom:16px; border-bottom:1px solid var(--line); }
+  .tabs button { padding:8px 14px; border:0; border-bottom:2px solid transparent; background:none; color:var(--muted); font:inherit; cursor:pointer; }
+  .tabs button.on { border-color:var(--text); color:var(--text); font-weight:600; }
+  table { width:100%; border-collapse:collapse; }
+  th,td { padding:9px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:middle; }
+  th { font-size:12px; font-weight:500; color:var(--muted); }
+  td.num,th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  tr.row { cursor:pointer; }
+  tr.row:hover { background:var(--panel); }
+  .tag { display:inline-block; padding:0 6px; border:1px solid var(--line); border-radius:4px; font-size:12px; color:var(--muted); }
+  .tag.hot { border-color:var(--hot); color:var(--hot); }
+  button.act { padding:5px 10px; border:1px solid var(--line); border-radius:6px; background:#fff; font:inherit; font-size:13px; cursor:pointer; }
+  button.act:hover { border-color:var(--text); }
+  button.act.danger { color:var(--hot); }
+  button.act.danger:hover { border-color:var(--hot); }
+  .bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:14px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:12px; }
+  .card { display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  .thumb { display:flex; align-items:center; justify-content:center; height:130px; background:var(--panel); color:var(--muted); font-size:12px; }
+  .thumb img { width:100%; height:100%; object-fit:cover; }
+  .meta { padding:8px 10px; font-size:12px; overflow-wrap:anywhere; }
+  .meta .name { font-weight:600; font-size:13px; }
+  .card .acts { display:flex; gap:6px; padding:0 10px 10px; margin-top:auto; }
+  .card .acts button { flex:1; padding:4px 0; }
+  .more { display:block; margin:18px auto 0; }
+  #msg { margin:40px 0; text-align:center; color:var(--muted); }
+  @media (max-width:640px) { .hide-sm { display:none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>會員管理</h1>
+    <a class="muted" href="/">回網站</a>
+  </header>
+  <div id="msg">載入中</div>
+  <div id="app" hidden>
+    <div class="tabs">
+      <button id="tabMembers" class="on" type="button">會員</button>
+      <button id="tabLog" type="button">管理紀錄</button>
+    </div>
+    <section id="members"></section>
+    <section id="detail" hidden></section>
+    <section id="log" hidden></section>
+  </div>
+</div>
+
+<script src="https://letmeuse.isnowfriend.com/letmeuse.js" data-app-id="app_5qXx5Wtv" data-accent="#18181b" data-locale="zh" data-mode="modal"></script>
+<script>
+(function () {
+  var PAGE = 60;
+  var $ = function (id) { return document.getElementById(id); };
+  var msg = $('msg');
+
+  function el(tag, attrs, children) {
+    var node = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      if (k === 'text') node.textContent = attrs[k];
+      else if (k === 'class') node.className = attrs[k];
+      else if (k === 'onclick') node.addEventListener('click', attrs[k]);
+      else node.setAttribute(k, attrs[k]);
+    });
+    (children || []).forEach(function (c) { if (c) node.appendChild(c); });
+    return node;
+  }
+
+  function size(bytes) {
+    if (!bytes) return '0';
+    var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    return (bytes / Math.pow(1024, i)).toFixed(i ? 1 : 0) + ' ' + units[i];
+  }
+
+  function when(ms) { return ms ? new Date(ms).toLocaleString('zh-TW', { hour12: false }) : '—'; }
+
+  function api(method, url, body) {
+    var headers = { Authorization: 'Bearer ' + window.letmeuse.getToken() };
+    if (body) headers['Content-Type'] = 'application/json';
+    return fetch(url, { method: method, headers: headers, body: body ? JSON.stringify(body) : undefined }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+        return data;
+      });
+    });
+  }
+
+  function act(promise, done) {
+    promise.then(done).catch(function (err) { alert(err.message); });
+  }
+
+  function show(section) {
+    ['members', 'detail', 'log'].forEach(function (id) { $(id).hidden = id !== section; });
+    $('tabMembers').classList.toggle('on', section !== 'log');
+    $('tabLog').classList.toggle('on', section === 'log');
+  }
+
+  var KIND = { member: '會員', guest: '訪客', project: '專案', admin: '管理員' };
+
+  function renderMembers(offset) {
+    show('members');
+    var box = $('members');
+    box.textContent = '';
+    box.appendChild(el('p', { class: 'muted', text: '載入中' }));
+    api('GET', '/api/admin/members?limit=' + PAGE + '&offset=' + offset).then(function (data) {
+      box.textContent = '';
+      var body = el('tbody');
+      data.members.forEach(function (m) {
+        var name = el('td', {}, [
+          el('div', { text: m.email || m.userId }),
+          m.email ? el('div', { class: 'muted', text: m.userId }) : null
+        ]);
+        var state = el('td', {}, [
+          el('span', { class: 'tag', text: KIND[m.kind] || m.kind }),
+          m.blocked ? el('span', { class: 'tag hot', text: ' 已封鎖' }) : null
+        ]);
+        body.appendChild(el('tr', { class: 'row', onclick: function () { renderDetail(m, 0); } }, [
+          name,
+          state,
+          el('td', { class: 'num', text: String(m.files) }),
+          el('td', { class: 'num', text: size(m.bytes) }),
+          el('td', { class: 'hide-sm muted', text: when(m.lastUpload) })
+        ]));
+      });
+      var head = el('tr', {}, [
+        el('th', { text: '帳號' }), el('th', { text: '狀態' }),
+        el('th', { class: 'num', text: '檔案' }), el('th', { class: 'num', text: '佔用' }),
+        el('th', { class: 'hide-sm', text: '最後上傳' })
+      ]);
+      box.appendChild(el('p', { class: 'muted', text: '共 ' + data.total + ' 個來源' }));
+      box.appendChild(el('table', {}, [el('thead', {}, [head]), body]));
+      if (offset + PAGE < data.total) {
+        box.appendChild(el('button', { class: 'act more', type: 'button', text: '下一頁', onclick: function () { renderMembers(offset + PAGE); } }));
+      }
+    }).catch(function (err) { box.textContent = err.message; });
+  }
+
+  function fileCard(f, member, grid) {
+    var thumb = el('div', { class: 'thumb' });
+    if (f.thumbUrl) thumb.appendChild(el('img', { src: f.thumbUrl, alt: '', loading: 'lazy' }));
+    else thumb.textContent = f.mediaType === 'video' ? '影片' : (f.mime || '檔案');
+    var meta = el('div', { class: 'meta' }, [
+      el('div', { class: 'name', text: f.filename }),
+      el('div', { class: 'muted', text: size(f.size + (f.rawSize || 0)) + ' · ' + when(f.uploadedAt) }),
+      f.expiresAt ? el('div', { class: 'muted', text: '到期 ' + when(f.expiresAt) }) : null
+    ]);
+    var card = el('div', { class: 'card' }, [
+      el('a', { href: f.shareUrl, target: '_blank', rel: 'noopener' }, [thumb]),
+      meta
+    ]);
+    var acts = el('div', { class: 'acts' }, [
+      el('button', { class: 'act danger', type: 'button', text: '下架', onclick: function () {
+        var reason = prompt('下架原因(可留空)', '');
+        if (reason === null) return;
+        act(api('DELETE', '/api/admin/files/' + encodeURIComponent(f.id), { reason: reason }), function () { grid.removeChild(card); });
+      } }),
+      member.kind === 'guest' ? el('button', { class: 'act danger', type: 'button', text: '封鎖來源', onclick: function () {
+        var reason = prompt('封鎖這個訪客來源的原因(可留空)', '');
+        if (reason === null) return;
+        act(api('POST', '/api/admin/files/' + encodeURIComponent(f.id) + '/block-uploader', { reason: reason }), function () { alert('已封鎖這個來源'); });
+      } }) : null
+    ]);
+    card.appendChild(acts);
+    return card;
+  }
+
+  function renderDetail(member, offset) {
+    show('detail');
+    var box = $('detail');
+    box.textContent = '';
+    var id = encodeURIComponent(member.userId);
+    var bar = el('div', { class: 'bar' }, [
+      el('button', { class: 'act', type: 'button', text: '← 會員列表', onclick: function () { renderMembers(0); } }),
+      el('strong', { text: member.email || member.userId }),
+      el('span', { class: 'muted', text: member.files + ' 個檔案 · ' + size(member.bytes) })
+    ]);
+    if (member.kind === 'member') {
+      bar.appendChild(el('button', { class: 'act', type: 'button', text: member.blocked ? '解除封鎖' : '封鎖', onclick: function () {
+        if (member.blocked) {
+          act(api('POST', '/api/admin/members/' + id + '/unblock', {}), function () { member.blocked = false; renderDetail(member, offset); });
+          return;
+        }
+        var reason = prompt('封鎖原因(可留空)', '');
+        if (reason === null) return;
+        act(api('POST', '/api/admin/members/' + id + '/block', { reason: reason }), function () { member.blocked = true; renderDetail(member, offset); });
+      } }));
+      bar.appendChild(el('button', { class: 'act danger', type: 'button', text: '封鎖並清空', onclick: function () {
+        var typed = prompt('會封鎖帳號,並把所有檔案移到垃圾桶。連結立刻失效,30 天後從硬碟刪除。\n輸入會員 ID 確認:\n' + member.userId, '');
+        if (typed === null) return;
+        act(api('POST', '/api/admin/members/' + id + '/purge', { confirm: typed }), function (r) {
+          alert('已清空 ' + r.removed + ' 個檔案');
+          renderMembers(0);
+        });
+      } }));
+    }
+    box.appendChild(bar);
+    var grid = el('div', { class: 'grid' });
+    box.appendChild(grid);
+    api('GET', '/api/admin/members/' + id + '/files?limit=' + PAGE + '&offset=' + offset).then(function (data) {
+      if (!data.files.length) grid.appendChild(el('p', { class: 'muted', text: '沒有檔案' }));
+      data.files.forEach(function (f) { grid.appendChild(fileCard(f, member, grid)); });
+      if (data.files.length === PAGE) {
+        box.appendChild(el('button', { class: 'act more', type: 'button', text: '下一頁', onclick: function () { renderDetail(member, offset + PAGE); } }));
+      }
+    }).catch(function (err) { grid.textContent = err.message; });
+  }
+
+  var ACTION = { takedown: '下架', block: '封鎖', unblock: '解除封鎖', purge: '封鎖並清空', 'block-guest': '封鎖訪客來源' };
+
+  function renderLog() {
+    show('log');
+    var box = $('log');
+    box.textContent = '';
+    api('GET', '/api/admin/moderation-log?limit=200').then(function (data) {
+      if (!data.log.length) {
+        box.appendChild(el('p', { class: 'muted', text: '還沒有管理紀錄' }));
+        return;
+      }
+      var body = el('tbody');
+      data.log.forEach(function (row) {
+        body.appendChild(el('tr', {}, [
+          el('td', { class: 'muted', text: when(row.at) }),
+          el('td', { text: ACTION[row.action] || row.action }),
+          el('td', { text: row.targetUser || '—' }),
+          el('td', { class: 'hide-sm', text: row.targetFile || '—' }),
+          el('td', { text: row.detail || '' })
+        ]));
+      });
+      var head = el('tr', {}, [
+        el('th', { text: '時間' }), el('th', { text: '動作' }), el('th', { text: '對象' }),
+        el('th', { class: 'hide-sm', text: '檔案' }), el('th', { text: '說明' })
+      ]);
+      box.appendChild(el('table', {}, [el('thead', {}, [head]), body]));
+    }).catch(function (err) { box.textContent = err.message; });
+  }
+
+  $('tabMembers').addEventListener('click', function () { renderMembers(0); });
+  $('tabLog').addEventListener('click', renderLog);
+
+  function start() {
+    api('GET', '/api/me').then(function (me) {
+      if (!me.isAdmin) {
+        msg.textContent = '這個帳號沒有管理權限';
+        return;
+      }
+      msg.hidden = true;
+      $('app').hidden = false;
+      renderMembers(0);
+    }).catch(function (err) { msg.textContent = err.message; });
+  }
+
+  var tries = 0;
+  (function wait() {
+    var sdk = window.letmeuse;
+    if (!sdk || !sdk.ready) {
+      if (tries++ < 80) { setTimeout(wait, 100); return; }
+      msg.textContent = '登入元件載入失敗,請重新整理';
+      return;
+    }
+    if (sdk.user && sdk.getToken()) { start(); return; }
+    msg.textContent = '請先登入';
+    sdk.onAuthChange(function (user) { if (user) start(); });
+    sdk.login();
+  })();
+})();
+</script>
+</body>
+</html>

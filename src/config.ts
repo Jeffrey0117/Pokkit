@@ -35,6 +35,7 @@ export interface PokkitConfig {
   maxFileSize: number
   publicUrl: string
   publicHosts?: string[]
+  getJwtKey?: (kid: string) => unknown
   premiumUserIds: string[]
   // LetMeUse users (userId or email) allowed to use the cross-account admin
   // view. Empty = no human is admin (only the global API key / is_admin accounts).

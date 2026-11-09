@@ -71,7 +71,7 @@ function recoverStuckPhotos(): void {
 
   console.log(`[PhotoWorker] Recovering ${stuckPhotos.length} stuck photo(s)...`)
   for (const entry of stuckPhotos) {
-    const entryDir = join(dataDir, 'default', entry.id)
+    const entryDir = store.getEntryDir(entry.id) ?? join(dataDir, 'default', entry.id)
     if (!existsSync(entryDir)) {
       store.failPhoto(entry.id, 'Raw file directory missing after crash')
       continue

@@ -132,7 +132,7 @@ function recoverStuckVideos(): void {
 
   console.log(`[VideoWorker] Recovering ${targets.length} video(s) (${stuck.length} stuck, ${failed.length} failed)...`)
   for (const entry of targets) {
-    const entryDir = join(dataDir, 'default', entry.id)
+    const entryDir = store.getEntryDir(entry.id) ?? join(dataDir, 'default', entry.id)
     if (!existsSync(entryDir)) {
       store.failPhoto(entry.id, 'Raw file directory missing after crash')
       continue

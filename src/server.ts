@@ -21,6 +21,7 @@ import { eventsRoute } from './routes/events.js'
 import { trashRoute } from './routes/trash.js'
 import { photosRoute } from './routes/photos.js'
 import { adminRoute } from './routes/admin.js'
+import { moderationRoute } from './routes/moderation.js'
 import { chunkedUploadRoute } from './routes/chunked-upload.js'
 import { initPhotoWorker, shutdownWorker } from './photo-worker.js'
 import { initVideoWorker, shutdownVideoWorker } from './video-worker.js'
@@ -164,6 +165,7 @@ export async function createServer(config: PokkitConfig) {
   trashRoute(app, storage, config)
   photosRoute(app, storage, config)
   adminRoute(app, storage, config)
+  moderationRoute(app, storage, config)
 
   // AVIF 閒時歸檔 sweeper(閒 10 分鐘 + 無 processing 才動工,一次一張,子程序編碼)
   {
@@ -192,6 +194,7 @@ export async function createServer(config: PokkitConfig) {
       if (n > 0) console.log(`[Pokkit] Swept ${n} expired file(s)`)
       const p = storage.purgeOldTrash()
       storage.pruneGuestUploads()
+      storage.moderation.pruneGuestFiles()
       if (p > 0) console.log(`[Pokkit] Purged ${p} trashed file(s) past 30 days`)
     } catch (err) {
       console.error('[Pokkit] Expired sweep failed:', err)

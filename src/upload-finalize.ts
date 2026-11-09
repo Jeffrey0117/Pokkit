@@ -171,6 +171,9 @@ export async function finalizeUpload(
   config: PokkitConfig,
 ): Promise<FinalizeResult> {
   const { filename, mime, filePath, fields } = input
+  if (user.email && user.userId !== GUEST_USER_ID && !user.isProject) {
+    storage.moderation.rememberProfile(user.userId, user.email)
+  }
   markIngest() // AVIF sweeper 讓路訊號:有人在上傳,閒時歸檔停手
   let buffer = input.buffer
   if (!buffer && !filePath) return { status: 400, body: { error: 'No upload content' } }

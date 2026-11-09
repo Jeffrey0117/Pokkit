@@ -47,7 +47,7 @@ export async function sweepOnce(storage: Storage, dataDir: string): Promise<{ ac
   const store = storage as unknown as { store: { listArchiveCandidates(): Array<{ id: string }> } }
   const candidates = store.store.listArchiveCandidates()
   for (const c of candidates) {
-    const dir = join(dataDir, 'default', c.id)
+    const dir = storage.getEntryDir(c.id) ?? join(dataDir, 'default', c.id)
     const skipMarker = join(dir, '.avif-skip')
     const avifPath = join(dir, '_raw.avif')
     if (existsSync(skipMarker) || existsSync(avifPath)) continue

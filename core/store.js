@@ -154,7 +154,7 @@ class PokkitStore {
       }
     }
 
-    const storedName = this._resolveStoredName(bucket, id, filename);
+    const storedName = this._resolveStoredName(bucket, id, filename, opts.user_id);
     const destPath = this._resolveFilePath(bucket, storedName);
 
     // Ensure parent dir exists
@@ -203,7 +203,7 @@ class PokkitStore {
     this._validateBucket(bucket);
 
     const id = opts.id || shortId();
-    const storedName = this._resolveStoredName(bucket, id, filename);
+    const storedName = this._resolveStoredName(bucket, id, filename, opts.user_id);
     const destPath = this._resolveFilePath(bucket, storedName);
 
     const atomic = createAtomicWriteStream(destPath, { computeHash: true });
@@ -502,8 +502,10 @@ class PokkitStore {
         if (this.buckets[entry.bucket]?.mode === 'uuid-dir') {
           const parentDir = path.dirname(filePath);
           try {
-            const remaining = fs.readdirSync(parentDir);
-            if (remaining.length === 0) {
+            // 只有資料夾名稱就是這個檔案 ID 時才整包刪,絕不碰共用的上層資料夾
+            if (path.basename(parentDir) === String(id)) {
+              fs.rmSync(parentDir, { recursive: true, force: true });
+            } else if (fs.readdirSync(parentDir).length === 0) {
               fs.rmdirSync(parentDir);
             }
           } catch (_) { /* ignore */ }
@@ -756,7 +758,21 @@ class PokkitStore {
   /**
    * Resolve stored_name based on bucket mode
    */
-  _resolveStoredName(bucket, id, filename) {
+  // 新檔案按擁有者分資料夾;沒有擁有者的維持舊的平鋪。舊檔案靠資料庫裡的路徑照常讀取。
+  _entryPrefix(id, userId) {
+    if (!userId) return id;
+    const safe = String(userId).replace(/[^A-Za-z0-9_-]/g, '_') || '_';
+    return `users/${safe}/${id}`;
+  }
+
+  // 這個檔案的資料夾(原檔、展示版、縮圖都放這裡)
+  getEntryDir(id) {
+    const entry = db.findFileAny(this._db, id);
+    if (!entry || !entry.stored_name || !entry.stored_name.includes('/')) return null;
+    return path.dirname(this._resolveFilePath(entry.bucket, entry.stored_name));
+  }
+
+  _resolveStoredName(bucket, id, filename, userId) {
     // 🔒 Never let a caller-supplied filename influence the directory: strip any
     // path separators/traversal so `../../public/app.js` can't escape the bucket.
     // The original (display) name is stored separately in entry.filename.
@@ -766,7 +782,7 @@ class PokkitStore {
       return safe;
     }
     // uuid-dir: {uuid}/{filename}
-    return `${id}/${safe}`;
+    return `${this._entryPrefix(id, userId)}/${safe}`;
   }
 
   /**
@@ -840,7 +856,7 @@ class PokkitStore {
     const id = shortId();
     const ext = path.extname(filename) || '.jpg';
     const rawName = `_raw${ext}`;
-    const storedName = `${id}/${rawName}`;
+    const storedName = `${this._entryPrefix(id, opts.user_id)}/${rawName}`;
     const destPath = this._resolveFilePath(bucket, storedName);
 
     const dir = path.dirname(destPath);
@@ -901,7 +917,7 @@ class PokkitStore {
     const id = shortId();
     const ext = path.extname(filename) || '.jpg';
     const rawName = `_raw${ext}`;
-    const storedName = `${id}/${rawName}`;
+    const storedName = `${this._entryPrefix(id, opts.user_id)}/${rawName}`;
     const destPath = this._resolveFilePath(bucket, storedName);
 
     const dir = path.dirname(destPath);
@@ -951,8 +967,9 @@ class PokkitStore {
     if (!entry) return false;
 
     const bucket = entry.bucket;
-    const photoName = `${id}/photo.webp`;
-    const thumbName = `${id}/thumb.webp`;
+    const entryPrefix = path.posix.dirname(entry.stored_name);
+    const photoName = `${entryPrefix}/photo.webp`;
+    const thumbName = `${entryPrefix}/thumb.webp`;
 
     const photoPath = this._resolveFilePath(bucket, photoName);
     const thumbPath = this._resolveFilePath(bucket, thumbName);
@@ -986,8 +1003,9 @@ class PokkitStore {
     if (!entry) return false;
 
     const bucket = entry.bucket;
-    const videoName = `${id}/video.mp4`;
-    const thumbName = `${id}/thumb.webp`;
+    const entryPrefix = path.posix.dirname(entry.stored_name);
+    const videoName = `${entryPrefix}/video.mp4`;
+    const thumbName = `${entryPrefix}/thumb.webp`;
 
     const destVideoPath = this._resolveFilePath(bucket, videoName);
     const thumbPath = this._resolveFilePath(bucket, thumbName);

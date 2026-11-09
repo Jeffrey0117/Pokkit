@@ -149,7 +149,7 @@ export function requireAuth(
   }
 
   // LetMeUse JWT (a human) — 🔒 驗簽章, 不是只 decode
-  const user = verifyLetMeUseToken(token, config.letmeuseAppId)
+  const user = verifyLetMeUseToken(token, config.letmeuseAppId, config.getJwtKey as never)
   if (!user) {
     reply.status(401).send({ error: 'Invalid or expired token' })
     return null
@@ -157,6 +157,10 @@ export function requireAuth(
   const isAdmin =
     config.adminUsers.includes(user.userId) ||
     (user.email ? config.adminUsers.includes(user.email) : false)
+  if (!isAdmin && storage?.moderation?.isBlocked(user.userId)) {
+    reply.status(403).send({ error: 'This account has been suspended.', code: 'account_blocked' })
+    return null
+  }
   return { ...user, isAdmin }
 }
 
