@@ -422,6 +422,7 @@
     if (!wasSignedIn) return;
     setMode(false);       // leave dashboard mode → show the landing front door
     setActiveSide(null);
+    toggleUploadZone(true); // 後台的帳號頁會藏上傳區,回首頁一定要放回來
     if (window.history && history.pushState && location.pathname !== '/') {
       history.pushState({}, '', '/');
     }

@@ -77,3 +77,9 @@ test('the router sends guests to the landing page on any width', () => {
 test('translations load before the page body so Chinese users never see English first', () => {
   assert.ok(html.indexOf('/i18n.js') < html.indexOf('<body'), 'i18n.js must be in the head')
 })
+
+test('logging out brings the upload area back on the landing page', () => {
+  const app = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8')
+  const fn = app.slice(app.indexOf('function applyLoggedOut() {'), app.indexOf("$logoutBtn.addEventListener('click'"))
+  assert.match(fn, /setMode\(false\);[\s\S]*toggleUploadZone\(true\);/)
+})
