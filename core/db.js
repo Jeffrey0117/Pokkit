@@ -511,7 +511,7 @@ function listAlbums(db, opts = {}) {
       COALESCE(SUM(f.size), 0) as total_size
     FROM albums a
     LEFT JOIN files f ON f.album_id = a.id AND f.status = 'ready'
-    ${scoped ? 'WHERE a.user_id = @userId' : ''}
+    ${scoped ? (opts.includeUnowned ? 'WHERE (a.user_id = @userId OR a.user_id IS NULL)' : 'WHERE a.user_id = @userId') : ''}
     GROUP BY a.id
     ORDER BY a.created_at DESC
   `).all(scoped ? { userId: opts.userId } : {});

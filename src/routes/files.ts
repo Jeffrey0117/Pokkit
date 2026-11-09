@@ -1,3 +1,4 @@
+import { librarySelector } from '../auth.js'
 import { publicBaseUrl } from '../public-url.js'
 import { createReadStream, readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
@@ -345,9 +346,7 @@ export function filesRoute(
     const offset = parseInt(request.query.offset || '0', 10) || 0
     const order = request.query.order === 'asc' ? 'asc' : 'desc'
     const q = typeof request.query.q === 'string' ? request.query.q.slice(0, 100).trim() : ''
-    // Admin/owner sees the personal library (project files excluded); a project
-    // account sees only its own files.
-    const scope = user.isAdmin ? { excludeAccounts: true } : { userId: user.userId }
+    const scope = librarySelector(user)
     return storage.list({ limit, offset, order, ...(q ? { q } : {}), ...scope })
   })
 

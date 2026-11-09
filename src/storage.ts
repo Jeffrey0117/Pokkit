@@ -350,7 +350,7 @@ export class Storage {
     return this.store.getAlbum(id)
   }
 
-  listAlbums(opts?: { userId?: string }): Album[] {
+  listAlbums(opts?: { userId?: string; includeUnowned?: boolean }): Album[] {
     return this.store.listAlbums(opts || {})
   }
 

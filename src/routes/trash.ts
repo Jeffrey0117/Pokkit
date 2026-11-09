@@ -1,3 +1,4 @@
+import { isMachineAdmin } from '../auth.js'
 import type { FastifyInstance } from 'fastify'
 import type { Storage } from '../storage.js'
 import type { PokkitConfig } from '../config.js'
@@ -9,8 +10,8 @@ export function trashRoute(app: FastifyInstance, storage: Storage, config: Pokki
   app.get('/api/trash', async (request, reply) => {
     const user = requireAuth(request, reply, config, storage)
     if (!user) return
-    // LetMeUse admins see everything; everyone else only their own trash
-    return storage.listTrash(user.isAdmin ? {} : { userId: user.userId })
+    // 每個人只看自己的垃圾桶;管理員下架或清空的檔案在會員管理後台處理
+    return storage.listTrash(isMachineAdmin(user) ? {} : { userId: user.userId })
   })
 
   app.post<{ Params: { id: string } }>('/api/trash/:id/restore', async (request, reply) => {
@@ -46,7 +47,8 @@ export function trashRoute(app: FastifyInstance, storage: Storage, config: Pokki
   app.delete('/api/trash', async (request, reply) => {
     const user = requireAuth(request, reply, config, storage)
     if (!user) return
-    const items = storage.listTrash(user.isAdmin ? {} : { userId: user.userId })
+    // 永久刪除,誰都只能清自己的,否則管理員按一下會清掉全站會員的垃圾桶
+    const items = storage.listTrash({ userId: user.userId })
     let n = 0
     for (const item of items) {
       try { if (await storage.remove(item.id)) n++ } catch { /* keep going */ }

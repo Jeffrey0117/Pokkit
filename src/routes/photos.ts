@@ -1,3 +1,4 @@
+import { isMachineAdmin, librarySelector } from '../auth.js'
 import { publicBaseUrl } from '../public-url.js'
 import { createReadStream, statSync } from 'node:fs'
 import { randomBytes } from 'node:crypto'
@@ -30,11 +31,13 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
     return reply.status(201).send(album)
   })
 
-  // GET /api/albums — list albums (tenant sees only its own; admin sees all)
+  // GET /api/albums — 每個人只看自己的相簿,機器身分才看全部
   app.get('/api/albums', async (request, reply) => {
     const user = requireAuth(request, reply, config, storage)
     if (!user) return
-    return storage.listAlbums(user.isAdmin ? {} : { userId: user.userId })
+    if (isMachineAdmin(user)) return storage.listAlbums({})
+    // 沒有擁有者的舊相簿是站長多租戶之前建的,只有管理員看得到
+    return storage.listAlbums({ userId: user.userId, includeUnowned: !!user.isAdmin })
   })
 
   // GET /api/albums/:id — album detail + photo list
@@ -362,9 +365,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
           : undefined
       const order = request.query.order === 'asc' ? 'asc' : 'desc'
       const sortBy = request.query.sort === 'uploaded' ? 'uploaded' : 'taken'
-      // Admin/owner sees the personal library (project files excluded); a project
-      // account sees only its own media.
-      const scope = user.isAdmin ? { excludeAccounts: true } : { userId: user.userId }
+      const scope = librarySelector(user)
       return storage.listAllPhotos({ limit, offset, mediaType, order, sortBy, ...scope })
     },
   )

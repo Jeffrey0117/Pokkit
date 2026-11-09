@@ -168,6 +168,16 @@ export function requireAuth(
  * Whether a caller may act on a specific file. Admins (owner / global key) can
  * touch anything; everyone else is limited to files they own (user_id match).
  */
+export function isMachineAdmin(user: AuthUser): boolean {
+  return !!user.isAdmin && (user.isProject === true || user.userId === 'admin')
+}
+
+// 登入的人只看自己的檔案庫,管理員也一樣;看別人的檔案走會員管理後台。
+// 只有 API key 這種機器身分維持看整個服務。
+export function librarySelector(user: AuthUser): { userId?: string; excludeAccounts?: boolean } {
+  return isMachineAdmin(user) ? { excludeAccounts: true } : { userId: user.userId }
+}
+
 export function canAccessEntry(user: AuthUser, entry: { user_id?: string | null }): boolean {
   if (user.isAdmin) return true
   return !!entry.user_id && entry.user_id === user.userId
