@@ -1,3 +1,4 @@
+import { publicBaseUrl } from '../public-url.js'
 import { createReadStream, statSync } from 'node:fs'
 import { randomBytes } from 'node:crypto'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
@@ -11,10 +12,7 @@ function escapeHtml(text: string): string {
 }
 
 function shareBaseUrl(request: FastifyRequest, config: PokkitConfig): string {
-  if (config.publicUrl) return config.publicUrl
-  const host = request.headers.host ?? 'localhost'
-  const proto = (request.headers['x-forwarded-proto'] as string) ?? 'http'
-  return `${proto}://${host}`
+  return publicBaseUrl(request, config)
 }
 
 export function photosRoute(app: FastifyInstance, storage: Storage, config: PokkitConfig) {

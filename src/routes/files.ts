@@ -1,3 +1,4 @@
+import { publicBaseUrl } from '../public-url.js'
 import { createReadStream, readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
@@ -66,15 +67,15 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
   const isAudio = entry.mime.startsWith('audio/')
   const isExpired = entry.expires_at ? Date.now() > entry.expires_at : false
   const hasPassword = !!entry.password_hash
-  const rawUrl = `${baseUrl}/f/${entry.id}?dl=1`
-  const previewUrl = `/files/${entry.id}/${encodeURIComponent(entry.filename)}`
+  // 預覽網址不帶檔名,分享頁上看不到原始檔名
+  const previewUrl = `/files/${entry.id}/preview`
 
   const expiryInfo = entry.expires_at
     ? `<span class="meta-badge ${isExpired ? 'expired' : ''}">${isExpired ? 'Expired' : timeRemaining(entry.expires_at)}</span>`
     : ''
 
   const previewBlock = isExpired ? '' : !hasPassword ? (
-    isImage ? `<div class="preview"><img src="${previewUrl}" alt="${escapeHtml(entry.filename)}" loading="lazy"></div>` :
+    isImage ? `<div class="preview"><img src="${previewUrl}" alt="" loading="lazy"></div>` :
     isVideo ? `<div class="preview"><video src="${previewUrl}" controls preload="metadata"></video></div>` :
     isAudio ? `<div class="preview"><audio src="${previewUrl}" controls preload="metadata"></audio></div>` :
     ''
@@ -85,14 +86,14 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
     : ''
 
   const actionBlock = isExpired
-    ? '<div class="expired-msg">This file has expired and is no longer available.</div>'
+    ? '<div class="expired-msg" data-zh="這個連結已經過期了">This link has expired.</div>'
     : hasPassword
     ? `<form method="POST" action="/f/${entry.id}/verify" class="password-form">
         ${errorBlock}
-        <input type="password" name="password" placeholder="Enter password" class="password-input" autofocus required>
-        <button type="submit" class="btn btn-primary btn-large">Unlock &amp; Download</button>
+        <input type="password" name="password" placeholder="Enter password" class="password-input" data-zh-ph="輸入密碼" autofocus required>
+        <button type="submit" class="btn btn-primary btn-large" data-zh="解鎖">Unlock</button>
       </form>`
-    : `<a href="${rawUrl}" class="btn btn-primary btn-large" download="${escapeHtml(entry.filename)}">Download</a>`
+    : `<button type="button" id="downloadBtn" class="btn btn-primary btn-large" data-dl="/f/${entry.id}?dl=1" data-zh="下載">Download</button>`
 
   const countdownScript = entry.expires_at && !isExpired
     ? `<script>
@@ -120,17 +121,17 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
   const countdownBlock = entry.expires_at && !isExpired
     ? `<div class="countdown-bar">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        <span>Expires in <strong id="countdown">${timeRemaining(entry.expires_at)}</strong></span>
+        <span><span data-zh="剩餘">Expires in</span> <strong id="countdown">${timeRemaining(entry.expires_at)}</strong></span>
       </div>`
     : ''
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(entry.filename)} — Pokkit</title>
-  <meta property="og:title" content="${escapeHtml(entry.filename)}">
+  <title>Pokkit | 隨手一丟就分享</title>
+  <meta property="og:title" content="Pokkit | 隨手一丟就分享">
   <meta property="og:description" content="${formatBytes(entry.size)} · ${escapeHtml(entry.mime)}${entry.expires_at && !isExpired ? ' · Limited time' : ''}">
   <meta property="og:type" content="${isImage ? 'image' : isVideo ? 'video.other' : 'website'}">
   <meta property="og:site_name" content="Pokkit">
@@ -151,7 +152,6 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
     <main class="download-card">
       ${previewBlock}
       <div class="file-details">
-        <h1 class="file-title">${escapeHtml(entry.filename)}</h1>
         <div class="file-meta-row">
           <span class="meta-badge">${formatBytes(entry.size)}</span>
           <span class="meta-badge">${escapeHtml(entry.mime)}</span>
@@ -163,18 +163,44 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
       <div class="action-area">
         ${actionBlock}
       </div>
-      <div class="ad-space" id="ad-top">
-        <div data-adman-id="ad_xIof6RgB"></div>
-      </div>
     </main>
-    <div class="ad-space" id="ad-bottom">
-      <div data-adman-id="ad_cT4SnybN"></div>
-    </div>
     <footer class="footer">
-      <span class="footer-brand">Powered by <a href="/">Pokkit</a> &mdash; free file hosting</span>
+      <a class="footer-brand" href="/" data-zh="Pokkit 隨手一丟就分享">Pokkit: drop it, share it</a>
     </footer>
   </div>
-  <script src="https://adman.isnowfriend.com/embed/adman.js" data-base-url="https://adman.isnowfriend.com" defer></script>
+  <script src="https://letmeuse.isnowfriend.com/letmeuse.js" data-app-id="app_5qXx5Wtv" data-accent="#18181b" data-locale="zh" data-mode="modal"></script>
+  <script>
+(function(){
+  var langs = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || ''];
+  var zh = false;
+  for (var i = 0; i < langs.length; i++) if (/^zh\\b/i.test(langs[i])) zh = true;
+  if (zh) {
+    document.querySelectorAll('[data-zh]').forEach(function (el) { el.textContent = el.getAttribute('data-zh'); });
+    document.querySelectorAll('[data-zh-ph]').forEach(function (el) { el.placeholder = el.getAttribute('data-zh-ph'); });
+  }
+  var btn = document.getElementById('downloadBtn');
+  if (!btn) return;
+  var pending = false;
+  function download() { location.href = btn.getAttribute('data-dl'); }
+  function signedIn() { return window.letmeuse && window.letmeuse.user; }
+  btn.addEventListener('click', function () {
+    if (signedIn()) { download(); return; }
+    if (!window.letmeuse) return;
+    pending = true;
+    window.letmeuse.login();
+  });
+  var tries = 0;
+  (function subscribe() {
+    if (window.letmeuse && window.letmeuse.onAuthChange) {
+      window.letmeuse.onAuthChange(function (user) {
+        if (user && pending) { pending = false; download(); }
+      });
+    } else if (tries++ < 50) {
+      setTimeout(subscribe, 100);
+    }
+  })();
+})();
+</script>
   ${countdownScript}
 </body>
 </html>`
@@ -363,14 +389,7 @@ export function filesRoute(
       }
 
       // HTML download page (browsers)
-      let baseUrl: string
-      if (config.publicUrl) {
-        baseUrl = config.publicUrl
-      } else {
-        const host = request.headers.host ?? `${request.hostname}:${config.port}`
-        const proto = (request.headers['x-forwarded-proto'] as string) ?? 'http'
-        baseUrl = `${proto}://${host}`
-      }
+      const baseUrl = publicBaseUrl(request, config)
 
       return reply
         .header('Content-Type', 'text/html; charset=utf-8')
@@ -399,14 +418,7 @@ export function filesRoute(
       const password = body?.password || ''
 
       if (!storage.verifyPassword(entry, password)) {
-        let baseUrl: string
-        if (config.publicUrl) {
-          baseUrl = config.publicUrl
-        } else {
-          const host = request.headers.host ?? `${request.hostname}:${config.port}`
-          const proto = (request.headers['x-forwarded-proto'] as string) ?? 'http'
-          baseUrl = `${proto}://${host}`
-        }
+        const baseUrl = publicBaseUrl(request, config)
         return reply
           .status(401)
           .header('Content-Type', 'text/html; charset=utf-8')

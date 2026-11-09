@@ -1,3 +1,4 @@
+import { publicBaseUrl } from './public-url.js'
 import { statSync, statfsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { markIngest } from './avif-sweeper.js'
@@ -49,10 +50,7 @@ export function normalizeFields(raw: Record<string, unknown> | null | undefined)
 }
 
 export function resolveBaseUrl(request: FastifyRequest, config: PokkitConfig): string {
-  if (config.publicUrl) return config.publicUrl
-  const host = request.headers.host ?? `${request.hostname}:${config.port}`
-  const proto = (request.headers['x-forwarded-proto'] as string) ?? 'http'
-  return `${proto}://${host}`
+  return publicBaseUrl(request, config)
 }
 
 // Bytes-based quota (2026-10-04 容量制). Shared by /upload (finalize, knows the

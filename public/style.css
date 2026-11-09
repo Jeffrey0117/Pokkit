@@ -3073,3 +3073,15 @@ body.is-guest #viewTabs,
 body.is-guest #filesSection {
   display: none !important;
 }
+
+/* 首頁放大字級,風格不變 */
+body.mode-landing .hero { margin-bottom: 40px; padding-top: 24px; }
+body.mode-landing .hero-title { font-size: clamp(2.25rem, 6vw, 3.5rem); font-weight: 800; margin-bottom: 14px; }
+body.mode-landing .hero-subtitle { font-size: clamp(1.0625rem, 2.4vw, 1.375rem); max-width: 640px; }
+body.mode-landing .drop-text { font-size: 1.25rem; }
+body.mode-landing .drop-hint { font-size: 0.9375rem; }
+body.mode-landing .option-label { font-size: 0.8125rem; }
+body.mode-landing .option-input,
+body.mode-landing .option-select { font-size: 1rem; }
+body.mode-landing .feature-title { font-size: 1.125rem; margin-bottom: 8px; }
+body.mode-landing .feature-desc { font-size: 0.9375rem; }
