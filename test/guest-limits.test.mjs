@@ -1,4 +1,4 @@
-// 訪客快傳:每天 10 部、最多留 24 小時、不能選永久;登入帳號完全不受影響。
+// 訪客快傳:每天 5 部、最多留 24 小時、不能選永久;登入帳號完全不受影響。
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import os from 'node:os'
@@ -53,13 +53,13 @@ function upload({ ip, expiresIn, name = 'a.mp4', mime = 'video/mp4', size = 1024
   })
 }
 
-test('the daily limit is ten', () => {
-  assert.equal(GUEST_DAILY_UPLOADS, 10)
+test('the daily limit is five', () => {
+  assert.equal(GUEST_DAILY_UPLOADS, 5)
 })
 
-test('a guest gets ten uploads, the eleventh is refused with a clear code', async () => {
+test('a guest gets five uploads, the sixth is refused with a clear code', async () => {
   const ip = '198.51.100.1'
-  for (let i = 0; i < 10; i += 1) {
+  for (let i = 0; i < 5; i += 1) {
     const res = await upload({ ip })
     assert.equal(res.statusCode, 200, `upload ${i + 1}`)
   }
@@ -76,7 +76,7 @@ test('a rejected upload does not use up an allowance', async () => {
   const ip = '198.51.100.3'
   const big = await upload({ ip, size: 65 * 1024 * 1024 })
   assert.equal(big.statusCode, 413)
-  for (let i = 0; i < 10; i += 1) {
+  for (let i = 0; i < 5; i += 1) {
     assert.equal((await upload({ ip })).statusCode, 200, `upload ${i + 1}`)
   }
 })
@@ -84,7 +84,7 @@ test('a rejected upload does not use up an allowance', async () => {
 test('parallel uploads cannot slip past the limit', async () => {
   const ip = '198.51.100.4'
   const results = await Promise.all(Array.from({ length: 15 }, () => upload({ ip })))
-  assert.equal(results.filter((r) => r.statusCode === 200).length, 10)
+  assert.equal(results.filter((r) => r.statusCode === 200).length, 5)
 })
 
 test('a guest can pick hours and the link really expires then', async () => {
@@ -132,5 +132,5 @@ test('the public tier info describes the guest rules', async () => {
   const res = await app.inject({ method: 'GET', url: '/api/tiers' })
   const { guest } = res.json()
   assert.equal(guest.expiryHours, 24)
-  assert.equal(guest.dailyUploads, 10)
+  assert.equal(guest.dailyUploads, 5)
 })

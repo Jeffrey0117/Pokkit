@@ -181,7 +181,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   <div class="wrap">
     <div class="head"><h1>${name}</h1><span class="count">${photos.length} items</span></div>
     ${photos.length ? `<div class="grid">${cells}</div>` : '<div class="empty">This album is empty.</div>'}
-    <div class="foot"><a href="${baseUrl}/">Powered by Pokkit — your files, somewhere you trust</a></div>
+    <div class="foot"><a href="${baseUrl}/">Powered by Pokkit</a></div>
   </div>
 </body>
 </html>`

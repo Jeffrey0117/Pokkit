@@ -27,7 +27,7 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
     const reservedFor = user.userId === GUEST_USER_ID ? guestKey(request) : null
     if (reservedFor && !storage.reserveGuestUpload(reservedFor, GUEST_DAILY_UPLOADS)) {
       return reply.status(429).send({
-        error: `Guests can upload ${GUEST_DAILY_UPLOADS} files a day. Sign up free for more.`,
+        error: `You've used today's ${GUEST_DAILY_UPLOADS} uploads. Log in to keep going.`,
         code: 'guest_daily_limit',
       })
     }

@@ -373,6 +373,7 @@
     document.getElementById('uploadOptions').style.display = '';
     var gn = document.getElementById('guestNotice');
     if (gn) gn.hidden = loggedIn;
+    document.body.classList.toggle('is-guest', !loggedIn);
     if (!loggedIn) $storageQuota.hidden = true;
     var expSel = document.getElementById('expirySelect');
     if (expSel) {
@@ -727,14 +728,12 @@
 
   // ── Drop Zone Events ───────────────────────────────────
   $dropzone.addEventListener('click', function () {
-    if (!currentUser) { toast('Please login first', true); return; }
     $fileInput.click();
   });
 
   $dropzone.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      if (!currentUser) { toast('Please login first', true); return; }
       $fileInput.click();
     }
   });
@@ -758,7 +757,6 @@
   $dropzone.addEventListener('drop', function (e) {
     e.preventDefault();
     $dropzone.classList.remove('dragover');
-    if (!currentUser) { toast('Please login first', true); return; }
     handleDrop(e.dataTransfer);
   });
 
@@ -1063,6 +1061,12 @@
   }
 
   function runFinalVerify() {
+    // 訪客沒有檔案庫可核對,傳完拿到連結就結束了
+    if (!currentUser) {
+      verifyState = 'done';
+      releaseWakeLock();
+      return;
+    }
     verifyState = 'running';
     verifyRounds++;
     var total = verifyFiles.length;
@@ -1502,6 +1506,7 @@
         try { limitBody = JSON.parse(xhr.responseText); } catch (_) { /* */ }
         if (limitBody && limitBody.code === 'guest_daily_limit') {
           failPermanently(window.t ? window.t(limitBody.error) : limitBody.error);
+          if (typeof letmeuse !== 'undefined') letmeuse.login();
           return;
         }
         settleInflight();
@@ -1563,11 +1568,12 @@
     });
 
     xhr.open('POST', '/upload');
+    var uploadAsMember = !!currentUser;
     // 必設:預設 timeout=0=無限等。被斬斷的連線在 iOS 上常不觸發 error 事件,
     // 殭屍請求永久佔用併發槽,累積 10 個就把整個佇列鎖死
     // (2026-10-26 實案:百張批次兩度「卡在 59」)。逾時走 ontimeout → autoRetry。
     xhr.timeout = 120000;
-    setAuthHeader(xhr);
+    if (uploadAsMember) setAuthHeader(xhr);
     xhr.send(fd);
   }
 

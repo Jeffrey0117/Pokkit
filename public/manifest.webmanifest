@@ -1,7 +1,7 @@
 {
   "name": "Pokkit",
   "short_name": "Pokkit",
-  "description": "Your files, somewhere you trust. Original-quality photo & video backup.",
+  "description": "隨手一丟就分享。短網址、速度超快、超好用。",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#030303",

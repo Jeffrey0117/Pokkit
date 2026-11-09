@@ -61,17 +61,8 @@
     'Share link copied — anyone with it can view this album': '\u5206\u4eab\u9023\u7d50\u5df2\u8907\u88fd \u2014 \u62ff\u5230\u9023\u7d50\u7684\u4eba\u90fd\u80fd\u770b\u9019\u672c\u76f8\u7c3f',
 
     // ── Personal-cloud repositioning (2026-10) ──
-    'Your files, somewhere you trust.': '\u4f60\u7684\u6a94\u6848\uff0c\u653e\u5728\u4f60\u4fe1\u5f97\u904e\u7684\u5730\u65b9\u3002',
-    'Back up photos and videos in original quality. No scanning, no AI training, no selling your data. 2GB free.': '\u539f\u756b\u8cea\u4fdd\u5b58\u7167\u7247\u8207\u5f71\u7247\u3002\u4e0d\u6383\u63cf\u3001\u4e0d\u8a13\u7df4 AI\u3001\u4e0d\u8ce3\u4f60\u7684\u6578\u64da\u3002\u514d\u8cbb 2GB \u8d77\u3002',
     'Start free — 2GB': '\u514d\u8cbb\u958b\u59cb \u2014 2GB',
     'See plans': '\u770b\u65b9\u6848',
-    'Instant share, no login — files expire in 7 days. Sign up free to keep them.': '\u514d\u767b\u5165\u5feb\u50b3 \u2014 \u6a94\u6848 7 \u5929\u5f8c\u81ea\u52d5\u904e\u671f\u3002\u514d\u8cbb\u8a3b\u518a\u5373\u53ef\u6c38\u4e45\u4fdd\u5b58\u3002',
-    'Original Quality': '\u539f\u756b\u8cea\u4fdd\u5b58',
-    'No compression games. What you upload is exactly what you get back.': '\u4e0d\u5077\u58d3\u7e2e\u3002\u4f60\u50b3\u4ec0\u9ebc\uff0c\u62ff\u56de\u4f86\u5c31\u662f\u4ec0\u9ebc\u3002',
-    'Albums & Sharing': '\u76f8\u7c3f\u8207\u5206\u4eab',
-    'Organize into albums, share with one link. Password and auto-expiry when you want them.': '\u6574\u7406\u6210\u76f8\u7c3f\u3001\u4e00\u689d\u9023\u7d50\u5206\u4eab\u3002\u8981\u5bc6\u78bc\u6709\u5bc6\u78bc\u3001\u8981\u904e\u671f\u6709\u904e\u671f\u3002',
-    'Private by Design': '\u96b1\u79c1\u81f3\u4e0a',
-    'Your files live on our own server. No scanning, no AI training, no data resale.': '\u6a94\u6848\u653e\u5728\u81ea\u5bb6\u4f3a\u670d\u5668\u3002\u4e0d\u6383\u63cf\u5167\u5bb9\u3001\u4e0d\u8a13\u7df4 AI\u3001\u4e0d\u8f49\u8ce3\u6578\u64da\u3002',
     'Plans': '\u65b9\u6848',
     'Upgrade': '\u5347\u7d1a',
     '100GB storage, 4K video in original quality, large files.': '100GB \u5bb9\u91cf\u30014K \u5f71\u7247\u539f\u756b\u8cea\u3001\u5927\u6a94\u4e0a\u50b3\u3002',
@@ -128,8 +119,16 @@
     '6 hours': '6 小時',
     '12 hours': '12 小時',
     'Sign up to choose': '登入後可選',
-    'No login: files last up to 24 hours, 10 a day. Sign up free to keep them.': '訪客最多保留 24 小時,每天 10 部。免費註冊就能永久保存。',
-    'Guests can upload 10 files a day. Sign up free for more.': '訪客每天可以傳 10 部,今天用完了。免費註冊就能繼續傳。',
+    'Drop it, share it.': '隨手一丟就分享',
+    'Short link. Super fast. Super easy.': '短網址,速度超快,超好用。',
+    'No login. 5 a day, kept up to 24 hours.': '不用登入。一天 5 部,最多留 24 小時。',
+    "You've used today's 5 uploads. Log in to keep going.": '今天的 5 部用完了,登入就能繼續傳。',
+    'Just drop it': '隨手一丟',
+    'Drag it in. No login.': '拖進來就好,不用登入。',
+    'Short link': '短網址分享',
+    'Get a link right away. Paste it anywhere.': '傳完馬上有連結,貼給誰都能看。',
+    'Super fast': '速度超快',
+    'Drop a video, share it in seconds.': '影片丟上去,馬上就能分享。',
     '1 day': '1 天',
     '7 days': '7 天',
     '30 days': '30 天',
@@ -240,7 +239,14 @@
   };
 
   function getLang() {
-    return localStorage.getItem(LANG_KEY) === 'zh' ? 'zh' : 'en';
+    var stored = localStorage.getItem(LANG_KEY);
+    if (stored === 'zh' || stored === 'en') return stored;
+    // 沒自己選過就看瀏覽器:語言清單裡有中文就是中文使用者
+    var langs = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language || ''];
+    for (var i = 0; i < langs.length; i++) {
+      if (/^zh\b/i.test(langs[i])) return 'zh';
+    }
+    return 'en';
   }
 
   function t(s) {

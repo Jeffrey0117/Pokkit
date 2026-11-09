@@ -3067,3 +3067,9 @@ body.mode-dashboard .landing-only {
 }
 .confirm-msg { white-space: pre-line; line-height: 1.6; margin-bottom: 18px; }
 .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* 訪客沒有檔案庫:只留上傳區,不秀要登入才能用的分頁 */
+body.is-guest #viewTabs,
+body.is-guest #filesSection {
+  display: none !important;
+}
