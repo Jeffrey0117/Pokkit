@@ -1,3 +1,4 @@
+import { clientAddress } from './guest-limit.js'
 import { join } from 'node:path'
 import { getJwksStats } from './jwks-cache.js'
 import { readFileSync, statSync } from 'node:fs'
@@ -49,7 +50,8 @@ export async function createServer(config: PokkitConfig) {
   await app.register(cors, { origin: true })
   await app.register(cookie)
   await app.register(formbody)
-  await app.register(rateLimit, { max: 600, timeWindow: '1 minute' })
+  // 沒有 keyGenerator 的話,所有人都從 tunnel 進來,會共用同一個額度
+  await app.register(rateLimit, { max: 600, timeWindow: '1 minute', keyGenerator: (request) => clientAddress(request) })
 
   const storage = new Storage(config.dataDir)
   await storage.init()

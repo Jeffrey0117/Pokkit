@@ -27,12 +27,16 @@ function exec(cmd, args) {
   });
 }
 
+// 上傳的檔案不可信:播放清單這類格式能讓 ffmpeg 去讀伺服器上別的檔案,只放行影片容器
+const SAFE_INPUT = ['-format_whitelist', 'mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,avi,mpegts,mpeg,flv,ogg,asf', '-protocol_whitelist', 'file,pipe'];
+
 async function ffprobe(filePath) {
   const out = await exec('ffprobe', [
     '-v', 'quiet',
     '-print_format', 'json',
     '-show_format',
     '-show_streams',
+    ...SAFE_INPUT,
     filePath,
   ]);
   return JSON.parse(out);
@@ -63,7 +67,7 @@ parentPort.on('message', async (msg) => {
     // 2. Extract thumbnail at ~10% of duration (avoids black intro frames)
     const seekTime = duration > 10 ? String(Math.floor(duration * 0.1)) : duration > 1 ? '1' : '0';
     await exec('ffmpeg', [
-      '-y', '-ss', seekTime, '-i', rawPath,
+      '-y', '-ss', seekTime, ...SAFE_INPUT, '-i', rawPath,
       '-vframes', '1', '-q:v', '2',
       thumbRawPath,
     ]);
@@ -93,7 +97,7 @@ parentPort.on('message', async (msg) => {
     const NVENC_ARGS = ['-c:v', 'h264_nvenc', '-preset', 'p6', '-rc', 'vbr', '-cq', '23', '-b:v', '0'];
     const X264_ARGS = ['-c:v', 'libx264', '-crf', '23', '-preset', 'medium'];
     const buildArgs = (videoArgs) => [
-      '-y', '-i', rawPath,
+      '-y', ...SAFE_INPUT, '-i', rawPath,
       ...videoArgs,
       '-c:a', 'aac', '-b:a', '128k',
       '-movflags', '+faststart',

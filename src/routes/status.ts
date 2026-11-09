@@ -59,17 +59,6 @@ export function statusRoute(app: FastifyInstance, storage: Storage, config: Pokk
     const existing = readInterest()
     if (!existing.some((r) => r.email === email)) {
       appendFileSync(interestPath(), JSON.stringify({ email, at: new Date().toISOString() }) + '\n')
-      // Best-effort 確認信 (本機 mailer, 同一台機器; 掛了就算了, 名單已落地)。
-      // production gate: 測試/本機開發不准真的寄信 (Resend 額度全生態共用)。
-      if (process.env.NODE_ENV === 'production') fetch('http://localhost:4018/api/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: email,
-          subject: 'Pokkit Pro 搶先體驗 — 已收到你的登記',
-          text: 'Pokkit Pro (100GB、4K 影片原畫質) 上線時會第一時間通知你。\n\n— Pokkit',
-        }),
-      }).catch(() => {})
     }
     return { ok: true }
   })

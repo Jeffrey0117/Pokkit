@@ -189,9 +189,13 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
     return reply.header('Content-Type', 'text/html; charset=utf-8').header('Cache-Control', 'no-cache').send(html)
   })
 
+  // 上鎖或過期的檔案不能從展示網址繞過去
+  const notServable = (entry: { password_hash?: string | null } & object) =>
+    !!entry.password_hash || storage.isExpired(entry as never)
+
   app.get<{ Params: { id: string } }>('/photos/:id/photo.webp', async (request, reply) => {
     const entry = storage.find(request.params.id)
-    if (!entry) {
+    if (!entry || notServable(entry)) {
       // no-store: 處理中/尚未生成時瀏覽器絕不能記住這個負面結果
       // (實案:佇列堵塞期間 404 被瀏覽器咬住,縮圖好了還顯示破圖要強制刷新)
       return reply.status(404).header('Cache-Control', 'no-store').send({ error: 'Photo not found' })
@@ -209,7 +213,8 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
 
   // GET /photos/:id/thumb.webp — serve thumbnail (highest-frequency response)
   app.get<{ Params: { id: string } }>('/photos/:id/thumb.webp', async (request, reply) => {
-    const thumbPath = storage.getThumbPath(request.params.id)
+    const thumbEntry = storage.find(request.params.id)
+    const thumbPath = thumbEntry && !notServable(thumbEntry) ? storage.getThumbPath(request.params.id) : null
     if (!thumbPath) {
       // no-store: 縮圖還在生成時的 404 不能被快取(見上)
       return reply.status(404).header('Cache-Control', 'no-store').send({ error: 'Thumbnail not found' })
@@ -224,7 +229,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   // GET /photos/:id/video.mp4 — serve video with Range support
   app.get<{ Params: { id: string } }>('/photos/:id/video.mp4', async (request, reply) => {
     const entry = storage.find(request.params.id)
-    if (!entry || entry.media_type !== 'video') {
+    if (!entry || entry.media_type !== 'video' || notServable(entry)) {
       return reply.status(404).header('Cache-Control', 'no-store').send({ error: 'Video not found' })
     }
     const filePath = storage.getPath(entry.id)
@@ -312,7 +317,11 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
     const existing: Record<string, { id: string }> = {}
     for (const h of hashes) {
       if (typeof h !== 'string' || !h || existing[h]) continue
-      const mine = storage.findByHash(h).find((m) => m.user_id === user.userId)
+      // 垃圾桶和失敗的不算已上傳,不然用戶重傳被跳過,之後垃圾桶清掉就真的沒了
+      const mine = storage.findByHash(h).find((m) => {
+        const row = m as { user_id?: string | null; deleted_at?: number | null; status?: string }
+        return row.user_id === user.userId && !row.deleted_at && row.status !== 'failed'
+      })
       if (mine) existing[h] = { id: mine.id }
     }
     return { existing }

@@ -100,7 +100,10 @@ export function moderationRoute(app: FastifyInstance, storage: Storage, config: 
       return reply.status(400).send({ error: '請輸入會員 ID 確認' })
     }
     const ids = mod.liveFileIds(id)
-    const removed = ids.filter((fileId) => storage.softDelete(fileId)).length
+    const removed = ids.filter((fileId) => {
+      mod.markTakenDown(fileId)
+      return storage.softDelete(fileId)
+    }).length
     const reason = reasonOf(request.body)
     mod.block(id, reason, admin.email || admin.userId)
     mod.log(admin.email || admin.userId, 'purge', { user: id, detail: `${removed} files${reason ? `: ${reason}` : ''}` })
@@ -112,6 +115,7 @@ export function moderationRoute(app: FastifyInstance, storage: Storage, config: 
     if (!admin) return
     const entry = storage.find(request.params.id)
     if (!entry) return reply.status(404).send({ error: 'File not found' })
+    mod.markTakenDown(entry.id)
     storage.softDelete(entry.id)
     mod.log(admin.email || admin.userId, 'takedown', {
       user: (entry as { user_id?: string | null }).user_id ?? null,

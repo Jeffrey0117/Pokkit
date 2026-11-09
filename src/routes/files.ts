@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from 'node:crypto'
 import { librarySelector } from '../auth.js'
 import { publicBaseUrl } from '../public-url.js'
 import { createReadStream, readFileSync } from 'node:fs'
@@ -60,6 +61,18 @@ function timeRemaining(expiresAt: number): string {
   if (hours > 0) return `${hours}h remaining`
   const mins = Math.floor(diff / (1000 * 60))
   return `${mins}m remaining`
+}
+
+// 解鎖憑證:用密碼雜湊當金鑰簽檔案 ID。外人算不出來,換密碼後舊憑證自動失效。
+function passCookieValue(entry: FileEntry): string {
+  return createHmac('sha256', String(entry.password_hash)).update(entry.id).digest('base64url')
+}
+
+function hasValidPassCookie(request: FastifyRequest, entry: FileEntry): boolean {
+  const cookies = (request as FastifyRequest & { cookies?: Record<string, string> }).cookies || {}
+  const given = Buffer.from(String(cookies[`pokkit_pass_${entry.id}`] ?? ''))
+  const expected = Buffer.from(passCookieValue(entry))
+  return given.length === expected.length && timingSafeEqual(given, expected)
 }
 
 function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): string {
@@ -367,9 +380,7 @@ export function filesRoute(
 
       // Check password via cookie
       if (entry.password_hash) {
-        const cookieName = `pokkit_pass_${id}`
-        const cookies = (request as FastifyRequest & { cookies: Record<string, string> }).cookies || {}
-        if (cookies[cookieName] !== '1') {
+        if (!hasValidPassCookie(request, entry)) {
           return reply.redirect(`/f/${id}`)
         }
       }
@@ -401,9 +412,7 @@ export function filesRoute(
 
         // Check password via cookie for raw
         if (entry.password_hash) {
-          const cookieName = `pokkit_pass_${entry.id}`
-          const cookies = (request as FastifyRequest & { cookies: Record<string, string> }).cookies || {}
-          if (cookies[cookieName] !== '1') {
+          if (!hasValidPassCookie(request, entry)) {
             return reply.status(401).send({ error: 'Password required' })
           }
         }
@@ -451,7 +460,7 @@ export function filesRoute(
       // Set cookie and redirect to raw download
       const cookieName = `pokkit_pass_${entry.id}`
       return reply
-        .setCookie(cookieName, '1', {
+        .setCookie(cookieName, passCookieValue(entry), {
           path: '/',
           maxAge: 3600,
           httpOnly: true,

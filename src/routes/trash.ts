@@ -24,6 +24,9 @@ export function trashRoute(app: FastifyInstance, storage: Storage, config: Pokki
     if (!canAccessEntry(user, entry)) {
       return reply.status(403).send({ error: 'Not your file' })
     }
+    if (!user.isAdmin && storage.moderation.isTakenDown(request.params.id)) {
+      return reply.status(403).send({ error: 'This file was removed by an administrator.' })
+    }
     storage.restore(request.params.id)
     return { ok: true }
   })

@@ -14,10 +14,20 @@ function normalizeIp(ip: string): string {
   return full.slice(0, 4).join(':').toLowerCase()
 }
 
+const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1'])
+
+// 流量都從本機 tunnel 進來,真實來源在 Cloudflare 的標頭裡。
+// 直接連區網 port 的人可以自己填這個標頭,所以只有本機來的才相信。
+export function clientAddress(request: RequestLike): string {
+  if (!LOOPBACK.has(request.ip)) return request.ip
+  const header = request.headers['cf-connecting-ip']
+  const value = Array.isArray(header) ? header[0] : header
+  return value || request.ip
+}
+
 // 訪客沒有帳號,每日額度只能看來源 IP。Cloudflare 會覆寫這個標頭,外部偽造不了。
 // 只存雜湊,計數兩天後就清掉。
 export function guestKey(request: RequestLike): string {
-  const header = request.headers['cf-connecting-ip']
-  const ip = (Array.isArray(header) ? header[0] : header) || request.ip
+  const ip = clientAddress(request)
   return createHash('sha256').update(`pokkit-guest:${normalizeIp(String(ip))}`).digest('hex')
 }

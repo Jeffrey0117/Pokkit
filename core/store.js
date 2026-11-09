@@ -148,7 +148,9 @@ class PokkitStore {
     // password or expiry, so protected/temporary copies stay independent.
     if (!opts.password_hash && !opts.expires_at) {
       const existing = db.findByHash(this._db, hash, bucket);
-      const match = existing.find(e => !e.is_directory && !e.expires_at && !e.password_hash);
+      // 只跟自己的檔案去重:跨帳號會洩漏別人的檔名,對方一刪你的連結也跟著消失
+      const owner = opts.user_id || null;
+      const match = existing.find(e => !e.is_directory && !e.expires_at && !e.password_hash && (e.user_id || null) === owner);
       if (match) {
         return { ...match, deduplicated: true };
       }

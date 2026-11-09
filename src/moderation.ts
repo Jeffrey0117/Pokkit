@@ -45,12 +45,24 @@ export class Moderation {
         target_file TEXT,
         detail TEXT
       );
+      CREATE TABLE IF NOT EXISTS takedowns (
+        file_id TEXT PRIMARY KEY,
+        at INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS guest_file_keys (
         file_id TEXT PRIMARY KEY,
         guest_key TEXT NOT NULL,
         created_at INTEGER NOT NULL
       );
     `)
+  }
+
+  markTakenDown(fileId: string): void {
+    this.db.prepare('INSERT OR REPLACE INTO takedowns (file_id, at) VALUES (?, ?)').run(fileId, Date.now())
+  }
+
+  isTakenDown(fileId: string): boolean {
+    return !!this.db.prepare('SELECT 1 FROM takedowns WHERE file_id = ?').get(fileId)
   }
 
   isBlocked(userId: string): boolean {

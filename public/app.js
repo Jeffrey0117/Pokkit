@@ -3530,7 +3530,13 @@
         (function (album) {
           var item = document.createElement('div');
           item.className = 'album-picker-item';
-          item.innerHTML = '<span>' + album.name + '</span><span class="album-picker-item-count">' + (album.photo_count || 0) + '</span>';
+          var albumName = document.createElement('span');
+          albumName.textContent = album.name;
+          var albumCount = document.createElement('span');
+          albumCount.className = 'album-picker-item-count';
+          albumCount.textContent = String(album.photo_count || 0);
+          item.appendChild(albumName);
+          item.appendChild(albumCount);
           item.addEventListener('click', function () {
             bulkMovePhotos(album.id);
           });
@@ -3990,7 +3996,11 @@
         (function (album, idx) {
           var b = document.createElement('button');
           b.className = 'swipe-album-btn';
-          b.innerHTML = '<span class="swipe-album-key">' + (idx + 1) + '</span>' + album.name;
+          var albumKey = document.createElement('span');
+          albumKey.className = 'swipe-album-key';
+          albumKey.textContent = String(idx + 1);
+          b.appendChild(albumKey);
+          b.appendChild(document.createTextNode(album.name));
           b.addEventListener('click', function () { swipeFileTo(album); });
           $swipeAlbums.appendChild(b);
         })(shown[i], i);

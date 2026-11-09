@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import type { Storage } from '../storage.js'
 import type { PokkitConfig } from '../config.js'
 import { requireAuth, hasAuthToken, type AuthUser } from '../auth.js'
-import { GUEST_DAILY_UPLOADS, GUEST_USER_ID } from '../config.js'
+import { GUEST_DAILY_UPLOADS, GUEST_MAX_FILE_BYTES, GUEST_USER_ID } from '../config.js'
 import { guestKey } from '../guest-limit.js'
 import { finalizeUpload, normalizeFields } from '../upload-finalize.js'
 
@@ -38,7 +38,7 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
       if (reservedFor) storage.releaseGuestUpload(reservedFor)
     }
 
-    const file = await request.file()
+    const file = await request.file(reservedFor ? { limits: { fileSize: GUEST_MAX_FILE_BYTES } } : undefined)
     if (!file) {
       refund()
       return reply.status(400).send({ error: 'No file provided. Use multipart field "file".' })
