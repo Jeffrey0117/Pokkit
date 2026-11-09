@@ -28,8 +28,26 @@
     data-mode="modal">
   </script>
   <script defer src="https://umami.isnowfriend.com/script.js" data-website-id="a14ede0d-d9c7-4d7a-bca6-ef4528dd9aa5"></script>
+  <script src="/i18n.js?v=__I18N_HASH__"></script>
 </head>
 <body class="mode-landing">
+  <script id="bootMode">
+    // 第一次畫面就決定好模式,判斷要跟 app.js 的 navigate 一致,畫面才不會跳
+    (function () {
+      var DASH_ROUTES = ['folders', 'photos', 'videos', 'files', 'account', 'projects', 'pricing', 'trash'];
+      var signedIn = false;
+      try {
+        signedIn = !!localStorage.getItem('pokkit_user') && !!localStorage.getItem('lmu_app_5qXx5Wtv_refresh_token');
+      } catch (_) { /* 讀不到就當訪客 */ }
+      var seg = (location.pathname.split('/')[1] || '').toLowerCase();
+      var deepLink = DASH_ROUTES.indexOf(seg) >= 0;
+      var dashboard = deepLink || (signedIn && matchMedia('(min-width: 761px)').matches);
+      var cl = document.body.classList;
+      cl.toggle('mode-dashboard', dashboard);
+      cl.toggle('mode-landing', !dashboard);
+      cl.toggle('is-guest', !signedIn);
+    })();
+  </script>
   <div class="app-shell">
     <aside class="sidebar" id="sidebar">
       <a href="/folders" class="nav-logo" data-route="folders">
@@ -641,7 +659,7 @@
     window.ChunkedUpload = { uploadChunked: uploadChunked, abortUpload: abortUpload };
   </script>
   <script src="/vendor/onboard.js?v=1"></script>
-  <script src="/i18n.js?v=__I18N_HASH__"></script>
+  <script>window.__i18nFinish && window.__i18nFinish();</script>
   <script src="/app.js?v=__JS_HASH__"></script>
 </body>
 </html>

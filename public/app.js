@@ -409,19 +409,23 @@
   // resets the view back to the landing page. Used by the logout button and by
   // every 401 handler, so stale logged-in content never lingers on screen.
   function applyLoggedOut() {
+    var wasSignedIn = !!currentUser;
     currentUser = null;
     saveAuthLocally(null);
     disconnectEvents();
     updateAuthUI();
     var nav = document.getElementById('projectsNav');
     if (nav) nav.hidden = true;
+    loadFiles();          // re-renders the "Login to manage files" empty state
+    // 本來就沒登入的訪客不用換頁:開機檢查也會走到這裡,換頁就是畫面亂跳的元兇,
+    // 而且會把正在看方案頁的人踢回首頁。
+    if (!wasSignedIn) return;
     setMode(false);       // leave dashboard mode → show the landing front door
     setActiveSide(null);
     if (window.history && history.pushState && location.pathname !== '/') {
       history.pushState({}, '', '/');
     }
     switchTab('files');
-    loadFiles();          // re-renders the "Login to manage files" empty state
   }
 
   $logoutBtn.addEventListener('click', function () {
@@ -2100,17 +2104,12 @@
   function navigate(route, push) {
     if ($appShell) $appShell.classList.remove('sidebar-open');
 
-    // Home: desktop gets the dashboard at "/"; mobile keeps the landing page.
-    // Logged-in users land on Account (overview first); logged-out keeps the
-    // Folders shell with its login CTA — an empty Account page sells nothing.
+    // Home: 登入的電腦使用者進後台;訪客不分裝置都看首頁。
+    // 這個判斷要跟 index.html 的開機腳本一致,第一次畫面才不會跳。
     if (route === 'home') {
       if (push !== false && location.pathname !== '/') history.pushState({}, '', '/');
-      if (window.matchMedia('(min-width: 761px)').matches) {
-        if (currentUser) { navigate('account', false); return; }
-        setMode(true);
-        setActiveSide('folders');
-        toggleUploadZone(true);
-        switchTab('albums');
+      if (currentUser && window.matchMedia('(min-width: 761px)').matches) {
+        navigate('account', false);
         return;
       }
       setMode(false);

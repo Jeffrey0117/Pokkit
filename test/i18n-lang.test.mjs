@@ -23,6 +23,7 @@ function langFor({ languages, language, stored = null }) {
       getElementById: () => null,
     },
   }
+  sandbox.MutationObserver = class { observe() {} disconnect() {} }
   sandbox.window = sandbox
   vm.runInNewContext(source, sandbox)
   return sandbox.window.t('1 hour') === '1 小時' ? 'zh' : 'en'
@@ -72,6 +73,7 @@ test('every landing section has a Chinese translation', () => {
     localStorage: { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) },
     document: { documentElement: {}, querySelectorAll: () => [], addEventListener() {}, readyState: 'loading', getElementById: () => null },
   }
+  sandbox.MutationObserver = class { observe() {} disconnect() {} }
   sandbox.window = sandbox
   vm.runInNewContext(source, sandbox)
   for (const key of keys) assert.notEqual(sandbox.window.t(key), key, `untranslated: ${key}`)

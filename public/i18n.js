@@ -341,8 +341,20 @@
     }
   }
 
+  // 邊解析邊翻譯,中文使用者才不會先看到一閃而過的英文。
+  // app.js 接手前要停:它之後會自己改部分文字,不能再被蓋回去。
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () { applyI18n(); wireToggles(); });
+    var parseObserver = new MutationObserver(function () { applyI18n(); });
+    parseObserver.observe(document.documentElement, { childList: true, subtree: true });
+    var finished = false;
+    window.__i18nFinish = function () {
+      if (finished) return;
+      finished = true;
+      parseObserver.disconnect();
+      applyI18n();
+      wireToggles();
+    };
+    document.addEventListener('DOMContentLoaded', window.__i18nFinish);
   } else {
     applyI18n();
     wireToggles();
