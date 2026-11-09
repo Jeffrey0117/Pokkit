@@ -57,6 +57,22 @@ test('the landing copy makes no trust or privacy promises', () => {
   const html = fs.readFileSync(new URL('../public/index.html', import.meta.url), 'utf8')
   const manifest = fs.readFileSync(new URL('../public/manifest.webmanifest', import.meta.url), 'utf8')
   for (const text of [html, source, manifest]) {
-    assert.doesNotMatch(text, /somewhere you trust|No scanning|AI training|privacy by design|Private by Design|data resale/i)
+    assert.doesNotMatch(text, /somewhere you trust|No scanning|AI training|privacy by design|Private by Design|data resale|信得過|掃描|隱私|安全/i)
   }
+})
+
+test('every landing section has a Chinese translation', () => {
+  const html = fs.readFileSync(new URL('../public/index.html', import.meta.url), 'utf8')
+  const block = html.slice(html.indexOf('<div class="lp landing-only">'), html.indexOf('id="viewTabs"'))
+  const keys = [...block.matchAll(/data-i18n="([^"]+)"/g)].map((m) => m[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&'))
+  assert.ok(keys.length > 20, 'landing should have content')
+  const store = new Map([['pokkit_lang', 'zh']])
+  const sandbox = {
+    navigator: { languages: ['zh-TW'], language: 'zh-TW' },
+    localStorage: { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) },
+    document: { documentElement: {}, querySelectorAll: () => [], addEventListener() {}, readyState: 'loading', getElementById: () => null },
+  }
+  sandbox.window = sandbox
+  vm.runInNewContext(source, sandbox)
+  for (const key of keys) assert.notEqual(sandbox.window.t(key), key, `untranslated: ${key}`)
 })

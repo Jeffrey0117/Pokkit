@@ -3085,3 +3085,30 @@ body.mode-landing .option-input,
 body.mode-landing .option-select { font-size: 1rem; }
 body.mode-landing .feature-title { font-size: 1.125rem; margin-bottom: 8px; }
 body.mode-landing .feature-desc { font-size: 0.9375rem; }
+
+/* 首頁往下的內容 */
+.lp { margin-top: 24px; }
+.lp-section { padding: 56px 0 8px; }
+.lp-title { margin: 0 0 28px; font-size: clamp(1.625rem, 4vw, 2.25rem); font-weight: 800; line-height: 1.3; letter-spacing: -0.02em; text-align: center; color: var(--text-primary); }
+.lp-lead { max-width: 620px; margin: 0 auto; font-size: 1.0625rem; line-height: 1.8; text-align: center; color: var(--text-secondary); }
+.lp-grid { display: grid; gap: 14px; }
+.lp-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.lp-grid-2 { grid-template-columns: repeat(2, 1fr); }
+.lp-tile,
+.lp-step { padding: 26px 24px; border-radius: var(--radius); background: var(--bg-secondary); }
+.lp-tile-title { margin: 0 0 8px; font-size: 1.125rem; font-weight: 700; color: var(--text-primary); }
+.lp-tile-text { margin: 0; font-size: 0.9375rem; line-height: 1.75; color: var(--text-secondary); }
+.lp-step-num { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin-bottom: 16px; border-radius: 50%; background: var(--accent); color: var(--accent-contrast); font-size: 1rem; font-weight: 800; }
+.lp-more,
+.lp-final { text-align: center; }
+.lp-button { display: inline-block; margin-top: 24px; padding: 14px 36px; font-size: 1rem; font-weight: 700; text-decoration: none; }
+.lp-faq { max-width: 720px; margin: 0 auto; }
+.lp-faq-item { border-bottom: 1px solid var(--border-default); }
+.lp-faq-q { padding: 18px 4px; font-size: 1.0625rem; font-weight: 600; color: var(--text-primary); cursor: pointer; }
+.lp-faq-a { margin: 0; padding: 0 4px 20px; font-size: 0.9375rem; line-height: 1.75; color: var(--text-secondary); }
+.lp-final { padding-bottom: 64px; }
+@media (max-width: 760px) {
+  .lp-section { padding-top: 44px; }
+  .lp-grid-3,
+  .lp-grid-2 { grid-template-columns: 1fr; }
+}

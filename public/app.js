@@ -727,6 +727,14 @@
   }
 
   // ── Drop Zone Events ───────────────────────────────────
+  var $lpUploadBtn = document.getElementById('lpUploadBtn');
+  if ($lpUploadBtn) {
+    $lpUploadBtn.addEventListener('click', function () {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      $fileInput.click();
+    });
+  }
+
   $dropzone.addEventListener('click', function () {
     $fileInput.click();
   });
