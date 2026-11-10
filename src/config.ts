@@ -15,7 +15,8 @@ export interface StorageTier {
 // 這份定義是 tier 的單一來源: /api/tiers 餵前端方案頁, checkQuota 拿它執法。
 export const STORAGE_TIERS: Record<string, StorageTier> = {
   free: { name: 'Free', maxBytes: 2 * GB, maxPhotos: 50000 },
-  premium: { name: 'Pro', maxBytes: 100 * GB, maxPhotos: 500000 },
+  // 2026-11-10:家機硬碟只剩約 113GB,100GB 一個用戶就能塞滿。額度含原檔,寫多少就真的佔多少。
+  premium: { name: 'Pro', maxBytes: 20 * GB, maxPhotos: 500000 },
 }
 
 // Guest 快傳 (試用入口): 免登入、單檔上限、強制短壽命。

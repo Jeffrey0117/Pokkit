@@ -11,7 +11,7 @@ Your own cloud drive, self-hosted. Upload photos, videos and documents, get a sh
 - **Big files** — files over 64 MB upload in 16 MB chunks (3 in parallel, retries, resumable for 24h), so they get past proxies that cap request bodies (e.g. Cloudflare's 100 MB).
 - **LAN fast mode** — on the same Wi-Fi as the server, uploads go straight over the LAN instead of out and back through the internet.
 - **Photos & albums** — timeline by capture date, albums with revocable public `/a/:token` links, 30-day trash.
-- **Plans** — Free 2 GB, Pro 100 GB (billing through PayGate; waitlist when billing isn't configured). Guest uploads: single file ≤ 64 MB, 5 files a day per address, forced expiry ≤ 24 hours.
+- **Plans** — Free 2 GB, Pro 20 GB (billing through PayGate; waitlist when billing isn't configured). Guest uploads: single file ≤ 64 MB, 5 files a day per address, forced expiry ≤ 24 hours.
 - **Per-project API accounts** — each project gets its own `pk_…` key and only sees its own files (keys stored as hashes, rotatable).
 - Also the storage backend for [MemoryGuy](https://github.com/Jeffrey0117/MemoryGuy)'s disk virtualizer.
 

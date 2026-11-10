@@ -156,7 +156,7 @@ test('/api/tiers is public and mirrors STORAGE_TIERS', async () => {
   assert.equal(res.statusCode, 200)
   const t = res.json()
   assert.equal(t.free.maxGB, 2)
-  assert.equal(t.pro.maxGB, 100)
+  assert.equal(t.pro.maxGB, 20)
   assert.equal(t.pro.available, false)
   assert.ok(t.guest.maxFileBytes > 0)
 })
@@ -240,4 +240,11 @@ test('PATCH /files/:id renames (display name only, separators sanitized)', async
   assert.equal(res.statusCode, 200)
   assert.equal(res.json().filename, '..-evil-new name.txt', 'path separators flattened')
   assert.equal((await app.inject({ method: 'PATCH', url: `/files/${id}`, headers: { authorization: `Bearer ${API_KEY}`, 'content-type': 'application/json' }, payload: JSON.stringify({ filename: '   ' }) })).statusCode, 400)
+})
+
+test('Pro storage is 20GB, counted with originals', async () => {
+  const { STORAGE_TIERS } = await import('../src/config.ts')
+  assert.equal(STORAGE_TIERS.premium.maxBytes, 20 * GB)
+  const res = await app.inject({ method: 'GET', url: '/api/tiers' })
+  assert.equal(res.json().pro.maxGB, 20)
 })
