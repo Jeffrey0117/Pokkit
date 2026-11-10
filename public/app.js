@@ -39,6 +39,13 @@
   var $dropzone = document.getElementById('dropzone');
   var $fileInput = document.getElementById('fileInput');
   var $passwordInput = document.getElementById('passwordInput');
+  // 只採用使用者親手輸入的密碼。瀏覽器 / 密碼管理器會把已存的登入密碼自動填進
+  // type=password 的欄位(Chrome 無視 autocomplete="off"),2026-11-11 有檔案因此
+  // 被上了一把上傳者根本沒選的鎖。見 /vendor/password-intent.js。
+  var passwordIntent = window.PokkitPasswordIntent
+    ? window.PokkitPasswordIntent.attach($passwordInput)
+    // fallback: helper script failed to load — behave exactly as before
+    : { value: function () { return $passwordInput.value.trim(); }, reset: function () { $passwordInput.value = ''; } };
   var $expirySelect = document.getElementById('expirySelect');
   var $queueSection = document.getElementById('queueSection');
   var $queueList = document.getElementById('queueList');
@@ -1377,7 +1384,7 @@
           }
         }
       } catch (_) { /* */ }
-      $passwordInput.value = '';
+      passwordIntent.reset();
       uploading--;
       updateQueueSummary();
       processQueue();
@@ -1421,7 +1428,7 @@
       beacon('chunked-start', { name: file.name, size: file.size });
       var meta = {};
       var completeBody = {};
-      var cpw = $passwordInput.value.trim();
+      var cpw = passwordIntent.value();
       if (cpw) completeBody.password = cpw; // secrets go with the final request only, never into session meta
       var cexp = $expirySelect.value;
       if (cexp && cexp !== 'forever') meta.expiresIn = cexp;
@@ -1465,7 +1472,7 @@
     var fd = new FormData();
 
     // Fields MUST come before file — @fastify/multipart stops parsing after file
-    var pw = $passwordInput.value.trim();
+    var pw = passwordIntent.value();
     if (pw) fd.append('password', pw);
     var exp = $expirySelect.value;
     if (exp && exp !== 'forever') fd.append('expiresIn', exp);

@@ -182,7 +182,7 @@
     <section class="upload-options" id="uploadOptions">
       <div class="option-row">
         <label class="option-label" for="passwordInput" data-i18n="Password">Password</label>
-        <input type="password" id="passwordInput" class="option-input" placeholder="Optional" data-i18n-ph="Optional" autocomplete="off">
+        <input type="password" id="passwordInput" class="option-input" placeholder="Optional" data-i18n-ph="Optional" autocomplete="new-password" data-lpignore="true" data-1p-ignore data-bwignore data-form-type="other">
       </div>
       <div class="option-row">
         <label class="option-label" for="expirySelect" data-i18n="Expires">Expires</label>
@@ -664,6 +664,7 @@
   </script>
   <script src="/vendor/onboard.js?v=1"></script>
   <script>window.__i18nFinish && window.__i18nFinish();</script>
+  <script src="/vendor/password-intent.js?v=1"></script>
   <script src="/app.js?v=__JS_HASH__"></script>
 </body>
 </html>
