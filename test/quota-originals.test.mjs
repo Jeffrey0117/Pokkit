@@ -15,7 +15,7 @@ const { GB } = await import('../src/config.ts')
 
 const USER = 'usr_quota'
 const tempDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'pk-quota-'))
-const newStore = (dataDir) => new PokkitStore({ dataDir })
+const newStore = (dataDir) => new PokkitStore({ dataDir, keepOriginals: true })
 
 function savePhoto(store, rawBytes, displayBytes) {
   const entry = store.saveRawPhoto('a.jpg', 'image/jpeg', Buffer.alloc(rawBytes, Math.random() * 255), {
@@ -106,4 +106,21 @@ test('the admin is never stopped by the disk fuse', async () => {
     10
   )
   assert.equal(result, null)
+})
+
+test('by default the original is deleted once the display copy is ready, and stops counting', () => {
+  const dir = tempDir()
+  const store = new PokkitStore({ dataDir: dir, keepOriginals: false })
+  const entry = savePhoto(store, 1000, 200)
+  assert.equal(store.userStats(USER).totalBytes, 200)
+  const entryDir = store.getEntryDir(entry.id)
+  assert.deepEqual(fs.readdirSync(entryDir).sort(), ['photo.webp', 'thumb.webp'])
+  store.close()
+})
+
+test('a photo still processing keeps its original until the display copy exists', () => {
+  const store = new PokkitStore({ dataDir: tempDir(), keepOriginals: false })
+  const entry = store.saveRawPhoto('a.jpg', 'image/jpeg', Buffer.alloc(500, 9), { user_id: USER })
+  assert.ok(fs.readdirSync(store.getEntryDir(entry.id)).some((n) => n.startsWith('_raw.')))
+  store.close()
 })

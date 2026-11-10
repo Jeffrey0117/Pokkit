@@ -114,7 +114,8 @@ parentPort.on('message', async (msg) => {
     //    EXIF kept, typically 60-99% smaller. Guards: decodable, same dimensions,
     //    meaningfully smaller. Any doubt → keep the original raw untouched.
     //    DB hash/dedup is untouched (hash refers to the uploaded bytes).
-    if (!isDup && process.env.POKKIT_ARCHIVE_RECOMPRESS !== 'off' && !/\.avif$/i.test(rawPath) && /\.(jpe?g|png|webp)$/i.test(rawPath)) {
+    // 不留原檔時就不用浪費時間壓原檔
+    if (!isDup && process.env.POKKIT_KEEP_ORIGINALS === '1' && process.env.POKKIT_ARCHIVE_RECOMPRESS !== 'off' && !/\.avif$/i.test(rawPath) && /\.(jpe?g|png|webp)$/i.test(rawPath)) {
       // One AVIF encode at a time process-wide; can't get the lock → keep raw.
       const gotLock = await acquireAvifLock(90000);
       if (!gotLock) {

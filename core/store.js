@@ -103,6 +103,8 @@ class PokkitStore {
     }
 
     this.dataDir = path.resolve(opts.dataDir);
+    // 2026-11-10:預設不留原檔,轉好展示版就刪,額度與硬碟只算留下來的。要留原檔才設 POKKIT_KEEP_ORIGINALS=1
+    this.keepOriginals = opts.keepOriginals ?? process.env.POKKIT_KEEP_ORIGINALS === '1';
     this.dbName = opts.dbName || 'pokkit.db';
     this.buckets = opts.buckets || { default: { mode: 'uuid-dir' } };
 
@@ -660,6 +662,18 @@ class PokkitStore {
     return rows.length;
   }
 
+  // 展示版寫好之後把同資料夾的原檔刪掉(不留原檔模式)
+  _dropOriginals(bucket, storedName) {
+    if (this.keepOriginals || !storedName || !storedName.includes('/')) return;
+    const dir = path.dirname(this._resolveFilePath(bucket, storedName));
+    let names;
+    try { names = fs.readdirSync(dir); } catch { return; }
+    for (const name of names) {
+      if (!name.startsWith('_raw.')) continue;
+      try { fs.unlinkSync(path.join(dir, name)); } catch (_) { /* 刪不掉下次再說,不影響展示版 */ }
+    }
+  }
+
   // 原檔被重新壓縮後(AVIF 歸檔)用這個更新額度
   setRawSize(id, bytes) {
     return db.updateFilePhoto(this._db, id, { raw_size: bytes });
@@ -980,7 +994,7 @@ class PokkitStore {
     atomicWriteFileSync(photoPath, webpBuffer);
     atomicWriteFileSync(thumbPath, thumbBuffer);
 
-    // Keep raw file — user can access originals at data/{bucket}/{id}/_raw.*
+    this._dropOriginals(bucket, photoName);
 
     db.updateFilePhoto(this._db, id, {
       status: 'ready',
@@ -1017,7 +1031,7 @@ class PokkitStore {
     atomicMoveSync(compressedPath, destVideoPath);
     atomicWriteFileSync(thumbPath, thumbBuffer);
 
-    // Keep raw file — user can access originals at data/{bucket}/{id}/_raw.*
+    this._dropOriginals(bucket, videoName);
 
     const videoSize = fs.statSync(destVideoPath).size;
     db.updateFilePhoto(this._db, id, {

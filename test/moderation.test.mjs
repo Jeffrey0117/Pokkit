@@ -106,7 +106,7 @@ test('photos finish processing under the owner folder and keep the original besi
   store.finalizePhoto(raw.id, { webpBuffer: Buffer.alloc(10, 1), thumbBuffer: Buffer.alloc(5, 2), width: 1, height: 1, takenAt: null })
   const entryDir = store.getEntryDir(raw.id)
   assert.equal(path.basename(path.dirname(entryDir)), 'usr_p')
-  assert.deepEqual(fs.readdirSync(entryDir).sort(), ['_raw.jpg', 'photo.webp', 'thumb.webp'])
+  assert.deepEqual(fs.readdirSync(entryDir).sort(), ['photo.webp', 'thumb.webp'])
   store.close()
 })
 
