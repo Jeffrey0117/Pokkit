@@ -133,6 +133,11 @@ function openDb(dbPath) {
     _db.exec('ALTER TABLE albums ADD COLUMN user_id TEXT');
     _db.exec('CREATE INDEX IF NOT EXISTS idx_albums_user ON albums(user_id)');
   }
+  // 資料夾:相簿可以收進另一個相簿底下(只一層)
+  if (!albumCols.includes('parent_id')) {
+    _db.exec('ALTER TABLE albums ADD COLUMN parent_id TEXT');
+  }
+  _db.exec('CREATE INDEX IF NOT EXISTS idx_albums_parent ON albums(parent_id)');
   // Public album sharing: a nullable unguessable token; NULL = not shared.
   if (!albumCols.includes('share_token')) {
     _db.exec('ALTER TABLE albums ADD COLUMN share_token TEXT');
@@ -500,7 +505,8 @@ function findAlbum(db, id) {
 function listAlbums(db, opts = {}) {
   const scoped = opts.userId != null;
   return db.prepare(`
-    SELECT a.id, a.name, a.created_at, a.updated_at,
+    SELECT a.id, a.name, a.created_at, a.updated_at, a.parent_id,
+      (SELECT COUNT(*) FROM albums c WHERE c.parent_id = a.id) as child_count,
       COALESCE(a.cover_file_id, (
         SELECT id FROM files
         WHERE album_id = a.id AND status = 'ready' AND media_type IN ('photo', 'video')
@@ -539,6 +545,10 @@ function updateAlbum(db, id, updates) {
     fields.push('cover_file_id = @cover_file_id');
     values.cover_file_id = updates.cover_file_id;
   }
+  if (updates.parent_id !== undefined) {
+    fields.push('parent_id = @parent_id');
+    values.parent_id = updates.parent_id;
+  }
   if (fields.length === 0) return false;
   fields.push('updated_at = @updated_at');
   values.updated_at = Date.now();
@@ -550,6 +560,8 @@ function updateAlbum(db, id, updates) {
 function deleteAlbum(db, id) {
   // Set album_id to null on photos (keep photos)
   db.prepare('UPDATE files SET album_id = NULL WHERE album_id = ?').run(id);
+  // 刪資料夾不刪裡面的相簿,退回最上層
+  db.prepare('UPDATE albums SET parent_id = NULL WHERE parent_id = ?').run(id);
   const result = db.prepare('DELETE FROM albums WHERE id = ?').run(id);
   return result.changes > 0;
 }

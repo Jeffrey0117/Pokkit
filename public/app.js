@@ -2508,7 +2508,12 @@
     });
   }
 
+  var allAlbums = [];
+
   function renderAlbums(albums) {
+    allAlbums = albums || [];
+    // 最上層只放沒有被收進資料夾的相簿
+    albums = allAlbums.filter(function (a) { return !a.parent_id; });
     $albumGrid.innerHTML = '';
     if (!albums || albums.length === 0) {
       $albumGrid.innerHTML = '<div class="empty-state"><div class="empty-state-icon">~</div><div class="empty-state-text">No albums yet</div></div>';
@@ -2519,7 +2524,7 @@
     }
   }
 
-  function addAlbumCard(album) {
+  function addAlbumCard(album, container) {
     var card = document.createElement('div');
     card.className = 'album-card';
 
@@ -2570,7 +2575,17 @@
       deleteAlbum(album.id, album.name);
     });
 
+    var moveItem = document.createElement('button');
+    moveItem.className = 'dropdown-item';
+    moveItem.textContent = window.t ? window.t('Move to folder') : 'Move to folder';
+    moveItem.addEventListener('click', function (e) {
+      e.stopPropagation();
+      closeAllDropdowns();
+      moveAlbumToFolder(album);
+    });
+
     dropdown.appendChild(renameItem);
+    dropdown.appendChild(moveItem);
     dropdown.appendChild(deleteItem);
 
     var info = document.createElement('div');
@@ -2580,7 +2595,7 @@
     nameDiv.textContent = album.name;
     var meta = document.createElement('div');
     meta.className = 'album-meta';
-    meta.textContent = (album.photo_count || 0) + ' photos';
+    meta.textContent = (album.photo_count || 0) + ' photos' + (album.child_count ? ' \u00b7 ' + album.child_count + ' ' + (window.t ? window.t('albums') : 'albums') : '');
     info.appendChild(nameDiv);
     info.appendChild(meta);
 
@@ -2593,7 +2608,28 @@
       openAlbum(album.id, album.name);
     });
 
-    $albumGrid.appendChild(card);
+    (container || $albumGrid).appendChild(card);
+  }
+
+  // 收進資料夾:列出可以當資料夾的最上層相簿,輸入編號
+  function moveAlbumToFolder(album) {
+    if (album.child_count) {
+      toast(window.t ? window.t('This album already holds other albums') : 'This album already holds other albums', true);
+      return;
+    }
+    var options = allAlbums.filter(function (a) { return !a.parent_id && a.id !== album.id; });
+    var lines = ['0. ' + (window.t ? window.t('Top level') : 'Top level')];
+    for (var i = 0; i < options.length; i++) lines.push((i + 1) + '. ' + options[i].name);
+    var pick = prompt((window.t ? window.t('Move to folder') : 'Move to folder') + '\n' + lines.join('\n'), '');
+    if (pick === null || pick.trim() === '') return;
+    var n = parseInt(pick, 10);
+    if (isNaN(n) || n < 0 || n > options.length) return;
+    var parentId = n === 0 ? null : options[n - 1].id;
+    apiRequest('PUT', '/api/albums/' + album.id, { parent_id: parentId }, function () {
+      toast(window.t ? window.t('Moved') : 'Moved');
+      if (currentAlbumId) openAlbum(currentAlbumId, currentAlbumName);
+      else loadAlbums();
+    });
   }
 
   // ── Album Actions ──────────────────────────────────────
@@ -2635,6 +2671,22 @@
   }
 
   // ── Gallery (photos inside album) ─────────────────────
+  var currentAlbumParentId = null;
+
+  // 打開資料夾時,裡面的相簿排在照片上面
+  function renderSubAlbums(children) {
+    var grid = document.getElementById('subAlbumGrid');
+    if (!grid) {
+      grid = document.createElement('div');
+      grid.id = 'subAlbumGrid';
+      grid.className = 'album-grid sub-album-grid';
+      $photoGrid.parentNode.insertBefore(grid, $photoGrid);
+    }
+    grid.innerHTML = '';
+    grid.hidden = children.length === 0;
+    for (var i = 0; i < children.length; i++) addAlbumCard(children[i], grid);
+  }
+
   function openAlbum(albumId, albumName) {
     currentAlbumId = albumId;
     currentAlbumName = albumName;
@@ -2644,6 +2696,12 @@
     $galleryCount.textContent = '';
     $photoGrid.innerHTML = '';
     fillGridSkeletons($photoGrid);
+    renderSubAlbums([]);
+    apiRequest('GET', '/api/albums/' + albumId + '?limit=1', null, function (data) {
+      if (currentAlbumId !== albumId || !data) return;
+      currentAlbumParentId = data.parent_id || null;
+      renderSubAlbums(data.children || []);
+    });
 
     // Reset scroll state
     galleryOffset = 0;
@@ -2715,6 +2773,11 @@
 
   $backToAlbums.addEventListener('click', function () {
     if (galleryScrollLoader) { galleryScrollLoader.destroy(); galleryScrollLoader = null; }
+    // 在資料夾裡的相簿,返回就回到那個資料夾
+    if (currentAlbumParentId) {
+      var parent = allAlbums.filter(function (a) { return a.id === currentAlbumParentId; })[0];
+      if (parent) { openAlbum(parent.id, parent.name); return; }
+    }
     $gallerySection.hidden = true;
     $albumsSection.hidden = false;
     currentAlbumId = null;

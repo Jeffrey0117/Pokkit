@@ -21,14 +21,31 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   // ── Albums ──
 
   // POST /api/albums — create album
-  app.post<{ Body: { name: string } }>('/api/albums', async (request, reply) => {
+  // 資料夾只有一層:目標必須是自己看得到、本身不在別的資料夾裡的相簿
+  type AlbumRow = { id: string; user_id?: string | null; parent_id?: string | null }
+  function folderProblem(user: Parameters<typeof canAccessAlbum>[0], albumId: string | null, parentId: string): { status: number; error: string } | null {
+    if (albumId && parentId === albumId) return { status: 400, error: 'An album cannot contain itself' }
+    const parent = storage.getAlbum(parentId) as AlbumRow | undefined
+    if (!parent || !canAccessAlbum(user, parent)) return { status: 404, error: 'Folder not found' }
+    if (parent.parent_id) return { status: 400, error: 'Folders only go one level deep' }
+    if (albumId && storage.listAlbums({}).some((a) => (a as AlbumRow).parent_id === albumId)) {
+      return { status: 400, error: 'This album already holds other albums' }
+    }
+    return null
+  }
+
+  app.post<{ Body: { name: string; parent_id?: string | null } }>('/api/albums', async (request, reply) => {
     const user = requireAuth(request, reply, config, storage)
     if (!user) return
-    const { name } = request.body || {}
+    const { name, parent_id: parentId } = request.body || {}
     if (!name || typeof name !== 'string') {
       return reply.status(400).send({ error: 'name is required' })
     }
-    const album = storage.createAlbum(name.trim(), user.userId)
+    if (parentId) {
+      const problem = folderProblem(user, null, String(parentId))
+      if (problem) return reply.status(problem.status).send({ error: problem.error })
+    }
+    const album = storage.createAlbum(name.trim(), user.userId, parentId ? String(parentId) : null)
     return reply.status(201).send(album)
   })
 
@@ -56,12 +73,14 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
       const order = request.query.order === 'asc' ? 'asc' : 'desc'
       const sortBy = request.query.sort === 'uploaded' ? 'uploaded' : 'taken'
       const photos = storage.listPhotosByAlbum(album.id, { limit, offset, order, sortBy })
-      return { ...album, photos }
+      const visible = isMachineAdmin(user) ? storage.listAlbums({}) : storage.listAlbums({ userId: user.userId, includeUnowned: !!user.isAdmin })
+      const children = visible.filter((a) => (a as AlbumRow).parent_id === album.id)
+      return { ...album, photos, children }
     },
   )
 
   // PUT /api/albums/:id — update album
-  app.put<{ Params: { id: string }; Body: { name?: string; cover_file_id?: string } }>(
+  app.put<{ Params: { id: string }; Body: { name?: string; cover_file_id?: string; parent_id?: string | null } }>(
     '/api/albums/:id',
     async (request, reply) => {
       const user = requireAuth(request, reply, config, storage)
@@ -70,9 +89,17 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
       if (!album || !canAccessAlbum(user, album)) {
         return reply.status(404).send({ error: 'Album not found' })
       }
-      const updates: { name?: string; cover_file_id?: string } = {}
+      const updates: { name?: string; cover_file_id?: string; parent_id?: string | null } = {}
       if (request.body?.name) updates.name = request.body.name.trim()
       if (request.body?.cover_file_id) updates.cover_file_id = request.body.cover_file_id
+      if (request.body && 'parent_id' in request.body) {
+        const parentId = request.body.parent_id ? String(request.body.parent_id) : null
+        if (parentId) {
+          const problem = folderProblem(user, album.id, parentId)
+          if (problem) return reply.status(problem.status).send({ error: problem.error })
+        }
+        updates.parent_id = parentId
+      }
       const ok = storage.updateAlbum(request.params.id, updates)
       if (!ok) {
         return reply.status(404).send({ error: 'Album not found or no changes' })

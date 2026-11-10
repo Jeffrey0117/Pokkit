@@ -342,8 +342,8 @@ export class Storage {
 
   // ── Album Operations ──
 
-  createAlbum(name: string, userId: string | null = null): Album {
-    return this.store.createAlbum(name, userId)
+  createAlbum(name: string, userId: string | null = null, parentId: string | null = null): Album {
+    return this.store.createAlbum(name, userId, parentId)
   }
 
   getAlbum(id: string): Album | null {
@@ -354,7 +354,7 @@ export class Storage {
     return this.store.listAlbums(opts || {})
   }
 
-  updateAlbum(id: string, updates: { name?: string; cover_file_id?: string }): boolean {
+  updateAlbum(id: string, updates: { name?: string; cover_file_id?: string; parent_id?: string | null }): boolean {
     return this.store.updateAlbum(id, updates)
   }
 

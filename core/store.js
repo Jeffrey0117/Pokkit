@@ -1088,11 +1088,12 @@ class PokkitStore {
   //  Album Operations
   // ══════════════════════════════════════════
 
-  createAlbum(name, userId = null) {
+  createAlbum(name, userId = null, parentId = null) {
     const id = shortId();
     const now = Date.now();
     const album = { id, name, created_at: now, updated_at: now, user_id: userId };
     db.insertAlbum(this._db, album);
+    if (parentId) db.updateAlbum(this._db, id, { parent_id: parentId });
     return album;
   }
 
