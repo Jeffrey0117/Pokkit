@@ -133,7 +133,7 @@ test('the same bytes from two members stay two separate files', async () => {
   assert.notEqual(a.id, b.id)
   assert.equal(b.filename, 'b.zip')
   await app.inject({ method: 'DELETE', url: `/files/${a.id}`, headers: { authorization: `Bearer ${A}` } })
-  const stillThere = await app.inject({ method: 'GET', url: `/f/${b.id}?dl=1`, headers: { accept: '*/*' } })
+  const stillThere = await app.inject({ method: 'GET', url: `/f/${b.id}?dl=1`, headers: { accept: '*/*', authorization: `Bearer ${B}` } })
   assert.equal(stillThere.statusCode, 200)
 })
 

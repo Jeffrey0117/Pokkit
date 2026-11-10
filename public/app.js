@@ -596,9 +596,16 @@
     if (!on) clearSelection();
   }
 
+  // 下載一律先拿一分鐘的下載憑證,直接打下載網址拿不到檔案
   function triggerDownload(id, filename) {
+    apiRequest('POST', '/api/files/' + encodeURIComponent(id) + '/download-ticket', {}, function (r) {
+      if (r && r.url) startDownload(r.url, filename);
+    });
+  }
+
+  function startDownload(url, filename) {
     var a = document.createElement('a');
-    a.href = '/f/' + id + '?dl=1';
+    a.href = url;
     a.setAttribute('download', filename || '');
     a.style.display = 'none';
     document.body.appendChild(a);
@@ -1906,8 +1913,11 @@
     var dlBtn = document.createElement('a');
     dlBtn.className = 'btn';
     dlBtn.textContent = 'Download';
-    dlBtn.href = '/f/' + entry.id + '?dl=1';
-    dlBtn.setAttribute('download', entry.filename);
+    dlBtn.href = '#';
+    dlBtn.addEventListener('click', function (e) {
+      e.preventDefault();
+      triggerDownload(entry.id, entry.filename);
+    });
 
     var delBtn = document.createElement('button');
     delBtn.className = 'btn btn-danger';
@@ -3227,8 +3237,11 @@
 
     // Download (force-download original) + host-only Locate
     if ($lightboxDownload) {
-      $lightboxDownload.href = '/f/' + photo.id + '?dl=1';
-      $lightboxDownload.setAttribute('download', photo.filename || '');
+      $lightboxDownload.href = '#';
+      $lightboxDownload.onclick = function (e) {
+        e.preventDefault();
+        triggerDownload(photo.id, photo.filename || '');
+      };
     }
     if ($lightboxLocate) {
       $lightboxLocate.hidden = !isLocalhost();

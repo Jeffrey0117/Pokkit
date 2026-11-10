@@ -340,9 +340,9 @@ function listTrash(db, opts = {}) {
     .all(...params, limit).map(deserializeRow);
 }
 
-function listTrashOlderThan(db, cutoff) {
-  return db.prepare('SELECT id FROM files WHERE deleted_at IS NOT NULL AND deleted_at < ?')
-    .all(cutoff).map((r) => r.id);
+function listTrashOlderThan(db, cutoff, limit = -1) {
+  return db.prepare('SELECT id FROM files WHERE deleted_at IS NOT NULL AND deleted_at < ? LIMIT ?')
+    .all(cutoff, limit).map((r) => r.id);
 }
 
 function deleteFile(db, id) {
@@ -603,10 +603,10 @@ function listFailedVideos(db) {
 }
 
 /** Ids of files whose expiry has passed (for the periodic sweep). */
-function listExpiredIds(db, now) {
+function listExpiredIds(db, now, limit = -1) {
   return db.prepare(
-    'SELECT id FROM files WHERE expires_at IS NOT NULL AND expires_at < ?'
-  ).all(now).map((r) => r.id);
+    'SELECT id FROM files WHERE expires_at IS NOT NULL AND expires_at < ? LIMIT ?'
+  ).all(now, limit).map((r) => r.id);
 }
 
 // ── Helpers ──

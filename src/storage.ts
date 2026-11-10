@@ -233,8 +233,8 @@ export class Storage {
     return this.store.findAny(id)
   }
 
-  purgeOldTrash(): number {
-    return this.store.purgeOldTrash()
+  purgeOldTrash(limit?: number): number {
+    return this.store.purgeOldTrash(Date.now(), undefined, limit)
   }
 
   setAlbumShareToken(id: string, token: string | null): boolean {
@@ -250,8 +250,8 @@ export class Storage {
   }
 
   /** Delete all files past their expiry (disk + DB). Returns count removed. */
-  sweepExpired(now: number = Date.now()): number {
-    return this.store.sweepExpired(now)
+  sweepExpired(now: number = Date.now(), limit?: number): number {
+    return this.store.sweepExpired(now, limit)
   }
 
   stats(): StorageStats {

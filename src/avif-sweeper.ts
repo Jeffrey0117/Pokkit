@@ -46,7 +46,10 @@ export async function sweepOnce(storage: Storage, dataDir: string): Promise<{ ac
   // — 歸檔是純磁碟換檔,DB 零寫入。候選 = 全 ready 照片 id 逐一磁碟探測。
   const store = storage as unknown as { store: { listArchiveCandidates(): Array<{ id: string }> } }
   const candidates = store.store.listArchiveCandidates()
-  for (const c of candidates) {
+  for (let i = 0; i < candidates.length; i += 1) {
+    const c = candidates[i]
+    // 幾千張照片逐一查磁碟,中間要讓出 event loop
+    if (i % 100 === 99) await new Promise((resolve) => setImmediate(resolve))
     const dir = storage.getEntryDir(c.id) ?? join(dataDir, 'default', c.id)
     const skipMarker = join(dir, '.avif-skip')
     const avifPath = join(dir, '_raw.avif')

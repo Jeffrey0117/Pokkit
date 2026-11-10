@@ -53,8 +53,10 @@ export function trashRoute(app: FastifyInstance, storage: Storage, config: Pokki
     // 永久刪除,誰都只能清自己的,否則管理員按一下會清掉全站會員的垃圾桶
     const items = storage.listTrash({ userId: user.userId })
     let n = 0
-    for (const item of items) {
-      try { if (await storage.remove(item.id)) n++ } catch { /* keep going */ }
+    for (let i = 0; i < items.length; i += 1) {
+      try { if (await storage.remove(items[i].id)) n++ } catch { /* keep going */ }
+      // 每刪一小批就讓別的請求先跑
+      if (i % 10 === 9) await new Promise((resolve) => setImmediate(resolve))
     }
     return { ok: true, purged: n }
   })

@@ -69,7 +69,7 @@ test('plain file: init → chunks (1 MiB) → complete returns the same JSON as 
   assert.ok(body.expires_at > Date.now(), 'meta.expiresIn applied')
 
   // stored bytes are intact and the chunk session is gone
-  const dl = await app.inject({ method: 'GET', url: `/files/${body.id}/big.bin` })
+  const dl = await app.inject({ method: 'GET', url: `/files/${body.id}/big.bin`, headers: { authorization: `Bearer ${API_KEY}` } })
   assert.equal(dl.statusCode, 200)
   assert.ok(dl.rawPayload.equals(data))
   assert.equal((await status(s.uploadId)).statusCode, 404)

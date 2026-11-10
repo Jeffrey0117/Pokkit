@@ -1,3 +1,4 @@
+import { isHotlinked } from '../hotlink.js'
 import { isMachineAdmin, librarySelector } from '../auth.js'
 import { publicBaseUrl } from '../public-url.js'
 import { createReadStream, statSync } from 'node:fs'
@@ -194,6 +195,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
     !!entry.password_hash || storage.isExpired(entry as never)
 
   app.get<{ Params: { id: string } }>('/photos/:id/photo.webp', async (request, reply) => {
+    if (isHotlinked(request, config)) return reply.status(403).header('Cache-Control', 'no-store').send({ error: 'Hotlinking is not allowed' })
     const entry = storage.find(request.params.id)
     if (!entry || notServable(entry)) {
       // no-store: 處理中/尚未生成時瀏覽器絕不能記住這個負面結果
@@ -206,13 +208,14 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
     }
     const reply2 = reply
       .header('Content-Type', 'image/webp')
-      .header('Cache-Control', 'public, max-age=31536000, immutable')
+      .header('Cache-Control', 'private, max-age=86400')
     try { reply2.header('Content-Length', statSync(filePath).size) } catch { /* streamed */ }
     return reply2.send(createReadStream(filePath))
   })
 
   // GET /photos/:id/thumb.webp — serve thumbnail (highest-frequency response)
   app.get<{ Params: { id: string } }>('/photos/:id/thumb.webp', async (request, reply) => {
+    if (isHotlinked(request, config)) return reply.status(403).header('Cache-Control', 'no-store').send({ error: 'Hotlinking is not allowed' })
     const thumbEntry = storage.find(request.params.id)
     const thumbPath = thumbEntry && !notServable(thumbEntry) ? storage.getThumbPath(request.params.id) : null
     if (!thumbPath) {
@@ -221,13 +224,14 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
     }
     const reply2 = reply
       .header('Content-Type', 'image/webp')
-      .header('Cache-Control', 'public, max-age=31536000, immutable')
+      .header('Cache-Control', 'private, max-age=86400')
     try { reply2.header('Content-Length', statSync(thumbPath).size) } catch { /* streamed */ }
     return reply2.send(createReadStream(thumbPath))
   })
 
   // GET /photos/:id/video.mp4 — serve video with Range support
   app.get<{ Params: { id: string } }>('/photos/:id/video.mp4', async (request, reply) => {
+    if (isHotlinked(request, config)) return reply.status(403).header('Cache-Control', 'no-store').send({ error: 'Hotlinking is not allowed' })
     const entry = storage.find(request.params.id)
     if (!entry || entry.media_type !== 'video' || notServable(entry)) {
       return reply.status(404).header('Cache-Control', 'no-store').send({ error: 'Video not found' })
@@ -261,7 +265,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
         .header('Accept-Ranges', 'bytes')
         .header('Content-Length', chunkSize)
         .header('Content-Type', 'video/mp4')
-        .header('Cache-Control', 'public, max-age=31536000, immutable')
+        .header('Cache-Control', 'private, max-age=86400')
         .send(createReadStream(filePath, { start, end }))
     }
 
@@ -269,7 +273,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
       .header('Content-Length', fileSize)
       .header('Content-Type', 'video/mp4')
       .header('Accept-Ranges', 'bytes')
-      .header('Cache-Control', 'public, max-age=31536000, immutable')
+      .header('Cache-Control', 'private, max-age=86400')
       .send(createReadStream(filePath))
   })
 

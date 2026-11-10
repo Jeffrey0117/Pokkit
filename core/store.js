@@ -545,8 +545,9 @@ class PokkitStore {
    * Purge trash older than cutoffMs (default 30 days): disk + DB, via remove().
    * @returns {number} purged count
    */
-  purgeOldTrash(now = Date.now(), cutoffMs = 30 * 24 * 60 * 60 * 1000) {
-    const ids = db.listTrashOlderThan(this._db, now - cutoffMs);
+  // limit:一次最多處理幾筆,呼叫端分批跑、中間讓出 event loop,大量刪除才不會卡住整個服務
+  purgeOldTrash(now = Date.now(), cutoffMs = 30 * 24 * 60 * 60 * 1000, limit = -1) {
+    const ids = db.listTrashOlderThan(this._db, now - cutoffMs, limit);
     let n = 0;
     for (const id of ids) {
       try { if (this.remove(id)) n++; } catch (_) { /* keep sweeping */ }
@@ -554,9 +555,9 @@ class PokkitStore {
     return n;
   }
 
-  sweepExpired(now = Date.now()) {
+  sweepExpired(now = Date.now(), limit = -1) {
     let removed = 0;
-    for (const id of db.listExpiredIds(this._db, now)) {
+    for (const id of db.listExpiredIds(this._db, now, limit)) {
       try {
         if (this.remove(id)) removed++;
       } catch (_) { /* keep sweeping the rest */ }

@@ -86,7 +86,7 @@ test('guest uploads go under their own folder', async () => {
 
 test('a stored file still downloads from its new path', async () => {
   const res = await upload({ auth: token('usr_path', 'path@example.com') })
-  const dl = await app.inject({ method: 'GET', url: `/f/${res.json().id}?dl=1`, headers: { accept: '*/*' } })
+  const dl = await app.inject({ method: 'GET', url: `/f/${res.json().id}?dl=1`, headers: { accept: '*/*', authorization: `Bearer ${API_KEY}` } })
   assert.equal(dl.statusCode, 200)
 })
 

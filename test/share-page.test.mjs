@@ -103,7 +103,7 @@ test('the share page speaks Chinese to Chinese browsers', async () => {
 
 test('API clients can still fetch the raw file', async () => {
   const { id } = await upload('a.zip', 'application/zip')
-  const res = await app.inject({ method: 'GET', url: `/f/${id}?dl=1`, headers: { accept: '*/*' } })
+  const res = await app.inject({ method: 'GET', url: `/f/${id}?dl=1`, headers: { accept: '*/*', authorization: 'Bearer k' } })
   assert.equal(res.statusCode, 200)
 })
 

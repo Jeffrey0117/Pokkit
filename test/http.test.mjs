@@ -70,19 +70,21 @@ test('S1: traversal filename upload does not escape the data dir', async () => {
 test('S3: uploaded HTML is served as attachment + nosniff (no inline XSS)', async () => {
   const up = await upload([{ name: 'file', filename: 'x.html', contentType: 'text/html', value: '<script>alert(1)</script>' }])
   const id = up.json().id
-  const res = await app.inject({ method: 'GET', url: `/f/${id}?raw=1` })
+  const res = await app.inject({ method: 'GET', url: `/f/${id}?raw=1`, headers: { authorization: `Bearer ${API_KEY}` } })
   assert.match(res.headers['content-disposition'] || '', /attachment/)
   assert.equal(res.headers['x-content-type-options'], 'nosniff')
 })
 
-test('P1: served files carry an immutable cache header + ETag, and 304 on match', async () => {
+// 2026-11-10:會員與訪客的檔案改成只給瀏覽器快取,不交給 Cloudflare,防盜連與下架才擋得住
+test('P1: member files are browser-cached only, keep an ETag, and 304 on match', async () => {
   const up = await upload([{ name: 'file', filename: 'a.txt', contentType: 'text/plain', value: 'cacheme' }])
   const id = up.json().id
-  const res = await app.inject({ method: 'GET', url: `/f/${id}?raw=1` })
-  assert.match(res.headers['cache-control'] || '', /immutable/)
+  const auth = { authorization: `Bearer ${API_KEY}` }
+  const res = await app.inject({ method: 'GET', url: `/f/${id}?raw=1`, headers: auth })
+  assert.match(res.headers['cache-control'] || '', /^private, max-age=\d+$/)
   const etag = res.headers['etag']
   assert.ok(etag, 'has ETag')
-  const res304 = await app.inject({ method: 'GET', url: `/f/${id}?raw=1`, headers: { 'if-none-match': etag } })
+  const res304 = await app.inject({ method: 'GET', url: `/f/${id}?raw=1`, headers: { ...auth, 'if-none-match': etag } })
   assert.equal(res304.statusCode, 304)
 })
 

@@ -1,3 +1,5 @@
+import { isHotlinked } from '../hotlink.js'
+import { issueTicket, verifyTicket } from '../download-ticket.js'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { librarySelector } from '../auth.js'
 import { publicBaseUrl } from '../public-url.js'
@@ -107,7 +109,7 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
         <input type="password" name="password" placeholder="Enter password" class="password-input" data-zh-ph="輸入密碼" autofocus required>
         <button type="submit" class="btn btn-primary btn-large" data-zh="解鎖">Unlock</button>
       </form>`
-    : `<button type="button" id="downloadBtn" class="btn btn-primary btn-large is-locked" data-dl="/f/${entry.id}?dl=1"><svg class="lock-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span data-zh="下載">Download</span></button>`
+    : `<button type="button" id="downloadBtn" class="btn btn-primary btn-large is-locked" data-id="${entry.id}"><svg class="lock-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span data-zh="下載">Download</span></button>`
 
   const countdownScript = entry.expires_at && !isExpired
     ? `<script>
@@ -207,7 +209,15 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
   var pending = false;
   function sdk() { return window.letmeuse; }
   function signedIn() { return sdk() && sdk().user; }
-  function download() { location.href = btn.getAttribute('data-dl'); }
+  function download() {
+    fetch('/api/files/' + encodeURIComponent(btn.getAttribute('data-id')) + '/download-ticket', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + sdk().getToken() },
+      body: '{}'
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (d && d.url) location.href = d.url;
+    }).catch(function () {});
+  }
   function setLocked(locked) { btn.classList.toggle('is-locked', locked); }
   function closeGate() { gate.hidden = true; }
   function openWith(method) {
@@ -244,6 +254,11 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
 </html>`
 }
 
+function isInlineSafe(entry: FileEntry): boolean {
+  const baseMime = (entry.mime || 'application/octet-stream').toLowerCase().split(';')[0].trim()
+  return INLINE_SAFE_TYPES.has(baseMime)
+}
+
 async function serveFile(
   request: FastifyRequest,
   reply: FastifyReply,
@@ -265,7 +280,8 @@ async function serveFile(
   // be edge/browser-cached forever — turns Cloudflare into a CDN for the media.
   // Password-protected files are never cached; expiring files cache only until
   // they expire.
-  let cacheControl = 'public, max-age=31536000, immutable'
+  const projectOwned = !!(entry as { user_id?: string | null }).user_id && storage.moderation.isProjectAccount(String((entry as { user_id?: string | null }).user_id))
+  let cacheControl = projectOwned ? 'public, max-age=31536000, immutable' : 'private, max-age=86400'
   const etag = entry.hash ? `"${entry.hash}"` : undefined
   if (entry.password_hash) {
     cacheControl = 'private, no-store'
@@ -363,6 +379,42 @@ export function filesRoute(
     return storage.list({ limit, offset, order, ...(q ? { q } : {}), ...scope })
   })
 
+  // 不回覆錯誤的身分辨識:有帶有效憑證就回傳使用者,沒有就是 null
+  function quietUser(request: FastifyRequest) {
+    const silent = { status: () => silent, send: () => silent, header: () => silent } as unknown as FastifyReply
+    return requireAuth(request, silent, config, storage)
+  }
+
+  function isProjectFile(entry: FileEntry): boolean {
+    const owner = (entry as { user_id?: string | null }).user_id
+    return !!owner && storage.moderation.isProjectAccount(owner)
+  }
+
+  // 能不能把檔案整個抓走:專案帳號的檔案給串接的服務用;其他要有下載憑證、登入身分或密碼解鎖
+  function canDownload(request: FastifyRequest, entry: FileEntry): boolean {
+    if (isProjectFile(entry)) return true
+    const ticket = (request.query as { t?: unknown } | undefined)?.t
+    if (verifyTicket(entry.id, ticket)) return true
+    if (entry.password_hash && hasValidPassCookie(request, entry)) return true
+    return !!quietUser(request)
+  }
+
+  // POST /api/files/:id/download-ticket — 登入的人按下載時拿一張一分鐘的憑證
+  app.post<{ Params: { id: string } }>(
+    '/api/files/:id/download-ticket',
+    { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } },
+    async (request, reply) => {
+      const user = requireAuth(request, reply, config, storage)
+      if (!user) return
+      const entry = storage.find(request.params.id)
+      if (!entry || storage.isExpired(entry)) return reply.status(404).send({ error: 'File not found' })
+      if (entry.password_hash && !canAccessEntry(user, entry) && !hasValidPassCookie(request, entry)) {
+        return reply.status(403).send({ error: 'Password required' })
+      }
+      return { url: `/f/${entry.id}?dl=1&t=${encodeURIComponent(issueTicket(entry.id))}` }
+    },
+  )
+
   // GET /files/:id/:filename — direct file download (no auth, for streaming/embedding)
   app.get<{ Params: { id: string; filename: string } }>(
     '/files/:id/:filename',
@@ -383,6 +435,14 @@ export function filesRoute(
         if (!hasValidPassCookie(request, entry)) {
           return reply.redirect(`/f/${id}`)
         }
+      }
+
+      if (!isProjectFile(entry) && isHotlinked(request, config)) {
+        return reply.status(403).send({ error: 'Hotlinking is not allowed' })
+      }
+      // 圖片影片可以直接看;會被當附件下載的類型等於下載,要登入
+      if (!isInlineSafe(entry) && !canDownload(request, entry)) {
+        return reply.status(401).send({ error: 'Log in to download', code: 'login_required' })
       }
 
       return serveFile(request, reply, entry, storage)
@@ -415,6 +475,14 @@ export function filesRoute(
           if (!hasValidPassCookie(request, entry)) {
             return reply.status(401).send({ error: 'Password required' })
           }
+        }
+
+        if (!isProjectFile(entry) && isHotlinked(request, config)) {
+          return reply.status(403).send({ error: 'Hotlinking is not allowed' })
+        }
+        if (!canDownload(request, entry)) {
+          if (isBrowser) return reply.redirect(`/f/${entry.id}`)
+          return reply.status(401).send({ error: 'Log in to download', code: 'login_required' })
         }
 
         return serveFile(request, reply, entry, storage, { incrementDownloads: true, forceDownload })

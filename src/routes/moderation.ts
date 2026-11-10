@@ -100,10 +100,12 @@ export function moderationRoute(app: FastifyInstance, storage: Storage, config: 
       return reply.status(400).send({ error: '請輸入會員 ID 確認' })
     }
     const ids = mod.liveFileIds(id)
-    const removed = ids.filter((fileId) => {
-      mod.markTakenDown(fileId)
-      return storage.softDelete(fileId)
-    }).length
+    let removed = 0
+    for (let i = 0; i < ids.length; i += 1) {
+      mod.markTakenDown(ids[i])
+      if (storage.softDelete(ids[i])) removed += 1
+      if (i % 200 === 199) await new Promise((resolve) => setImmediate(resolve))
+    }
     const reason = reasonOf(request.body)
     mod.block(id, reason, admin.email || admin.userId)
     mod.log(admin.email || admin.userId, 'purge', { user: id, detail: `${removed} files${reason ? `: ${reason}` : ''}` })
