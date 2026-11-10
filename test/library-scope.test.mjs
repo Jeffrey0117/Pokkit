@@ -114,6 +114,23 @@ test('emptying the trash as owner never destroys a member trash', async () => {
   assert.ok(left.includes(theirs), 'owner purge destroyed a member file')
 })
 
+test('members see their own photos and videos when filtering by type', async () => {
+  const fixture = fs.readFileSync(new URL('./fixtures/one-pixel.jpg', import.meta.url))
+  const b = '----own' + Math.random().toString(16).slice(2)
+  const head = `--${b}\r\nContent-Disposition: form-data; name="file"; filename="own.jpg"\r\nContent-Type: image/jpeg\r\n\r\n`
+  const up = await app.inject({
+    method: 'POST',
+    url: '/upload',
+    payload: Buffer.concat([Buffer.from(head), fixture, Buffer.from(`\r\n--${b}--\r\n`)]),
+    headers: { 'content-type': `multipart/form-data; boundary=${b}`, authorization: `Bearer ${MEMBER}` },
+  })
+  const id = up.json().id
+  const typed = idsOf((await get('/api/photos?type=photo&limit=50', MEMBER)).json())
+  assert.ok(typed.includes(id), 'type=photo hides the member photos')
+  const all = idsOf((await get('/api/photos?limit=50', MEMBER)).json())
+  assert.ok(all.includes(id))
+})
+
 test('members still see their own library', async () => {
   const id = (await upload(MEMBER, 'own.zip')).json().id
   assert.ok(idsOf((await get('/files', MEMBER)).json()).includes(id))

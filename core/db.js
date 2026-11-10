@@ -649,9 +649,10 @@ function listAllPhotos(db, opts = {}) {
   }
   const typeFilter = mediaType ? 'AND media_type = ?' : "AND media_type IN ('photo', 'video')";
   if (mediaType) params.push(mediaType);
+  // 參數順序必須跟 SQL 裡 ? 的順序一致:scope 先 push,所以 scope 也要寫在前面
   return db.prepare(`
     SELECT * FROM files
-    WHERE deleted_at IS NULL AND status IN ('ready', 'processing') ${typeFilter} ${scope}
+    WHERE deleted_at IS NULL AND status IN ('ready', 'processing') ${scope} ${typeFilter}
     ORDER BY ${sortCol} ${dir}
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset).map(deserializeRow);
