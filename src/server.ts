@@ -176,6 +176,13 @@ export async function createServer(config: PokkitConfig) {
     app.addHook('onClose', async () => stopAvifSweeper())
   }
 
+  // Upload-triggered photo sorting (off unless POKKIT_AUTOSORT_CMD is set)
+  {
+    const { startAutosort } = await import('./autosort.js')
+    const endAutosort = startAutosort((id) => (storage.findAny(id) as { user_id?: string | null } | undefined)?.user_id)
+    if (endAutosort) app.addHook('onClose', async () => endAutosort())
+  }
+
   // SPA fallback: client-routed pages (/folders, /photos, /videos, /account, …)
   // aren't real routes — when a browser navigates straight to one, serve the app
   // shell so client-side routing can render it. Only for GET html navigations;
