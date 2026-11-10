@@ -46,6 +46,32 @@
     ? window.PokkitPasswordIntent.attach($passwordInput)
     // fallback: helper script failed to load — behave exactly as before
     : { value: function () { return $passwordInput.value.trim(); }, reset: function () { $passwordInput.value = ''; } };
+
+  // 密碼在「加入檔案」那一刻就綁到整批的每個檔上,之後上傳只讀檔案身上那份。
+  // 舊做法是每個檔開始上傳時才讀欄位、第一個傳完就清空 → 同時最多傳 10 個,
+  // 一次傳 25 個只有前 10 個會上鎖,其餘是沒密碼的公開連結。
+  function stampUploadPassword(files) {
+    var result;
+    if (window.PokkitPasswordIntent && window.PokkitPasswordIntent.stampBatch) {
+      result = window.PokkitPasswordIntent.stampBatch(files, passwordIntent);
+    } else {
+      var pw = passwordIntent.value();
+      var n = 0;
+      for (var i = 0; i < files.length; i++) {
+        if (files[i].__password === undefined) { files[i].__password = pw; n++; }
+      }
+      passwordIntent.reset();
+      result = { password: pw, stamped: n };
+    }
+    if (result.password && result.stamped > 0) {
+      toast(window.t ? window.t('Password set for this upload') : 'Password set for this upload');
+    }
+    return result;
+  }
+
+  function uploadPasswordFor(file) {
+    return file && typeof file.__password === 'string' ? file.__password : '';
+  }
   var $expirySelect = document.getElementById('expirySelect');
   var $queueSection = document.getElementById('queueSection');
   var $queueList = document.getElementById('queueList');
@@ -891,6 +917,8 @@
       files: files.slice(0, 5).map(function (f) { return { name: f.name, size: f.size, type: f.type }; })
     });
     if (files.length === 0) return;
+    // 這批檔案要不要上鎖,在加入的這一刻就定案(見 stampUploadPassword)。
+    stampUploadPassword(files);
     // 大批次(尤其 iOS Safari)在裝置端把每個檔讀進記憶體算 SHA-256 會爆記憶體/卡死,
     // 導致整批都不進佇列(「按加入沒東西」)。檔案多時就跳過裝置端預查重,直接上傳 ——
     // 伺服器 savePhoto 本來就會依內容雜湊去重,不會存到重複檔,只是多傳一點點。
@@ -1384,7 +1412,6 @@
           }
         }
       } catch (_) { /* */ }
-      passwordIntent.reset();
       uploading--;
       updateQueueSummary();
       processQueue();
@@ -1428,7 +1455,7 @@
       beacon('chunked-start', { name: file.name, size: file.size });
       var meta = {};
       var completeBody = {};
-      var cpw = passwordIntent.value();
+      var cpw = uploadPasswordFor(file);
       if (cpw) completeBody.password = cpw; // secrets go with the final request only, never into session meta
       var cexp = $expirySelect.value;
       if (cexp && cexp !== 'forever') meta.expiresIn = cexp;
@@ -1472,7 +1499,7 @@
     var fd = new FormData();
 
     // Fields MUST come before file — @fastify/multipart stops parsing after file
-    var pw = passwordIntent.value();
+    var pw = uploadPasswordFor(file);
     if (pw) fd.append('password', pw);
     var exp = $expirySelect.value;
     if (exp && exp !== 'forever') fd.append('expiresIn', exp);

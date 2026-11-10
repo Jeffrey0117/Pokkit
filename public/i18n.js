@@ -101,6 +101,7 @@
     'Sign up free to upload files over 64MB.': '\u8d85\u904e 64MB \u7684\u5927\u6a94\u9700\u8981\u514d\u8cbb\u8a3b\u518a\u5f8c\u4e0a\u50b3\u3002',
     'Copy link': '\u8907\u88fd\u9023\u7d50',
     'Link copied': '\u9023\u7d50\u5df2\u8907\u88fd',
+    'Password set for this upload': '\u9019\u6279\u4e0a\u50b3\u5df2\u52a0\u4e0a\u5bc6\u78bc',
     'file': '\u55ae\u6a94',
     '/mo': '/\u6708',
 

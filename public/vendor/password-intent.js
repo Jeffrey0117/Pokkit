@@ -15,6 +15,11 @@
  *   var intent = window.PokkitPasswordIntent.attach(inputEl);
  *   intent.value();  // '' unless the user entered it
  *   intent.reset();  // clear the field, require fresh input next time
+ *
+ *   // when files are added: one password for the whole batch
+ *   window.PokkitPasswordIntent.stampBatch(files, intent);
+ *   // when a file is actually uploaded
+ *   window.PokkitPasswordIntent.passwordFor(file);
  */
 (function (root) {
   'use strict';
@@ -73,5 +78,36 @@
     };
   }
 
-  root.PokkitPasswordIntent = { attach: attach };
+  /**
+   * Bind the password to a whole batch at the moment its files are added.
+   *
+   * Uploads used to read the field when each one STARTED, and the field was
+   * cleared when the first one finished. With 10 uploads in flight at a time,
+   * a 25-file batch with a password ended up with 10 locked files and 15 open
+   * links — while the uploader believed all 25 were protected.
+   *
+   * A file that already carries a stamp keeps it: retries and re-queues pass
+   * the same File object through again, long after the field has moved on.
+   *
+   * @returns {{password: string, stamped: number}}
+   */
+  function stampBatch(files, intent) {
+    var password = intent.value();
+    var stamped = 0;
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      if (f && f.__password === undefined) {
+        f.__password = password;
+        stamped++;
+      }
+    }
+    intent.reset(); // the batch has taken it; the next batch starts clean
+    return { password: password, stamped: stamped };
+  }
+
+  function passwordFor(file) {
+    return file && typeof file.__password === 'string' ? file.__password : '';
+  }
+
+  root.PokkitPasswordIntent = { attach: attach, stampBatch: stampBatch, passwordFor: passwordFor };
 })(typeof window !== 'undefined' ? window : this);
