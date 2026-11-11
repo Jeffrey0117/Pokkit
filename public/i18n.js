@@ -221,6 +221,7 @@
     'Newest first': '最新在前',
     'Oldest first': '最舊在前',
     'Uploads go into': '會傳進',
+    'Nothing here yet': '裡面還沒有東西',
     '← Albums': '← 相簿',
     'Cleanup': '整理',
     'Rename': '重新命名',

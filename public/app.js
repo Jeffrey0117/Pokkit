@@ -2795,11 +2795,96 @@
     card.appendChild(info);
 
     card.addEventListener('click', function () {
-      openAlbum(album.id, album.name);
+      peekAlbum(album);
     });
     makeAlbumDropTarget(card, album);
 
     (container || $albumGrid).appendChild(card);
+  }
+
+  // ── 資料夾預覽視窗 ────────────────────────────────────
+  // 點卡片先看裡面有什麼;在視窗裡點「開啟」或點照片才真的進去。
+  var PEEK_LIMIT = 60;
+  var peekedAlbum = null;
+  var $albumPeek = document.getElementById('albumPeek');
+
+  function closeAlbumPeek() {
+    peekedAlbum = null;
+    var modal = document.getElementById('albumPeek');
+    if (modal) modal.hidden = true;
+  }
+
+  function enterPeekedAlbum() {
+    var album = peekedAlbum;
+    if (!album) return;
+    closeAlbumPeek();
+    openAlbum(album.id, album.name);
+  }
+
+  function renderAlbumPeek(data) {
+    var body = document.getElementById('albumPeekBody');
+    body.innerHTML = '';
+    var children = data.children || [];
+    if (children.length) {
+      var subs = document.createElement('div');
+      subs.className = 'album-peek-subs';
+      children.forEach(function (child) {
+        var chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'btn album-peek-sub';
+        chip.textContent = child.name + ' \u00b7 ' + (child.photo_count || 0);
+        chip.addEventListener('click', function () { peekAlbum(child); });
+        subs.appendChild(chip);
+      });
+      body.appendChild(subs);
+    }
+    var photos = (data.photos || []).filter(function (ph) { return ph.status === 'ready'; });
+    if (!photos.length && !children.length) {
+      var empty = document.createElement('div');
+      empty.className = 'album-peek-empty';
+      empty.textContent = window.t ? window.t('Nothing here yet') : 'Nothing here yet';
+      body.appendChild(empty);
+      return;
+    }
+    var grid = document.createElement('div');
+    grid.className = 'album-peek-grid';
+    photos.forEach(function (ph) {
+      var img = document.createElement('img');
+      img.src = '/photos/' + ph.id + '/thumb.webp';
+      img.alt = ph.filename || '';
+      img.loading = 'lazy';
+      img.draggable = false;
+      grid.appendChild(img);
+    });
+    grid.addEventListener('click', enterPeekedAlbum);
+    body.appendChild(grid);
+  }
+
+  function peekAlbum(album) {
+    if (!$albumPeek) { openAlbum(album.id, album.name); return; }
+    peekedAlbum = album;
+    document.getElementById('albumPeekTitle').textContent = album.name;
+    document.getElementById('albumPeekCount').textContent = (album.photo_count || 0) + ' photos';
+    var body = document.getElementById('albumPeekBody');
+    body.innerHTML = '';
+    var loading = document.createElement('div');
+    loading.className = 'album-peek-grid';
+    fillGridSkeletons(loading);
+    body.appendChild(loading);
+    $albumPeek.hidden = false;
+    apiRequest('GET', '/api/albums/' + album.id + '?limit=' + PEEK_LIMIT + gridSortQuery(), null, function (data) {
+      if (peekedAlbum !== album || !data) return;
+      renderAlbumPeek(data);
+    });
+  }
+
+  if ($albumPeek) {
+    document.getElementById('albumPeekOpen').addEventListener('click', enterPeekedAlbum);
+    document.getElementById('albumPeekClose').addEventListener('click', closeAlbumPeek);
+    $albumPeek.addEventListener('click', function (e) { if (e.target === $albumPeek) closeAlbumPeek(); });
+    document.addEventListener('keydown', function (e) {
+      if (!$albumPeek.hidden && e.key === 'Escape') closeAlbumPeek();
+    });
   }
 
   // 收進資料夾:列出可以當資料夾的最上層相簿,點一個

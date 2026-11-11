@@ -3077,6 +3077,36 @@ body.mode-dashboard .landing-only {
 .confirm-msg { white-space: pre-line; line-height: 1.6; margin-bottom: 18px; }
 .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
+/* 資料夾預覽視窗:點卡片先看內容,再決定要不要進去 */
+.album-peek-card {
+  display: flex; flex-direction: column;
+  width: 920px; max-width: 100%; max-height: 86vh;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+.album-peek-head {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-default);
+}
+.album-peek-actions { display: flex; gap: 8px; margin-left: auto; }
+.album-peek-body { padding: 12px 16px 16px; overflow-y: auto; min-height: 160px; }
+.album-peek-subs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.album-peek-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 2px;
+  cursor: pointer;
+}
+.album-peek-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: var(--bg-tertiary); }
+.album-peek-empty { padding: 40px 0; text-align: center; color: var(--text-tertiary); }
+@media (max-width: 600px) {
+  .album-peek-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+}
+
 /* 輸入／選擇對話框 (取代瀏覽器原生的 prompt 視窗),外框沿用 confirm 的樣子 */
 .prompt-title { display: block; margin-bottom: 12px; font-weight: 600; }
 .prompt-input {

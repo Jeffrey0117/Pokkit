@@ -553,6 +553,20 @@
       </div>
     </div>
 
+    <div class="confirm-modal" id="albumPeek" hidden>
+      <div class="album-peek-card" role="dialog" aria-modal="true" aria-labelledby="albumPeekTitle">
+        <div class="album-peek-head">
+          <h2 class="section-title" id="albumPeekTitle"></h2>
+          <span class="gallery-count" id="albumPeekCount"></span>
+          <div class="album-peek-actions">
+            <button type="button" class="btn" id="albumPeekClose" data-i18n="Close">Close</button>
+            <button type="button" class="btn btn-upgrade" id="albumPeekOpen" data-i18n="Open">Open</button>
+          </div>
+        </div>
+        <div class="album-peek-body" id="albumPeekBody"></div>
+      </div>
+    </div>
+
     <div class="confirm-modal" id="promptModal" hidden>
       <form class="confirm-card" role="dialog" aria-modal="true" aria-labelledby="promptTitle" id="promptForm">
         <label class="confirm-msg prompt-title" id="promptTitle" for="promptInput"></label>
