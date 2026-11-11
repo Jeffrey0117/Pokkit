@@ -1,8 +1,13 @@
 # Pokkit
 
-Your own cloud drive, self-hosted. Upload photos, videos and documents, get a share link, decide who can open it and for how long.
+Drop a file, get a short link. Photos, videos and documents; decide who can open the link and for how long.
 
-📖 Intro page: https://jeffrey0117.github.io/pokkit/
+Pokkit is free and open source (MIT). There are two ways to use it:
+
+- **Run your own** — clone this repo and start it on your own machine. Your files stay on your disk, and you can move them any time. Step-by-step guide (Traditional Chinese): [docs/self-hosting.zh-TW.md](docs/self-hosting.zh-TW.md)
+- **Use the hosted version** — nothing to install. Free 2 GB, Pro 20 GB. Start from the intro page: https://jeffrey0117.github.io/pokkit/
+
+The code is the same either way. The paid plan covers storage, bandwidth and someone else keeping the machine running.
 
 ## What it does
 
@@ -17,10 +22,16 @@ Your own cloud drive, self-hosted. Upload photos, videos and documents, get a sh
 
 ## Quick Start
 
+Needs Node.js 22+. ffmpeg is optional (only videos need it).
+
 ```bash
+git clone https://github.com/Jeffrey0117/Pokkit.git
+cd Pokkit
 npm install
-npm start
+npm start          # http://localhost:8877
 ```
+
+Set `POKKIT_API_KEY` before exposing it to anyone — without it every endpoint is public. The full walkthrough (config, per-project keys, PM2, putting it behind a domain, backups) is in [docs/self-hosting.zh-TW.md](docs/self-hosting.zh-TW.md).
 
 ## Usage (HTTP)
 
@@ -80,4 +91,4 @@ The bundled web page (`public/index.html`, the share page in `src/routes/files.t
 
 ## License
 
-MIT
+[MIT](LICENSE)
