@@ -3191,3 +3191,11 @@ html[lang^="zh"] .brand-zh { display: inline; }
 /* 資料夾裡的相簿,排在照片上面 */
 .sub-album-grid { margin-bottom: 20px; }
 .sub-album-grid[hidden] { display: none; }
+
+/* 自架模式:方案、升級、送去拍吧都是代管版才有的 */
+.self-hosted [data-route="pricing"],
+.self-hosted #upgradeBtn,
+.self-hosted #acctUpgrade,
+.self-hosted #acctPromoBtn,
+.self-hosted #selectionSendPlottr,
+.self-hosted #lightboxSendPlottr { display: none !important; }

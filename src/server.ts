@@ -2,6 +2,7 @@ import { clientAddress } from './guest-limit.js'
 import { API_LIMIT, isAppShellOrAsset } from './rate-limits.js'
 import { join } from 'node:path'
 import { getJwksStats } from './jwks-cache.js'
+import { isSelfHosted, toSelfHostedHtml } from './self-host.js'
 import { readFileSync, statSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { networkInterfaces } from 'node:os'
@@ -86,11 +87,12 @@ export async function createServer(config: PokkitConfig) {
   function buildIndexHtml(): string {
     const sig = [indexPath, cssPath, jsPath, i18nPath, chunkClientPath].map((p) => statSync(p).mtimeMs).join(':')
     if (sig !== cachedSig) {
-      cachedHtml = readFileSync(indexPath, 'utf-8')
+      const built = readFileSync(indexPath, 'utf-8')
         .replace('__CSS_HASH__', fileHash(cssPath))
         .replace('__JS_HASH__', fileHash(jsPath))
         .replace('__I18N_HASH__', fileHash(i18nPath))
         .replace('__CHUNK_HASH__', fileHash(chunkClientPath))
+      cachedHtml = isSelfHosted(config) ? toSelfHostedHtml(built) : built
       cachedSig = sig
     }
     return cachedHtml

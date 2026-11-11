@@ -87,7 +87,14 @@ Direct file URLs (`GET /files/:id/:filename`, and HEAD) need no key for photos, 
 
 ## Hosting your own
 
-The bundled web page (`public/index.html`, the share page in `src/routes/files.ts`) loads the author's login widget and analytics script and links to the author's other services. Swap those for your own before putting an instance in front of other people. The HTTP API and the SDK have no such ties.
+An instance without a member system configured (no `LETMEUSE_APP_ID`) runs in **self-hosted mode**:
+
+- You log in on the web page by pasting your API key (the admin key, or a per-project `pk_…` key). You get the full dashboard — albums, photo wall, trash — with no storage cap beyond your disk.
+- The pages load nothing from the author's servers: no login widget, no analytics. The only outside request is Google Fonts.
+- There is no member sign-up. Visitors can still drop files without logging in (kept up to 24 hours), and anyone holding a share link can download it — set a password to restrict it.
+- Plans, billing and the member-admin page are hidden.
+
+The hosted version sets `LETMEUSE_APP_ID` and uses the author's own login and billing services; those parts are not meant to be reused.
 
 ## License
 

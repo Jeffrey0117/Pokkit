@@ -1,3 +1,4 @@
+import { isSelfHosted } from '../self-host.js'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
@@ -41,7 +42,10 @@ export function moderationRoute(app: FastifyInstance, storage: Storage, config: 
     return requireAdmin(request, reply, config, storage)
   }
 
+  // 自架的站沒有會員可管,這一頁 (含它載入的登入元件) 不提供
+  app.get('/admin.html', async (_request, reply) => reply.status(404).send({ error: 'Not found' }))
   app.get('/admin', async (_request, reply) => {
+    if (isSelfHosted(config)) return reply.status(404).send({ error: 'Not found' })
     const html = readFileSync(join(import.meta.dirname, '..', '..', 'public', 'admin.html'), 'utf8')
     return reply.header('Content-Type', 'text/html; charset=utf-8').header('Cache-Control', 'no-store').send(html)
   })

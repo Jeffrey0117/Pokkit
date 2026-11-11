@@ -326,6 +326,9 @@
   // 在家上傳走 CF 要出門繞一圈(實測 341MB:公網 173s vs LAN 3s);此模式下
   // 同 WiFi 直連。登入票證由公網頁的「LAN 高速模式」按鈕經 URL hash 交接
   // (#lanauth=,hash 不上網路不進 log);票證 4h 到期後回公網頁再按一次。
+  // 自架模式 (伺服器沒設會員系統時注入這個旗標):沒有會員登入元件,改用金鑰登入。
+  var SELF_HOST = !!window.POKKIT_SELFHOST;
+
   var LAN_MODE = /^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
   if (LAN_MODE) {
     var lanAuthMatch = location.hash.match(/lanauth=([^&]+)/);
@@ -456,13 +459,36 @@
     }
   }
 
-  $loginBtn.addEventListener('click', function () {
-    if (typeof letmeuse !== 'undefined') {
-      letmeuse.login();
-    } else {
-      toast('Login service loading...');
-    }
-  });
+  // 所有「請登入」都走這裡。代管版開會員登入視窗;自架版輸入金鑰。
+  function startLogin(quiet) {
+    if (SELF_HOST) { keyLogin(); return; }
+    if (typeof letmeuse !== 'undefined') { letmeuse.login(); return; }
+    if (!quiet) toast('Login service loading...');
+  }
+
+  // 自架:貼上管理金鑰或專案金鑰。先向伺服器確認這把金鑰有效才存起來。
+  function keyLogin() {
+    var title = window.t ? window.t('Log in with your key') : 'Log in with your key';
+    promptDialog(title, { okLabel: window.t ? window.t('Log in') : 'Log in' }).then(function (key) {
+      key = key && key.trim();
+      if (!key) return;
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/api/me');
+      xhr.setRequestHeader('Authorization', 'Bearer ' + key);
+      xhr.addEventListener('load', function () {
+        if (xhr.status !== 200) {
+          toast(window.t ? window.t('That key was not accepted') : 'That key was not accepted', true);
+          return;
+        }
+        localStorage.setItem(STORAGE_TOKEN_KEY, key);
+        reconcileAuth();
+      });
+      xhr.addEventListener('error', function () { toast('Network error', true); });
+      xhr.send();
+    });
+  }
+
+  $loginBtn.addEventListener('click', function () { startLogin(); });
 
   // Single source of "you are logged out": clears state, cache, admin nav, AND
   // resets the view back to the landing page. Used by the logout button and by
@@ -1087,6 +1113,7 @@
 
   // ── LAN 模式 UI:徽章 + 票證指引;公網頁則掛「LAN 高速模式」換軌按鈕
   function initLanUx() {
+    if (SELF_HOST) return; // 換軌票證是代管版會員登入的東西
     if (LAN_MODE) {
       var badge = document.createElement('div');
       badge.className = 'lan-badge';
@@ -1681,7 +1708,7 @@
           failPermanently(window.t ? window.t(limitBody.error) : limitBody.error);
           // 原因要講在登入視窗之前,不然使用者只看到突然跳登入
           toast(limitBody.error);
-          if (typeof letmeuse !== 'undefined') letmeuse.login();
+          startLogin(true);
           return;
         }
         settleInflight();
@@ -2307,7 +2334,7 @@
       navigate('home', push);
       toast(window.t ? window.t('Please sign in first') : 'Please sign in first', true);
       // 自己點進來的人直接給登入視窗;開機時登入服務可能還沒載完,就只提示
-      if (push !== false && typeof letmeuse !== 'undefined') letmeuse.login();
+      if (push !== false) startLogin(true);
       return;
     }
     setMode(true);
@@ -2613,7 +2640,7 @@
     var nav = document.getElementById('projectsNav');
     if (nav) nav.hidden = !isAdmin;
     var adminNav = document.getElementById('adminNav');
-    if (adminNav) adminNav.hidden = !isAdmin;
+    if (adminNav) adminNav.hidden = !(isAdmin && !SELF_HOST); // 會員管理:自架沒有會員
   }
 
   function checkAdmin() {
@@ -3377,19 +3404,19 @@
     var freeBtn = document.getElementById('priceFreeBtn');
     if (freeBtn) freeBtn.addEventListener('click', function () {
       if (currentUser) { navigate('account', true); return; }
-      if (typeof letmeuse !== 'undefined') letmeuse.login(); else toast('Login service loading...');
+      startLogin();
     });
     var heroBtn = document.getElementById('heroStartBtn');
     if (heroBtn) heroBtn.addEventListener('click', function () {
       if (currentUser) { navigate('account', true); return; }
-      if (typeof letmeuse !== 'undefined') letmeuse.login(); else toast('Login service loading...');
+      startLogin();
     });
     var promoBtn = document.getElementById('acctPromoBtn');
     if (promoBtn) promoBtn.addEventListener('click', function () { navigate('pricing', true); });
     var checkoutBtn = document.getElementById('proCheckoutBtn');
     if (checkoutBtn) checkoutBtn.addEventListener('click', function () {
       if (!currentUser) {
-        if (typeof letmeuse !== 'undefined') letmeuse.login(); else toast('Login service loading...');
+        startLogin();
         return;
       }
       checkoutBtn.disabled = true;

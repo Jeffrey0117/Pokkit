@@ -1,3 +1,4 @@
+import { isSelfHosted, toSelfHostedSharePage } from '../self-host.js'
 import { isHotlinked } from '../hotlink.js'
 import { issueTicket, verifyTicket } from '../download-ticket.js'
 import { createHmac, timingSafeEqual } from 'node:crypto'
@@ -227,6 +228,7 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
     sdk()[method]();
   }
   btn.addEventListener('click', function () {
+    if (window.POKKIT_SELFHOST) { location.href = '/f/' + encodeURIComponent(btn.getAttribute('data-id')) + '?dl=1'; return; }
     if (signedIn()) { download(); return; }
     gate.hidden = false;
   });
@@ -379,6 +381,12 @@ export function filesRoute(
     return storage.list({ limit, offset, order, ...(q ? { q } : {}), ...scope })
   })
 
+  const selfHosted = isSelfHosted(config)
+  const sharePage = (entry: FileEntry, baseUrl: string, error?: string): string => {
+    const html = renderDownloadPage(entry, baseUrl, error)
+    return selfHosted ? toSelfHostedSharePage(html) : html
+  }
+
   // 不回覆錯誤的身分辨識:有帶有效憑證就回傳使用者,沒有就是 null
   function quietUser(request: FastifyRequest) {
     const silent = { status: () => silent, send: () => silent, header: () => silent } as unknown as FastifyReply
@@ -392,6 +400,7 @@ export function filesRoute(
 
   // 能不能把檔案整個抓走:專案帳號的檔案給串接的服務用;其他要有下載憑證、登入身分或密碼解鎖
   function canDownload(request: FastifyRequest, entry: FileEntry): boolean {
+    if (selfHosted) return true // 沒有會員系統,拿到連結就能下載 (密碼在這之前已經檢查過)
     if (isProjectFile(entry)) return true
     const ticket = (request.query as { t?: unknown } | undefined)?.t
     if (verifyTicket(entry.id, ticket)) return true
@@ -505,7 +514,7 @@ export function filesRoute(
       return reply
         .status(storage.isExpired(entry) ? 410 : 200)
         .header('Content-Type', 'text/html; charset=utf-8')
-        .send(renderDownloadPage(entry, baseUrl))
+        .send(sharePage(entry, baseUrl))
     },
   )
 
@@ -534,7 +543,7 @@ export function filesRoute(
         return reply
           .status(401)
           .header('Content-Type', 'text/html; charset=utf-8')
-          .send(renderDownloadPage(entry, baseUrl, 'Wrong password'))
+          .send(sharePage(entry, baseUrl, 'Wrong password'))
       }
 
       // Set cookie and redirect to raw download

@@ -25,7 +25,7 @@ before(async () => {
     premiumUserIds: [],
     adminUserIds: [],
     letmeuseAppSecret: '',
-    letmeuseAppId: '',
+    letmeuseAppId: 'pokkit-test', // 這份測試看的是代管版的分享頁 (空值 = 自架模式)
     globalCapacityBytes: 500 * GB,
   })
   await app.ready()

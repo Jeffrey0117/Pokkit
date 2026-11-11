@@ -22,13 +22,15 @@ async function main() {
     // 而且一定要印出來: LetMeUse 的 signAccessToken 在 env 掉了的時候會無聲退回
     // HS256, 那時候全生態同時 401 且零線索, 這一行是唯一的早期訊號。
     if (!config.letmeuseAppId) {
-      console.error('[jwks] ⚠️ 沒設 LETMEUSE_APP_ID — 所有 LetMeUse 登入會被拒絕 (app claim 是唯一的租戶邊界)')
-    }
-    const jwks = await warmUpJwks()
-    if (!jwks.keys) {
-      console.error(`[jwks] ⚠️ 預熱沒拿到金鑰 — 所有登入會 401: ${jwks.lastError}`)
+      // 自架:沒有會員系統,網頁用金鑰登入,不需要去抓任何外部的公鑰
+      console.log('Self-hosted mode — log in on the web page with your API key')
     } else {
-      console.log(`[jwks] ready (${jwks.keys} key(s), kid=${jwks.kids.join(',')})`)
+      const jwks = await warmUpJwks()
+      if (!jwks.keys) {
+        console.error(`[jwks] ⚠️ 預熱沒拿到金鑰 — 所有登入會 401: ${jwks.lastError}`)
+      } else {
+        console.log(`[jwks] ready (${jwks.keys} key(s), kid=${jwks.kids.join(',')})`)
+      }
     }
   } catch (err) {
     app.log.error(err)

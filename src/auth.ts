@@ -148,6 +148,12 @@ export function requireAuth(
     return null
   }
 
+  // 自架 (沒設會員系統):只認金鑰,不去碰會員系統的驗證
+  if (!config.letmeuseAppId) {
+    reply.status(401).send({ error: 'Invalid key' })
+    return null
+  }
+
   // LetMeUse JWT (a human) — 🔒 驗簽章, 不是只 decode
   const user = verifyLetMeUseToken(token, config.letmeuseAppId, config.getJwtKey as never)
   if (!user) {
