@@ -6,11 +6,11 @@ Your own cloud drive, self-hosted. Upload photos, videos and documents, get a sh
 
 ## What it does
 
-- **Share links** — every upload gets a `/f/{id}` page with inline preview; no login needed to view.
-- **Password & expiry** — protect a link with a password (10 guesses / minute) and pick 1h · 1d · 7d · 30d · forever. Expired links return 410 and the file is swept.
+- **Share links** — every upload gets a `/f/{id}` page with inline preview; no login needed to view. Photos and videos open straight away; downloading any other file type asks the visitor to log in. Other sites cannot embed your files (hotlink protection).
+- **Password & expiry** — protect a link with a password (10 guesses / minute) and pick 1h · 3h · 6h · 12h · 1d · 7d · 30d · forever. Expired links return 410 and the file is swept. A photo or video uploaded with a password or an expiry is kept as a share link, not added to the photo library.
 - **Big files** — files over 64 MB upload in 16 MB chunks (3 in parallel, retries, resumable for 24h), so they get past proxies that cap request bodies (e.g. Cloudflare's 100 MB).
 - **LAN fast mode** — on the same Wi-Fi as the server, uploads go straight over the LAN instead of out and back through the internet.
-- **Photos & albums** — timeline by capture date, albums with revocable public `/a/:token` links, 30-day trash.
+- **Photos & albums** — timeline by capture date, albums with revocable public `/a/:token` links, 30-day trash, look-alike duplicates tidied automatically. The library keeps a web-sized copy (photos: longest side 2048 px; videos: 1080p) and drops the original once that copy is ready — set `POKKIT_KEEP_ORIGINALS=1` to keep originals.
 - **Plans** — Free 2 GB, Pro 20 GB (billing through PayGate; waitlist when billing isn't configured). Guest uploads: single file ≤ 64 MB, 5 files a day per address, forced expiry ≤ 24 hours.
 - **Per-project API accounts** — each project gets its own `pk_…` key and only sees its own files (keys stored as hashes, rotatable).
 - Also the storage backend for [MemoryGuy](https://github.com/Jeffrey0117/MemoryGuy)'s disk virtualizer.
@@ -27,7 +27,7 @@ npm start
 Send your key as `X-Pokkit-Key: pk_…` (or `Authorization: Bearer pk_…`).
 
 ```bash
-# Upload (optional: password, expiresIn=1h|1d|7d|30d)
+# Upload (optional: password, expiresIn=1h|3h|6h|12h|1d|7d|30d — anything else is refused with 400)
 curl -H "X-Pokkit-Key: pk_…" -F "file=@photo.jpg" -F "expiresIn=7d" https://your-pokkit.example/upload
 # → { "id": "...", "url": "https://your-pokkit.example/f/{id}", "directUrl": ".../files/{id}/photo.jpg" }
 
@@ -72,7 +72,11 @@ When `apiKey` is set, these endpoints require `Authorization: Bearer <key>`:
 - `GET /status`
 - `DELETE /files/:id`
 
-File download (`GET /files/:id/:filename`) and HEAD are always public, so REPIC/REVID viewers can stream directly.
+Direct file URLs (`GET /files/:id/:filename`, and HEAD) need no key for photos, videos, audio, PDF and plain text, so viewers can stream them. Other file types need a login or a per-project key; password-protected files need the password first.
+
+## Hosting your own
+
+The bundled web page (`public/index.html`, the share page in `src/routes/files.ts`) loads the author's login widget and analytics script and links to the author's other services. Swap those for your own before putting an instance in front of other people. The HTTP API and the SDK have no such ties.
 
 ## License
 

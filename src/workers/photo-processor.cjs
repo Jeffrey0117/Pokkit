@@ -84,7 +84,7 @@ parentPort.on('message', async (msg) => {
       .webp({ quality: 75 })
       .toBuffer();
 
-    // 5. Finalize: write files, update DB (raw is kept as the original-quality copy)
+    // 5. Finalize: write files, update DB (the raw upload is dropped here unless POKKIT_KEEP_ORIGINALS=1)
     store.finalizePhoto(id, {
       webpBuffer,
       thumbBuffer,
