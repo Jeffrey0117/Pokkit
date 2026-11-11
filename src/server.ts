@@ -153,10 +153,11 @@ export async function createServer(config: PokkitConfig) {
 
   // LAN 直傳模式:回報本機私網 IP,公網頁的「LAN 高速模式」按鈕用它組家用網址。
   // 在家上傳每張照片都得出門到 CF 再繞回家(實測 341MB:公網 173s vs LAN 3s),
-  // 同一 WiFi 直連可拿回整段頻寬。需登入才回(別對匿名者洩漏內網拓撲)。
+  // 同一 WiFi 直連可拿回整段頻寬。只回給管理員:這是站長自己在家用的捷徑,
+  // 主機的內網位址不該給一般會員 (他們也連不到)。
   app.get('/api/lan-info', async (request, reply) => {
-    const { requireAuth } = await import('./auth.js')
-    const user = requireAuth(request, reply, config, storage)
+    const { requireAdmin } = await import('./auth.js')
+    const user = requireAdmin(request, reply, config, storage)
     if (!user) return
     let ip: string | null = null
     for (const list of Object.values(networkInterfaces())) {

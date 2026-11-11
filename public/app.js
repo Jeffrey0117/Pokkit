@@ -1123,9 +1123,17 @@
         badge.className = 'lan-badge expired';
         badge.textContent = '⚡ LAN 票證不在/已過期 — 回 pokkit.isnowfriend.com 重按「LAN 高速模式」';
       }
-      return;
     }
-    // 公網頁:登入後探測 LAN 資訊,有就掛換軌按鈕(在家才按得通;不在家點了連不上,無害)
+  }
+  setTimeout(initLanUx, 2500);
+
+  // 公網頁的「在家? LAN 高速直傳」:站長自己在家用的捷徑。
+  // 只有確認是管理員之後才去問主機的內網位址、才掛按鈕 —— 一般會員按了也連不上,
+  // 主機的內網位址也不該給他們。
+  var lanSwitchOffered = false;
+  function offerLanSwitch() {
+    if (lanSwitchOffered || SELF_HOST || LAN_MODE) return;
+    lanSwitchOffered = true;
     apiRequest('GET', '/api/lan-info', null, function (info) {
       if (!info || !info.ip) return;
       var btn = document.createElement('button');
@@ -1140,7 +1148,6 @@
       document.body.appendChild(btn);
     });
   }
-  setTimeout(initLanUx, 2500);
 
   function queueFiles(files) {
     $queueSection.hidden = false;
@@ -2692,6 +2699,7 @@
     if (nav) nav.hidden = !isAdmin;
     var adminNav = document.getElementById('adminNav');
     if (adminNav) adminNav.hidden = !(isAdmin && !SELF_HOST); // 會員管理:自架沒有會員
+    if (isAdmin) offerLanSwitch();
   }
 
   function checkAdmin() {
