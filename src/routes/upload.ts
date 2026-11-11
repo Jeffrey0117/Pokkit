@@ -5,6 +5,7 @@ import { requireAuth, hasAuthToken, type AuthUser } from '../auth.js'
 import { GUEST_DAILY_UPLOADS, GUEST_MAX_FILE_BYTES, GUEST_USER_ID } from '../config.js'
 import { guestKey } from '../guest-limit.js'
 import { finalizeUpload, normalizeFields } from '../upload-finalize.js'
+import { readWithinLimit } from '../upload-read.js'
 
 // Single-request multipart upload. Fine for small/medium files; anything that
 // might exceed an edge proxy's body cap (Cloudflare: 100MB) should use the
@@ -38,7 +39,13 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
       if (reservedFor) storage.releaseGuestUpload(reservedFor)
     }
 
-    const file = await request.file(reservedFor ? { limits: { fileSize: GUEST_MAX_FILE_BYTES } } : undefined)
+    // 讀不出 multipart(例如 content-type 不對)也要把訪客的額度還回去
+    const file = await request
+      .file(reservedFor ? { limits: { fileSize: GUEST_MAX_FILE_BYTES } } : undefined)
+      .catch((err: unknown) => {
+        refund()
+        throw err
+      })
     if (!file) {
       refund()
       return reply.status(400).send({ error: 'No file provided. Use multipart field "file".' })
@@ -53,8 +60,14 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
       keep_duplicate: rawFields.keep_duplicate?.value,
     })
 
+    const sizeLimit = reservedFor ? GUEST_MAX_FILE_BYTES : config.maxFileSize
+
     try {
-      const buffer = await file.toBuffer()
+      const buffer = await readWithinLimit(file)
+      if (!buffer) {
+        refund()
+        return reply.status(413).send(tooLarge(sizeLimit, Boolean(reservedFor)))
+      }
       const result = await finalizeUpload(
         { filename: file.filename, mime: file.mimetype, buffer, fields },
         user,
@@ -73,4 +86,20 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
       throw err
     }
   })
+}
+
+const MB = 1024 * 1024
+
+// 超過大小上限時回給使用者的內容。兩條路(套件丟錯、自己發現被切斷)都用這一份,
+// 前端只看 error 顯示,code / maxBytes 給程式判斷用。
+function tooLarge(limitBytes: number, guest: boolean) {
+  const limitMB = Math.floor(limitBytes / MB)
+  return {
+    error: guest
+      ? `Guest uploads are limited to ${limitMB} MB per file. Log in to send bigger files.`
+      : `This file is over the ${limitMB} MB limit.`,
+    code: 'file_too_large',
+    maxBytes: limitBytes,
+    ...(guest ? { guest: true } : {}),
+  }
 }
