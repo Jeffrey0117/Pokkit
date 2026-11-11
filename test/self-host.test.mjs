@@ -7,6 +7,7 @@ import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs'
 import vm from 'node:vm'
+import { createRequire } from 'node:module'
 
 process.env.POKKIT_LOG = 'silent'
 const { createServer } = await import('../src/server.ts')
@@ -23,11 +24,12 @@ const base = {
   port: 0, host: '127.0.0.1', apiKey: API_KEY, maxFileSize: 500 * 1024 * 1024, publicUrl: 'https://mine.example',
   publicHosts: [], premiumUserIds: [], adminUsers: [], globalCapacityBytes: 500 * GB, getJwtKey: () => null,
 }
+const selfDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pk-self-'))
 let self
 let hosted
 
 before(async () => {
-  self = await createServer({ ...base, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'pk-self-')), letmeuseAppId: '' })
+  self = await createServer({ ...base, dataDir: selfDir, letmeuseAppId: '' })
   hosted = await createServer({ ...base, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'pk-host-')), letmeuseAppId: 'pokkit-test' })
   await self.ready()
   await hosted.ready()
@@ -130,6 +132,30 @@ test('自架:會員管理後台不存在 (沒有會員可管)', async () => {
   assert.equal((await page(self, '/admin')).statusCode, 404)
   assert.equal((await page(self, '/admin.html')).statusCode, 404)
   assert.equal((await page(hosted, '/admin')).statusCode, 200)
+})
+
+test('自架:專案金鑰也沒有容量上限,而且不會拿帳號去問任何外部的訂閱服務', async () => {
+  const require = createRequire(import.meta.url)
+  const PokkitStore = require('../core/index.js')
+  const store = new PokkitStore({ dataDir: selfDir })
+  const { key } = store.createAccount('my-blog')
+  store.close()
+
+  const realFetch = globalThis.fetch
+  const asked = []
+  globalThis.fetch = async (url) => { asked.push(String(url)); throw new Error('no network in tests') }
+  try {
+    const up = await upload(self, { auth: key, name: 'post.zip', mime: 'application/zip' })
+    assert.equal(up.statusCode, 200, up.body)
+    const st = await self.inject({ method: 'GET', url: '/api/user/storage', headers: { authorization: `Bearer ${key}` } })
+    assert.equal(st.statusCode, 200)
+    assert.equal(st.json().unlimited, true, '自架的專案帳號不該被套上免費方案的 2GB')
+    const plans = await self.inject({ method: 'GET', url: '/api/plans' })
+    assert.deepEqual(plans.json(), { plans: [] })
+  } finally {
+    globalThis.fetch = realFetch
+  }
+  assert.deepEqual(asked, [], '自架的站向外部發了請求')
 })
 
 // ── 前端 ──

@@ -1628,6 +1628,11 @@
           failPermanently(null);
           return;
         }
+        if (err && err.status === 413 && err.code === 'quota') {
+          quotaWall(err.body || {});
+          failPermanently(null);
+          return;
+        }
         if (err && (err.code === 'network' || err.code === 'timeout' || err.status >= 500)) {
           if (autoRetry()) return;
         }
@@ -1734,10 +1739,15 @@
       }
 
       if (xhr.status === 413) {
-        // Storage full — retrying won't help; manual retry still available.
-        var quotaErr = 'Storage full!';
-        try { quotaErr = JSON.parse(xhr.responseText).error || quotaErr; } catch (_) { /* */ }
-        failPermanently(quotaErr);
+        // 413 有兩種:容量滿了 (回應裡有上限) 或這個檔案本身太大。重試都沒用。
+        var tooBig = null;
+        try { tooBig = JSON.parse(xhr.responseText); } catch (_) { /* */ }
+        if (tooBig && (tooBig.maxBytes || tooBig.maxPhotos)) {
+          quotaWall(tooBig);
+          failPermanently(null);
+          return;
+        }
+        failPermanently((tooBig && tooBig.error) || 'File too large');
         return;
       }
 
@@ -2174,9 +2184,46 @@
   }
 
   // ── Stats / Quota ──────────────────────────────────────
+  // 先讓人用,快滿了才談升級:用量到這個百分比,升級入口才出現。
+  var NEAR_FULL_PERCENT = 75;
+  var lastStorageInfo = null;
+
+  function shouldOfferUpgrade(info) {
+    if (!info || info.isPremium || info.unlimited) return false;
+    return (info.usedPercent || 0) >= NEAR_FULL_PERCENT;
+  }
+
+  // 撞到容量上限的那一刻:跳一次對話框講清楚,給下一步。
+  // 同一批的檔案會一個接一個撞牆,所以一段時間內只跳一次。
+  var QUOTA_WALL_QUIET_MS = 5 * 60 * 1000;
+  var quotaWallShownAt = 0;
+
+  function quotaWall(body) {
+    if (Date.now() - quotaWallShownAt < QUOTA_WALL_QUIET_MS) return;
+    quotaWallShownAt = Date.now();
+    scheduleStatsRefresh();
+    var tr = function (s) { return window.t ? window.t(s) : s; };
+    var lines = [tr('Your space is full.')];
+    if (body && body.maxBytes) {
+      var fmtQ = function (b) { return formatBytes(b).replace('.0 ', ' '); };
+      lines.push(fmtQ(body.usedBytes || 0) + ' / ' + fmtQ(body.maxBytes));
+    }
+    var paying = !!(lastStorageInfo && lastStorageInfo.isPremium);
+    if (paying) {
+      lines.push(tr('Delete some files to make room.'));
+      confirmDialog(lines.join('\n'), { okLabel: tr('OK'), danger: false });
+      return;
+    }
+    lines.push(tr('Upgrade for more space, then upload again.'));
+    confirmDialog(lines.join('\n'), { okLabel: tr('See plans'), danger: false }).then(function (ok) {
+      if (ok) navigate('pricing', true);
+    });
+  }
+
   function loadStats() {
     apiRequest('GET', '/api/user/storage', null, function (data) {
       if (!data) return;
+      lastStorageInfo = data;
       $storageQuota.hidden = false;
       var fmtQ = function (b) { return formatBytes(b).replace('.0 ', ' '); };
       $quotaText.textContent = data.unlimited
@@ -2186,7 +2233,7 @@
           : data.photoCount.toLocaleString() + ' / ' + data.maxPhotos.toLocaleString() + ' photos';
       $quotaTier.textContent = data.tier;
       $quotaTier.className = 'quota-tier' + (data.isPremium ? ' premium' : '');
-      $upgradeBtn.hidden = !!data.isPremium;
+      $upgradeBtn.hidden = !shouldOfferUpgrade(data);
 
       var pct = Math.min(data.usedPercent, 100);
       $quotaFill.style.width = pct + '%';
@@ -2455,7 +2502,7 @@
       var up = document.getElementById('acctUpgrade');
       if (up) up.hidden = !!data.isPremium;
       var promo = document.getElementById('acctPromo');
-      if (promo) promo.hidden = !!data.isPremium;
+      if (promo) promo.hidden = !shouldOfferUpgrade(data);
     });
     apiRequest('GET', '/api/user/stats', null, function (s) {
       if (!s) return;

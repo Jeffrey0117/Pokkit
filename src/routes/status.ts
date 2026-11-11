@@ -1,3 +1,4 @@
+import { isSelfHosted } from '../self-host.js'
 import type { FastifyInstance } from 'fastify'
 import type { Storage } from '../storage.js'
 import type { PokkitConfig } from '../config.js'
@@ -22,6 +23,7 @@ export function statusRoute(app: FastifyInstance, storage: Storage, config: Pokk
 
   // Public: list available upgrade plans
   app.get('/api/plans', async () => {
+    if (isSelfHosted(config)) return { plans: [] } // 自架沒有方案,也不去問金流服務
     return fetchPlans()
   })
 
@@ -117,11 +119,12 @@ export function statusRoute(app: FastifyInstance, storage: Storage, config: Pokk
     }
 
     const userStats = storage.userStats(user.userId)
-    if (user.isAdmin) {
-      // Owner/admin: unlimited — mirror checkQuota, never show an Upgrade nag
+    if (user.isAdmin || isSelfHosted(config)) {
+      // Owner/admin, and everyone on a self-hosted instance: unlimited — mirror
+      // checkQuota, never show an Upgrade nag
       return {
         userId: user.userId,
-        tier: 'Admin',
+        tier: user.isAdmin ? 'Admin' : 'Self-hosted',
         isPremium: true,
         unlimited: true,
         usedBytes: userStats.totalBytes,

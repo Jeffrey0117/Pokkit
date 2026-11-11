@@ -1,3 +1,4 @@
+import { isSelfHosted } from './self-host.js'
 import { publicBaseUrl } from './public-url.js'
 import { statSync, statfsSync } from 'node:fs'
 import { markIngest } from './avif-sweeper.js'
@@ -172,6 +173,9 @@ export async function checkQuota(
     }
     return null
   }
+
+  // 自架的站沒有方案:專案帳號只受上面的磁碟與全站容量限制,也不去問任何訂閱服務
+  if (isSelfHosted(config)) return null
 
   const sub = await checkPremium(user.email, user.userId, config.premiumUserIds)
   const userStats = storage.userStats(user.userId)

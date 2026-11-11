@@ -117,7 +117,16 @@ const fakeStorage = (userBytes, userFiles, totalBytes = 0) => ({
   userStats: () => ({ totalFiles: userFiles, totalBytes: userBytes }),
   stats: () => ({ totalBytes }),
 })
-const cfg = (globalCapacityBytes) => ({ premiumUserIds: [], globalCapacityBytes })
+// 方案的容量限制是代管版的事 (letmeuseAppId 空 = 自架模式,沒有方案)
+const cfg = (globalCapacityBytes) => ({ premiumUserIds: [], globalCapacityBytes, letmeuseAppId: 'pokkit-test' })
+
+test('checkQuota: 自架的站不套方案容量,只看全站容量', async () => {
+  const selfCfg = { premiumUserIds: [], globalCapacityBytes: 500 * GB, letmeuseAppId: '' }
+  const project = { userId: 'my-blog', email: 'my-blog', isProject: true }
+  assert.equal(await checkQuota(project, fakeStorage(50 * GB, 3), selfCfg, 100), null)
+  const full = await checkQuota(project, fakeStorage(0, 0, 499 * GB), { ...selfCfg, globalCapacityBytes: 400 * GB }, 100)
+  assert.equal(full.status, 507, '全站容量的保險絲對自架一樣有效')
+})
 
 test('checkQuota: free user over 2GB gets 413 with bytes fields', async () => {
   const user = { userId: 'u1', email: '' } // no email → Free, no PayGate call
