@@ -2320,6 +2320,7 @@
         return;
       }
       setMode(false);
+      document.body.classList.remove('page-pricing');
       setActiveSide(null);
       toggleUploadZone(true);
       switchTab(currentTab && currentTab !== 'account' ? currentTab : 'files');
@@ -2338,6 +2339,9 @@
       return;
     }
     setMode(true);
+    // 方案頁是獨立的行銷頁:不套後台的殼 (側欄),用首頁的版型
+    if (route === 'pricing') setMode(false);
+    document.body.classList.toggle('page-pricing', route === 'pricing');
     if (push !== false && location.pathname !== '/' + route) {
       history.pushState({ route: route }, '', '/' + route);
     }
@@ -3382,13 +3386,83 @@
   }
 
   // ── Pricing page ──
+  // ── 方案的數字:首頁頂部、方案頁標題、兩張卡都吃同一份 /api/tiers ──
+  var lastTiers = null;
+  function fillPlanNumbers(tiers) {
+    if (!tiers) return;
+    lastTiers = tiers;
+    var mo = window.t ? window.t('/mo') : '/mo';
+    function set(id, text) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = text;
+    }
+    if (tiers.free) {
+      set('priceFreeAmount', tiers.free.maxGB + 'GB');
+      set('heroFreeGB', tiers.free.maxGB + ' GB');
+      set('pricingHeadFree', tiers.free.maxGB + ' GB');
+    }
+    if (tiers.pro) {
+      var price = 'NT$' + (tiers.pro.priceNTD || 149) + mo;
+      set('priceProAmount', price + ' · ' + tiers.pro.maxGB + 'GB');
+      set('heroProGB', tiers.pro.maxGB + ' GB');
+      set('heroProPrice', price);
+      set('pricingHeadPro', tiers.pro.maxGB + ' GB');
+      set('pricingHeadPrice', price);
+    }
+  }
+  apiRequest('GET', '/api/tiers', null, fillPlanNumbers);
+  document.addEventListener('pokkit:langchange', function () { fillPlanNumbers(lastTiers); });
+
+  // ── 對比表:首頁和方案頁用同一份資料。每一格都是英文 key,中文在 i18n.js ──
+  // Pokkit 那一欄只寫程式實際的行為;別寫「不壓縮」(相片庫的影片會轉成 1080p)。
+  var COMPARE_ROWS = [
+    { label: 'Steps to share', pokkit: 'Drop it in. The link is there when it finishes.', line: 'You have to be friends or in the same group first.', google: 'Upload, open Share, change the access setting, copy the link.' },
+    { label: 'What the other person needs', pokkit: 'Nothing. Photos and videos open in the browser.', line: 'The LINE app.', google: 'If access was left restricted, they have to request it.' },
+    { label: 'How long it stays up', pokkit: 'Member links stay up.', line: 'After a while it says the storage period has ended.', google: 'It stays up.' },
+    { label: 'Password on a link', pokkit: 'Yes, built in', line: 'Not available', google: 'Not available' },
+    { label: 'Choose when it expires', pokkit: 'Yes, from 1 hour to 30 days', line: 'Not available', google: 'Not on personal accounts' },
+    { label: 'The link itself', pokkit: 'A short link', line: 'Stays inside the chat', google: 'A long string of characters' }
+  ];
+
+  function renderCompare(container) {
+    var table = document.createElement('table');
+    table.className = 'compare-table';
+    function cell(tag, key, cls) {
+      var el = document.createElement(tag);
+      if (cls) el.className = cls;
+      if (key) { el.setAttribute('data-i18n', key); el.textContent = key; }
+      return el;
+    }
+    var head = document.createElement('tr');
+    head.appendChild(cell('th', ''));
+    head.appendChild(cell('th', 'Pokkit', 'compare-us'));
+    head.appendChild(cell('th', 'LINE'));
+    head.appendChild(cell('th', 'Google Drive'));
+    var thead = document.createElement('thead');
+    thead.appendChild(head);
+    table.appendChild(thead);
+    var tbody = document.createElement('tbody');
+    COMPARE_ROWS.forEach(function (row) {
+      var tr = document.createElement('tr');
+      var label = cell('th', row.label);
+      label.setAttribute('scope', 'row');
+      tr.appendChild(label);
+      tr.appendChild(cell('td', row.pokkit, 'compare-us'));
+      tr.appendChild(cell('td', row.line));
+      tr.appendChild(cell('td', row.google));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    container.innerHTML = '';
+    container.appendChild(table);
+    if (window.applyI18n) window.applyI18n(container);
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.compare'), renderCompare);
+
   function loadPricing() {
     apiRequest('GET', '/api/tiers', null, function (tiers) {
       if (!tiers) return;
-      var f = document.getElementById('priceFreeAmount');
-      if (f && tiers.free) f.textContent = tiers.free.maxGB + 'GB';
-      var p = document.getElementById('priceProAmount');
-      if (p && tiers.pro) p.textContent = 'NT$' + (tiers.pro.priceNTD || 149) + (window.t ? window.t('/mo') : '/mo') + ' · ' + tiers.pro.maxGB + 'GB';
+      fillPlanNumbers(tiers);
       // 金流已接上 → 顯示結帳按鈕,收起「通知我」登記框
       var checkoutBtn = document.getElementById('proCheckoutBtn');
       var interestBox = document.getElementById('proInterestBox');

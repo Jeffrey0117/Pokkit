@@ -50,8 +50,10 @@ function upload(app, { auth, name, mime }) {
 }
 
 const page = (app, url) => app.inject({ method: 'GET', url, headers: { accept: 'text/html' } })
-// 頁面上所有外部網址的主機名
-const externalHosts = (html) => [...new Set([...html.matchAll(/(?:src|href)="https?:\/\/([^/"]+)/g)].map((m) => m[1]))]
+// 頁面會去載入的外部資源的主機名 (script / img / link 等)。給人點的 <a> 連結不算載入。
+const externalHosts = (html) => [...new Set(
+  [...html.matchAll(/<(?!a\b)[a-z-]+\b[^>]*?\b(?:src|href)="https?:\/\/([^/"]+)/g)].map((m) => m[1]),
+)]
 const FONTS = ['fonts.googleapis.com', 'fonts.gstatic.com']
 
 test('有沒有設會員系統,決定是不是自架模式', () => {

@@ -46,7 +46,11 @@
       // 沒登入的人能直接打開的後台分頁只有方案頁;其他的 app.js 會送回首頁
       var deepLink = DASH_ROUTES.indexOf(seg) >= 0 && (mayBeSignedIn || seg === 'pricing');
       var dashboard = deepLink || (signedIn && matchMedia('(min-width: 761px)').matches);
+      // 方案頁是獨立的行銷頁:不套後台的殼
+      var onPricing = seg === 'pricing';
+      if (onPricing) dashboard = false;
       var cl = document.body.classList;
+      cl.toggle('page-pricing', onPricing);
       cl.toggle('mode-dashboard', dashboard);
       cl.toggle('mode-landing', !dashboard);
       cl.toggle('is-guest', !signedIn);
@@ -165,6 +169,12 @@
       <section class="hero landing-only">
         <h1 class="hero-title" data-i18n="Drop it, share it.">Drop it, share it.</h1>
         <p class="hero-subtitle" data-i18n="Short link. Super fast. Super easy.">Short link. Super fast. Super easy.</p>
+        <p class="hero-plans">
+          <span data-i18n="Free">Free</span> <b id="heroFreeGB">2 GB</b>
+          <span class="hero-plans-sep" aria-hidden="true">&middot;</span>
+          <span data-i18n="Subscription">Subscription</span> <b id="heroProGB">20 GB</b> <span id="heroProPrice">NT$149/mo</span>
+          <a class="hero-plans-link" href="/pricing" data-route="pricing" data-i18n="See plans">See plans</a>
+        </p>
       </section>
 
     <section class="editor" id="dropzone" tabindex="0" role="button" aria-label="Upload files" data-tour="upload">
@@ -235,6 +245,11 @@
     </section>
 
     <div class="lp landing-only">
+      <section class="lp-section">
+        <h2 class="lp-title" data-i18n="Next to LINE and Google Drive">Next to LINE and Google Drive</h2>
+        <div class="compare"></div>
+      </section>
+
       <section class="lp-section">
         <h2 class="lp-title" data-i18n="Sending one video should not be this much work.">Sending one video should not be this much work.</h2>
         <div class="lp-grid lp-grid-3">
@@ -490,8 +505,11 @@
     </section>
 
     <section class="pricing-section" id="pricingSection" hidden>
-      <div class="section-header"><h2 class="section-title" data-i18n="Plans">Plans</h2></div>
-      <p class="pricing-tagline" data-i18n="Start free. Upgrade when your memories outgrow it.">Start free. Upgrade when your memories outgrow it.</p>
+      <p class="pricing-eyebrow" data-i18n="Plans">Plans</p>
+      <h1 class="pricing-title">
+        <span class="pricing-title-line"><span data-i18n="Free">Free</span> <b id="pricingHeadFree">2 GB</b></span>
+        <span class="pricing-title-line"><span data-i18n="Subscription">Subscription</span> <b id="pricingHeadPro">20 GB</b> <span class="pricing-title-price" id="pricingHeadPrice">NT$149/mo</span></span>
+      </h1>
       <div class="pricing-grid pricing-grid-two">
         <div class="price-card">
           <h3 class="price-name">Free</h3>
@@ -512,7 +530,7 @@
           <ul class="price-features">
             <li data-i18n="Everything in Free">Everything in Free</li>
             <li data-i18n="10× the space of Free">10&times; the space of Free</li>
-            <li data-i18n="Large files via chunked upload">Large files via chunked upload</li>
+            <li data-i18n="Cancel any time. Pro stays until the end of the paid period.">Cancel any time. Pro stays until the end of the paid period.</li>
           </ul>
           <button class="btn btn-upgrade price-cta" id="proCheckoutBtn" hidden data-i18n="Upgrade to Pro">Upgrade to Pro</button>
           <div class="price-interest" id="proInterestBox">
@@ -522,6 +540,33 @@
               <button class="btn btn-upgrade" id="proInterestBtn" data-i18n="Notify me">Notify me</button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div class="pricing-block">
+        <h2 class="lp-title" data-i18n="Next to LINE and Google Drive">Next to LINE and Google Drive</h2>
+        <div class="compare"></div>
+      </div>
+
+      <div class="pricing-selfhost">
+        <div class="pricing-selfhost-text">
+          <strong data-i18n="Or run your own">Or run your own</strong>
+          <span data-i18n="Pokkit is open source. Host it yourself for free, with as much space as your disk has.">Pokkit is open source. Host it yourself for free, with as much space as your disk has.</span>
+        </div>
+        <a class="btn" href="https://github.com/Jeffrey0117/Pokkit" target="_blank" rel="noopener" data-i18n="View on GitHub">View on GitHub</a>
+      </div>
+
+      <div class="pricing-block">
+        <h2 class="lp-title" data-i18n="Questions">Questions</h2>
+        <div class="lp-faq">
+        <details class="lp-faq-item">
+          <summary class="lp-faq-q" data-i18n="Do I have to subscribe?">Do I have to subscribe?</summary>
+          <p class="lp-faq-a" data-i18n="No. The free plan stays free.">No. The free plan stays free.</p>
+        </details>
+        <details class="lp-faq-item">
+          <summary class="lp-faq-q" data-i18n="Can I cancel?">Can I cancel?</summary>
+          <p class="lp-faq-a" data-i18n="Yes, any time. Pro stays until the end of the period you paid for.">Yes, any time. Pro stays until the end of the period you paid for.</p>
+        </details>
         </div>
       </div>
     </section>

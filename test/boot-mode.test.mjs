@@ -53,9 +53,14 @@ test('a cached name with no session left is a guest', () => {
   assert.deepEqual(bootFor({ user: true }), { mode: 'landing', guest: true })
 })
 
-test('deep links start in the dashboard shell for everyone', () => {
-  assert.deepEqual(bootFor({ path: '/pricing' }), { mode: 'dashboard', guest: true })
+test('deep links into the dashboard start in the dashboard shell', () => {
   assert.equal(bootFor({ path: '/folders', user: true, refresh: true, width: 390 }).mode, 'dashboard')
+})
+
+// 2026-11-11 起方案頁是獨立的行銷頁:沒登入、已登入都不套後台的殼
+test('the plans page never starts in the dashboard shell', () => {
+  assert.deepEqual(bootFor({ path: '/pricing' }), { mode: 'landing', guest: true })
+  assert.equal(bootFor({ path: '/pricing', user: true, refresh: true }).mode, 'landing')
 })
 
 test('an unknown path is treated as home', () => {
