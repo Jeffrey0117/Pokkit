@@ -15,7 +15,97 @@ import fs from 'node:fs'
 process.env.POKKIT_LOG = 'silent'
 const { createServer } = await import('../src/server.ts')
 const { GB, GUEST_MAX_FILE_BYTES } = await import('../src/config.ts')
-const { readWithinLimit } = await import('../src/upload-read.ts')
+const { readWithinLimit, readUpload } = await import('../src/upload-read.ts')
+
+// ── 表單走完才算數:欄位排在檔案後面也要收到 ──
+// (app.inject 整包一次進來,後面的欄位剛好已經解析完,所以走 HTTP 的測試測不到
+//  這個洞;真實連線、2MB 以上的檔案,排在後面的密碼 6 次有 6 次不見。)
+
+const filePart = (name, content, extra = {}) => ({
+  type: 'file',
+  filename: name,
+  mimetype: 'application/octet-stream',
+  toBuffer: async () => Buffer.from(content),
+  file: { truncated: false, resumed: 0, resume() { this.resumed += 1 } },
+  ...extra,
+})
+const field = (fieldname, value) => ({ type: 'field', fieldname, value })
+async function* partsOf(list) { for (const part of list) yield part }
+
+test('fields placed after the file are collected too', async () => {
+  const read = await readUpload(partsOf([field('album_id', 'a1'), filePart('x.bin', 'data'), field('password', 'pw'), field('expiresIn', '7d')]))
+  assert.deepEqual(read.fields, { album_id: 'a1', password: 'pw', expiresIn: '7d' })
+  assert.deepEqual(read.file, { filename: 'x.bin', mimetype: 'application/octet-stream' })
+  assert.equal(read.buffer.toString(), 'data')
+  assert.equal(read.tooLarge, false)
+})
+
+test('a form with no file reports no file', async () => {
+  const read = await readUpload(partsOf([field('password', 'pw')]))
+  assert.equal(read.file, null)
+  assert.equal(read.buffer, null)
+})
+
+test('only the first file is kept; extra files are drained, not buffered', async () => {
+  const second = filePart('second.bin', 'ignored')
+  const read = await readUpload(partsOf([filePart('first.bin', 'kept'), second, field('password', 'pw')]))
+  assert.equal(read.file.filename, 'first.bin')
+  assert.equal(read.buffer.toString(), 'kept')
+  assert.equal(second.file.resumed, 1, 'the extra file was drained so later parts could arrive')
+  assert.equal(read.fields.password, 'pw')
+})
+
+test('a file can be skipped on what the earlier fields already say', async () => {
+  const part = filePart('big.bin', 'never read', { toBuffer: async () => { throw new Error('must not be read') } })
+  const read = await readUpload(partsOf([field('expiresIn', '5m'), part]), (seen) => seen.expiresIn === '5m')
+  assert.equal(read.buffer, null)
+  assert.equal(read.tooLarge, false)
+  assert.equal(part.file.resumed, 1)
+  assert.equal(read.file.filename, 'big.bin')
+})
+
+test('a cut-off file is too large whether the library says so at once or on the next part', async () => {
+  const quiet = await readUpload(partsOf([filePart('a.bin', 'half', { file: { truncated: true } }), field('password', 'pw')]))
+  assert.equal(quiet.tooLarge, true)
+  assert.equal(quiet.buffer, null)
+
+  async function* throwsLater() {
+    yield filePart('b.bin', 'half')
+    throw Object.assign(new Error('request file too large'), { code: 'FST_REQ_FILE_TOO_LARGE' })
+  }
+  const late = await readUpload(throwsLater())
+  assert.equal(late.tooLarge, true)
+  assert.equal(late.buffer, null)
+})
+
+test('a broken form is reported as broken, not as a size problem', async () => {
+  async function* broken() {
+    yield field('password', 'pw')
+    throw Object.assign(new Error('Part terminated early'), { code: 'FST_PART_ERROR' })
+  }
+  await assert.rejects(readUpload(broken()), /terminated early/)
+})
+
+test('a second file in the form does not cost the first one', async () => {
+  // limits.files: 1 讓套件遇到第二個檔案就停、不去讀它;停下來時丟的是這個錯
+  async function* twoFiles() {
+    yield field('password', 'pw')
+    yield filePart('first.bin', 'kept')
+    throw Object.assign(new Error('reach files limit'), { code: 'FST_FILES_LIMIT' })
+  }
+  const read = await readUpload(twoFiles())
+  assert.equal(read.file.filename, 'first.bin')
+  assert.equal(read.buffer.toString(), 'kept')
+  assert.equal(read.tooLarge, false)
+  assert.equal(read.fields.password, 'pw')
+})
+
+test('a form that hits the file limit before any file was read is still an error', async () => {
+  async function* noFileYet() {
+    throw Object.assign(new Error('reach files limit'), { code: 'FST_FILES_LIMIT' })
+  }
+  await assert.rejects(readUpload(noFileYet()), /files limit/)
+})
 
 // ── 讀檔的判斷本身:兩種「太大」都要認得,這段不靠時序 ──
 // 下面走 socket 的測試在同一個程序裡跑,套件幾乎每次都丟錯,測不到「靜靜切斷」那條路。
@@ -74,7 +164,7 @@ before(async () => {
 after(async () => {
   if (app) await app.close()
   // 這份測試會留下一個 64MB 的檔案,跑完要清掉
-  if (dataDir) fs.rmSync(dataDir, { recursive: true, force: true })
+  if (dataDir) try { fs.rmSync(dataDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) } catch { /* Windows can still be holding the database file; a leftover temp folder must not fail the run */ }
 })
 
 test('a request that is not multipart does not use up the guest allowance', async () => {

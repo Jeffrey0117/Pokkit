@@ -104,6 +104,17 @@ export class Storage {
   }
 
   async save(filename: string, mime: string, buffer: Buffer, opts?: SaveOptions): Promise<FileEntry> {
+    return this.store.save(filename, mime, buffer, this.shareOptions(opts))
+  }
+
+  // 已經在磁碟上的檔案(分塊上傳組好的那一份):直接搬進儲存區,不讀進記憶體。
+  // 密碼、期限、去重規則跟 save() 完全一樣。
+  async saveFromFile(filename: string, mime: string, srcPath: string, opts?: SaveOptions): Promise<FileEntry> {
+    return this.store.saveFromFile(filename, mime, srcPath, this.shareOptions(opts))
+  }
+
+  // 分享連結的保護設定 → 儲存層的欄位。密碼只存雜湊。
+  private shareOptions(opts?: SaveOptions): Record<string, unknown> {
     const storeOpts: Record<string, unknown> = { bucket: 'default' }
 
     if (opts?.password) {
@@ -130,7 +141,7 @@ export class Storage {
       storeOpts.user_id = opts.userId
     }
 
-    return this.store.save(filename, mime, buffer, storeOpts)
+    return storeOpts
   }
 
   verifyPassword(entry: FileEntry, password: string): boolean {

@@ -197,6 +197,65 @@ class PokkitStore {
   }
 
   /**
+   * Same as save(), for a file already on disk (an assembled chunked upload):
+   * hashed as a stream and moved into place, never loaded into memory.
+   * Dedup, password and expiry rules are exactly those of save().
+   * @param {string} filename
+   * @param {string} mime
+   * @param {string} srcPath  moved away on success; left alone when deduplicated
+   * @param {{ bucket?: string, metadata?: object, password_hash?: string, expires_at?: number, user_id?: string }} [opts]
+   * @returns {Promise<FileEntry>}
+   */
+  async saveFromFile(filename, mime, srcPath, opts = {}) {
+    const bucket = opts.bucket || 'default';
+    this._validateBucket(bucket);
+
+    const size = fs.statSync(srcPath).size;
+    const hash = await hashFile(srcPath);
+
+    if (!opts.password_hash && !opts.expires_at) {
+      const existing = db.findByHash(this._db, hash, bucket);
+      const owner = opts.user_id || null;
+      const match = existing.find(e => !e.is_directory && !e.expires_at && !e.password_hash && (e.user_id || null) === owner);
+      if (match) {
+        return { ...match, deduplicated: true };
+      }
+    }
+
+    const id = shortId();
+    const storedName = this._resolveStoredName(bucket, id, filename, opts.user_id);
+    const destPath = this._resolveFilePath(bucket, storedName);
+    fs.mkdirSync(path.dirname(destPath), { recursive: true });
+    try {
+      fs.renameSync(srcPath, destPath);
+    } catch {
+      // Cross-device fallback: copy then best-effort remove the source.
+      fs.copyFileSync(srcPath, destPath);
+      try { fs.unlinkSync(srcPath); } catch {}
+    }
+
+    const entry = {
+      id,
+      bucket,
+      filename,
+      stored_name: storedName,
+      mime,
+      size,
+      hash,
+      is_directory: false,
+      uploaded_at: Date.now(),
+      metadata: opts.metadata || null,
+      password_hash: opts.password_hash || null,
+      expires_at: opts.expires_at || null,
+      download_count: 0,
+      user_id: opts.user_id || null,
+    };
+
+    db.insertFile(this._db, entry);
+    return { ...entry, is_directory: false };
+  }
+
+  /**
    * Create an atomic write stream for large files
    * @param {string} filename
    * @param {string} mime
@@ -867,6 +926,9 @@ class PokkitStore {
     const owner = opts.user_id || null;
     const match = existing.find(e =>
       (e.status === 'ready' || e.status === 'processing') && (e.user_id || null) === owner
+      // 有密碼或期限的那一份是「分享連結」,不能拿來頂替相片庫的上傳:
+      // 不然這張照片進不了相片庫,拿回來的還是一個鎖著、會過期的條目。
+      && !e.password_hash && !e.expires_at
     );
     if (match) {
       return { ...match, deduplicated: true };
@@ -928,6 +990,9 @@ class PokkitStore {
     const owner = opts.user_id || null;
     const match = existing.find(e =>
       (e.status === 'ready' || e.status === 'processing') && (e.user_id || null) === owner
+      // 有密碼或期限的那一份是「分享連結」,不能拿來頂替相片庫的上傳:
+      // 不然這張照片進不了相片庫,拿回來的還是一個鎖著、會過期的條目。
+      && !e.password_hash && !e.expires_at
     );
     if (match) {
       return { ...match, deduplicated: true };

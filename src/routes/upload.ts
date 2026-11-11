@@ -4,8 +4,8 @@ import type { PokkitConfig } from '../config.js'
 import { requireAuth, hasAuthToken, type AuthUser } from '../auth.js'
 import { GUEST_DAILY_UPLOADS, GUEST_MAX_FILE_BYTES, GUEST_USER_ID } from '../config.js'
 import { guestKey } from '../guest-limit.js'
-import { finalizeUpload, normalizeFields } from '../upload-finalize.js'
-import { readWithinLimit } from '../upload-read.js'
+import { finalizeUpload, normalizeFields, uploadFieldProblem } from '../upload-finalize.js'
+import { readUpload, ONE_FILE, type AnyPart } from '../upload-read.js'
 
 // Single-request multipart upload. Fine for small/medium files; anything that
 // might exceed an edge proxy's body cap (Cloudflare: 100MB) should use the
@@ -14,7 +14,7 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
   app.post('/upload', {
     config: { rateLimit: { max: 200, timeWindow: '1 minute' } },
   }, async (request, reply) => {
-    // Guest 快傳: 完全沒帶憑證 → guest (強制 ≤7 天過期, 單檔 64MB, 純檔案分支)。
+    // Guest 快傳: 完全沒帶憑證 → guest (強制 ≤24 小時過期, 單檔 64MB, 純檔案分支)。
     // 有帶憑證就必須驗過 — 壞 token 要 401, 不准靜默降級成 guest。
     let user: AuthUser
     if (hasAuthToken(request)) {
@@ -39,37 +39,37 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
       if (reservedFor) storage.releaseGuestUpload(reservedFor)
     }
 
-    // 讀不出 multipart(例如 content-type 不對)也要把訪客的額度還回去
-    const file = await request
-      .file(reservedFor ? { limits: { fileSize: GUEST_MAX_FILE_BYTES } } : undefined)
-      .catch((err: unknown) => {
-        refund()
-        throw err
-      })
-    if (!file) {
-      refund()
-      return reply.status(400).send({ error: 'No file provided. Use multipart field "file".' })
-    }
-
-    // Fastify multipart: fields are available on the file object
-    const rawFields = file.fields as Record<string, { value?: unknown } | undefined>
-    const fields = normalizeFields({
-      password: rawFields.password?.value,
-      expiresIn: rawFields.expiresIn?.value,
-      album_id: rawFields.album_id?.value,
-      keep_duplicate: rawFields.keep_duplicate?.value,
-    })
-
     const sizeLimit = reservedFor ? GUEST_MAX_FILE_BYTES : config.maxFileSize
 
     try {
-      const buffer = await readWithinLimit(file)
-      if (!buffer) {
+      // 把整個表單走完:欄位排在檔案前面或後面都要收到 (見 upload-read.ts)。
+      // 前面的欄位已經確定期限不合法時,檔案就不讀進記憶體了。
+      const limits = reservedFor ? { ...ONE_FILE, fileSize: GUEST_MAX_FILE_BYTES } : ONE_FILE
+      const parts = request.parts({ limits })
+      const upload = await readUpload(parts as AsyncIterable<AnyPart>, (seen) => uploadFieldProblem(seen) !== null)
+
+      if (!upload.file) {
+        refund()
+        return reply.status(400).send({ error: 'No file provided. Use multipart field "file".' })
+      }
+      const problem = uploadFieldProblem(upload.fields)
+      if (problem) {
+        refund()
+        return reply.status(400).send(problem)
+      }
+      if (upload.tooLarge || !upload.buffer) {
         refund()
         return reply.status(413).send(tooLarge(sizeLimit, Boolean(reservedFor)))
       }
+
+      const fields = normalizeFields({
+        password: upload.fields.password,
+        expiresIn: upload.fields.expiresIn,
+        album_id: upload.fields.album_id,
+        keep_duplicate: upload.fields.keep_duplicate,
+      })
       const result = await finalizeUpload(
-        { filename: file.filename, mime: file.mimetype, buffer, fields },
+        { filename: upload.file.filename, mime: upload.file.mimetype, buffer: upload.buffer, fields },
         user,
         request,
         storage,
@@ -82,6 +82,7 @@ export function uploadRoute(app: FastifyInstance, storage: Storage, config: Pokk
       }
       return reply.status(result.status).send(result.body)
     } catch (err) {
+      // 包含讀不出 multipart (例如 content-type 不對):訪客的額度一樣要還回去
       refund()
       throw err
     }

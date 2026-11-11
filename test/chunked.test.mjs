@@ -34,7 +34,7 @@ before(async () => {
 
 after(async () => {
   if (app) await app.close()
-  fs.rmSync(dataDir, { recursive: true, force: true })
+  try { fs.rmSync(dataDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) } catch { /* Windows can still be holding the database file; a leftover temp folder must not fail the run */ }
 })
 
 const auth = { authorization: `Bearer ${API_KEY}` }

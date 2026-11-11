@@ -5,13 +5,14 @@ import type { CompletedUpload, InitInput } from 'chunked-upload-kit'
 import type { Storage } from '../storage.js'
 import type { PokkitConfig } from '../config.js'
 import { requireAuth, canAccessAlbum, type AuthUser } from '../auth.js'
-import { finalizeUpload, normalizeFields, checkQuota } from '../upload-finalize.js'
+import { finalizeUpload, normalizeFields, checkQuota, uploadFieldProblem, isShareLink, albumShareConflict } from '../upload-finalize.js'
 
 export const CHUNKED_UPLOAD_PREFIX = '/api/upload/chunked'
 
-// How many chunked uploads may be finalized at once. Photo/video finalize is
-// now zero-copy (file moves on disk, nothing buffered); only the plain-file
-// branch still reads into RAM, so keep this at 1 — two concurrent 135MB .mov
+// How many chunked uploads may be finalized at once. Every branch is zero-copy
+// now (the assembled file is hashed as a stream and moved on disk, nothing is
+// buffered — plain files included since 2026-11-11). Kept at 1 anyway: hashing a
+// 2GB file is still disk- and CPU-heavy, and two concurrent 135MB .mov
 // readFile()s OOM-killed the process twice on 2026-10-25.
 const FINALIZE_SLOTS = 1
 
@@ -60,10 +61,17 @@ export function chunkedUploadRoute(app: FastifyInstance, storage: Storage, confi
       if (!user) throw new ChunkError(401, 'unauthorized', 'Unauthorized')
       const quota = await checkQuota(user, storage, config, body.size ?? 0)
       if (quota) throw new ChunkError(quota.status, 'quota', String(quota.body.error), quota.body)
+      const refuse = (problem: Record<string, unknown>) =>
+        new ChunkError(400, String(problem.code), String(problem.error), problem)
+      const problem = uploadFieldProblem(body.meta as Record<string, unknown> | undefined)
+      if (problem) throw refuse(problem)
       const fields = normalizeFields(body.meta)
       if (fields.album_id) {
         const album = storage.getAlbum(fields.album_id)
         if (!album || !canAccessAlbum(user, album)) throw new ChunkError(400, 'album_not_found', 'Album not found')
+        // 期限在這裡就知道了:別讓人傳完 2GB 才被告知相簿不收 (密碼要到收尾才看得到)
+        const mime = body.mime ?? ''
+        if (isShareLink(fields) && (storage.isImage(mime) || storage.isVideo(mime))) throw refuse(albumShareConflict())
       }
     },
     onComplete: async (file: CompletedUpload, request: FastifyRequest & { completeBody?: Record<string, unknown> }, reply: FastifyReply) => {
@@ -74,7 +82,14 @@ export function chunkedUploadRoute(app: FastifyInstance, storage: Storage, confi
       }
       // Secrets (password) ride on the final request only; everything else came
       // with init and is in file.meta.
-      const fields = normalizeFields({ ...(file.meta ?? {}), ...(request.completeBody ?? {}) })
+      const merged = { ...(file.meta ?? {}), ...(request.completeBody ?? {}) }
+      // init 已經擋過一次;收尾的請求還能再帶欄位,所以這裡也要看
+      const problem = uploadFieldProblem(merged)
+      if (problem) {
+        reply.status(400)
+        return problem
+      }
+      const fields = normalizeFields(merged)
       await acquire()
       try {
         // Hand over the assembled file by path — photo/video branches move it

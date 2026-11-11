@@ -1,6 +1,5 @@
 import { publicBaseUrl } from './public-url.js'
 import { statSync, statfsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
 import { markIngest } from './avif-sweeper.js'
 import type { FastifyRequest } from 'fastify'
 import type { Storage } from './storage.js'
@@ -38,6 +37,50 @@ export type FinalizeResult =
   | { status: number; body: Record<string, unknown> }
 
 const VALID_EXPIRY = ['1h', '3h', '6h', '12h', '1d', '7d', '30d', 'forever']
+export const EXPIRY_OPTIONS: readonly string[] = VALID_EXPIRY
+
+// 有給期限、但不是認得的選項。沒給(undefined / null / 空字串)不算錯 = 永久。
+// 這要在收檔之前擋下來:以前不認得的值會被默默丟掉,呼叫端以為設了期限,
+// 實際上連結永久有效 (2026-11-11 稽核:expiresIn=5m → 200、沒有期限)。
+export function invalidExpiry(raw: unknown): boolean {
+  if (raw === undefined || raw === null || raw === '') return false
+  return typeof raw !== 'string' || !VALID_EXPIRY.includes(raw)
+}
+
+// 有給密碼、但不是字串(例如用 JSON 型別送了一個數字)。normalizeFields 只認字串,
+// 不擋的話密碼會被丟掉、檔案存成沒鎖 —— 跟不認得的期限是同一種「默默失效」。
+export function invalidPassword(raw: unknown): boolean {
+  if (raw === undefined || raw === null || raw === '') return false
+  return typeof raw !== 'string'
+}
+
+/** 上傳欄位有沒有「給了但不能用」的值。有 → 回要給使用者的 400 內容;沒有 → null。 */
+export function uploadFieldProblem(raw: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
+  if (!raw) return null
+  if (invalidExpiry(raw.expiresIn)) return badExpiryBody()
+  if (invalidPassword(raw.password)) return { error: 'The password must be sent as text.', code: 'bad_password' }
+  return null
+}
+
+/** 這次上傳有沒有要求密碼或期限(「forever」不算期限)。 */
+export function isShareLink(fields: Pick<UploadFields, 'password' | 'expiresIn'>): boolean {
+  return Boolean(fields.password) || Boolean(fields.expiresIn && fields.expiresIn !== 'forever')
+}
+
+export function albumShareConflict(): Record<string, unknown> {
+  return {
+    error: 'Albums only hold library photos. Remove the password and expiry, or upload outside the album.',
+    code: 'album_share_conflict',
+  }
+}
+
+export function badExpiryBody(): Record<string, unknown> {
+  return {
+    error: `Unknown expiresIn. Use one of: ${VALID_EXPIRY.join(', ')}.`,
+    code: 'bad_expiry',
+    allowed: [...VALID_EXPIRY],
+  }
+}
 
 export function normalizeFields(raw: Record<string, unknown> | null | undefined): UploadFields {
   const out: UploadFields = {}
@@ -201,8 +244,20 @@ export async function finalizeUpload(
   const baseUrl = resolveBaseUrl(request, config)
   const metadata = fields.keepDuplicate ? { keep_duplicate: true } : undefined
 
+  // 帶了密碼或期限 = 這是一個「分享連結」,不是相片庫裡的一張照片。
+  // 相片庫那條路不處理這兩個欄位 —— 以前會默默丟掉,檔案變成沒鎖、永久有效
+  // (2026-11-11 實案)。所以跟訪客一樣走下面一般檔案那條路:密碼、期限、到期
+  // 清除都在那裡,相片庫裡也不會出現一張會自己消失或縮圖打不開的照片。
+  const inLibrary = !isGuest && !isShareLink(fields)
+
+  // 相簿只裝相片庫裡的照片。指定了相簿又帶密碼或期限,兩個要求互相衝突 ——
+  // 明講,不要回成功卻讓這張照片既不在相簿、也不在相片庫。
+  if (albumId && !inLibrary && (storage.isImage(mime) || storage.isVideo(mime))) {
+    return { status: 400, body: albumShareConflict() }
+  }
+
   // Photo branch: images get deferred processing
-  if (!isGuest && storage.isImage(mime)) {
+  if (inLibrary && storage.isImage(mime)) {
     const entry = filePath
       ? await storage.savePhotoFromFile(filename, mime, filePath, { album_id: albumId, userId: user.userId, metadata })
       : storage.savePhoto(filename, mime, buffer as Buffer, { album_id: albumId, userId: user.userId, metadata })
@@ -226,7 +281,7 @@ export async function finalizeUpload(
   }
 
   // Video branch: videos get deferred processing (ffmpeg)
-  if (!isGuest && storage.isVideo(mime)) {
+  if (inLibrary && storage.isVideo(mime)) {
     if (!hasFfmpeg()) {
       return { status: 400, body: { error: 'Video upload not available — ffmpeg not installed on server' } }
     }
@@ -256,14 +311,13 @@ export async function finalizeUpload(
     }
   }
 
-  // Normal file branch (buffer-based core API; chunked plain files are read
-  // here lazily, gated by the chunked route's finalize semaphore)
-  if (!buffer) buffer = await readFile(filePath as string)
-  const entry = await storage.save(filename, mime, buffer, {
-    password: fields.password,
-    expiresIn: fields.expiresIn,
-    userId: user.userId,
-  })
+  // Normal file branch — every share link ends here. A chunked upload arrives as
+  // a file on disk and is moved into storage (never read into memory); a
+  // single-request upload arrives as the buffer it was already read into.
+  const shareOptions = { password: fields.password, expiresIn: fields.expiresIn, userId: user.userId }
+  const entry = buffer
+    ? await storage.save(filename, mime, buffer, shareOptions)
+    : await storage.saveFromFile(filename, mime, filePath as string, shareOptions)
   return {
     status: 200,
     body: {
