@@ -1394,6 +1394,28 @@ body.mode-dashboard .landing-only {
   border-color: var(--border-hover);
 }
 
+/* 檔案拖到資料夾卡片上:放開就傳進去 */
+.album-card.dragover {
+  border-color: var(--text-primary);
+  background: var(--bg-tertiary);
+  box-shadow: 0 0 0 2px var(--text-primary);
+}
+
+.album-card.dragover * {
+  pointer-events: none;
+}
+
+.drop-target {
+  margin-top: 10px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.drop-target[hidden] {
+  display: none;
+}
+
 .album-card:hover {
   background: var(--bg-tertiary);
 }
@@ -1563,34 +1585,6 @@ body.mode-dashboard .landing-only {
   margin-left: auto;
   display: flex;
   gap: 8px;
-}
-
-.gallery-dropzone {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 20px;
-  margin-bottom: 16px;
-  border: 1px dashed var(--border-hover);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  color: var(--text-tertiary);
-  font-size: 0.8125rem;
-  transition: border-color var(--transition), color var(--transition), background var(--transition);
-}
-
-.gallery-dropzone:hover,
-.gallery-dropzone:focus-visible {
-  border-color: var(--text-secondary);
-  color: var(--text-secondary);
-  background: var(--bg-secondary);
-}
-
-.gallery-dropzone.dragover {
-  border-color: var(--text-primary);
-  color: var(--text-primary);
-  background: var(--bg-tertiary);
 }
 
 .photo-grid {
@@ -2841,11 +2835,6 @@ body.mode-dashboard .landing-only {
   .swipe-stamp {
     font-size: 18px;
     padding: 5px 12px;
-  }
-
-  .gallery-dropzone {
-    padding: 14px;
-    font-size: 0.75rem;
   }
 
   .gallery-header-actions {

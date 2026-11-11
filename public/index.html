@@ -178,6 +178,7 @@
         </div>
         <p class="drop-text" data-i18n="Drop files here to upload">Drop files here to upload</p>
         <p class="drop-hint" data-i18n="or click to browse · supports folders">or click to browse &middot; supports folders</p>
+        <p class="drop-target" id="dropTarget" hidden></p>
         <p class="drop-hint guest-notice" id="guestNotice" hidden data-i18n="No login. 5 a day, kept up to 24 hours.">No login. 5 a day, kept up to 24 hours.</p>
       </div>
       <input type="file" id="fileInput" multiple hidden>
@@ -428,14 +429,6 @@
           <button class="btn" id="galleryRename" data-i18n="Rename">Rename</button>
           <button class="btn btn-danger" id="galleryDelete" data-i18n="Delete Album">Delete Album</button>
         </div>
-      </div>
-      <div class="gallery-dropzone" id="galleryDropzone" tabindex="0" role="button" aria-label="Upload photos">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/>
-          <line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>
-        <span data-i18n="Drop photos here or click to upload">Drop photos here or click to upload</span>
       </div>
       <div class="photo-grid" id="photoGrid"></div>
     </section>

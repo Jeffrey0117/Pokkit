@@ -72,6 +72,22 @@
   function uploadPasswordFor(file) {
     return file && typeof file.__password === 'string' ? file.__password : '';
   }
+
+  // 檔案要進哪個資料夾,在加入的這一刻就定案(跟密碼同一個道理):
+  // 拖到資料夾卡片上 → 那個資料夾;其他情況 → 當下打開的資料夾。
+  // 之後換頁、重試都不會改派。
+  function stampUploadAlbum(files, albumId) {
+    // 「打開的資料夾」要真的在畫面上才算 — 從資料夾跳去專案頁再上傳,不該還進那個資料夾
+    var open = currentAlbumId && !$gallerySection.hidden ? currentAlbumId : '';
+    var target = albumId || open;
+    for (var i = 0; i < files.length; i++) {
+      if (files[i].__albumId === undefined) files[i].__albumId = target;
+    }
+  }
+
+  function uploadAlbumFor(file) {
+    return file && typeof file.__albumId === 'string' ? file.__albumId : '';
+  }
   var $expirySelect = document.getElementById('expirySelect');
   var $queueSection = document.getElementById('queueSection');
   var $queueList = document.getElementById('queueList');
@@ -92,7 +108,6 @@
   var $newAlbumBtn = document.getElementById('newAlbumBtn');
   var $gallerySection = document.getElementById('gallerySection');
   var $galleryTitle = document.getElementById('galleryTitle');
-  var $galleryDropzone = document.getElementById('galleryDropzone');
   var $photoGrid = document.getElementById('photoGrid');
   var $backToAlbums = document.getElementById('backToAlbums');
   var $lightbox = document.getElementById('lightbox');
@@ -882,35 +897,54 @@
   document.addEventListener('dragover', function (e) { e.preventDefault(); });
   document.addEventListener('drop', function (e) { e.preventDefault(); });
 
-  // ── Gallery Dropzone ──────────────────────────────────
-  $galleryDropzone.addEventListener('click', function () {
-    if (!currentUser) { toast('Please login first', true); return; }
-    $fileInput.click();
+  // ── 拖檔案到資料夾卡片 ────────────────────────────────
+  // 從頁面裡拖出來的東西(例如自己的縮圖)在 Chrome 也會帶 Files,不能當成上傳。
+  var pageDragActive = false;
+  // 被拖的那個元素若在拖曳途中被移出頁面(上傳完成會重畫照片牆),dragend 不會冒泡到
+  // document,旗標就卡住、之後拖檔案到卡片都沒反應 — 所以直接掛在元素上,再加兩道保底。
+  function endPageDrag() { pageDragActive = false; }
+  document.addEventListener('dragstart', function (e) {
+    pageDragActive = true;
+    if (e.target && e.target.addEventListener) e.target.addEventListener('dragend', endPageDrag, { once: true });
   });
+  document.addEventListener('dragend', endPageDrag);
+  document.addEventListener('drop', endPageDrag);
+  document.addEventListener('pointerdown', endPageDrag, true);
 
-  $galleryDropzone.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' || e.key === ' ') {
+  function isFileDrag(e) {
+    if (pageDragActive || !e.dataTransfer || !e.dataTransfer.types) return false;
+    return Array.prototype.indexOf.call(e.dataTransfer.types, 'Files') !== -1;
+  }
+
+  function makeAlbumDropTarget(card, album) {
+    card.addEventListener('dragover', function (e) {
+      if (!isFileDrag(e)) return;
       e.preventDefault();
-      if (!currentUser) { toast('Please login first', true); return; }
-      $fileInput.click();
-    }
-  });
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'copy';
+      card.classList.add('dragover');
+    });
+    card.addEventListener('dragleave', function (e) {
+      if (e.relatedTarget && card.contains(e.relatedTarget)) return;
+      card.classList.remove('dragover');
+    });
+    card.addEventListener('drop', function (e) {
+      card.classList.remove('dragover');
+      if (!isFileDrag(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      handleDrop(e.dataTransfer, album.id);
+    });
+  }
 
-  $galleryDropzone.addEventListener('dragover', function (e) {
-    e.preventDefault();
-    $galleryDropzone.classList.add('dragover');
-  });
-
-  $galleryDropzone.addEventListener('dragleave', function () {
-    $galleryDropzone.classList.remove('dragover');
-  });
-
-  $galleryDropzone.addEventListener('drop', function (e) {
-    e.preventDefault();
-    $galleryDropzone.classList.remove('dragover');
-    if (!currentUser) { toast('Please login first', true); return; }
-    handleDrop(e.dataTransfer);
-  });
+  // 人在資料夾裡時,上方上傳區寫明會傳進哪個資料夾
+  function syncDropTarget() {
+    var el = document.getElementById('dropTarget');
+    if (!el) return;
+    var inAlbum = !!currentAlbumId && !$gallerySection.hidden;
+    el.hidden = !inAlbum;
+    el.textContent = inAlbum ? (window.t ? window.t('Uploads go into') : 'Uploads go into') + '\u300c' + currentAlbumName + '\u300d' : '';
+  }
 
   // ── Folder Reading ─────────────────────────────────────
   var MEDIA_EXTS = /\.(jpe?g|png|webp|heic|heif|avif|gif|mp4|mov|avi|webm|mkv|m4v|3gp)$/i;
@@ -946,10 +980,10 @@
     });
   }
 
-  function handleDrop(dataTransfer) {
+  function handleDrop(dataTransfer, albumId) {
     var items = dataTransfer.items;
     if (!items || !items.length) {
-      if (dataTransfer.files.length > 0) handleFiles(dataTransfer.files);
+      if (dataTransfer.files.length > 0) handleFiles(dataTransfer.files, albumId);
       return;
     }
     var entries = [];
@@ -958,12 +992,12 @@
       if (entry) entries.push(entry);
     }
     if (entries.length === 0) {
-      if (dataTransfer.files.length > 0) handleFiles(dataTransfer.files);
+      if (dataTransfer.files.length > 0) handleFiles(dataTransfer.files, albumId);
       return;
     }
     Promise.all(entries.map(function (e) { return readEntriesRecursive(e, true); })).then(function (results) {
       var files = [].concat.apply([], results);
-      if (files.length > 0) handleFiles(files);
+      if (files.length > 0) handleFiles(files, albumId);
       else toast('No media files found in folder');
     });
   }
@@ -976,7 +1010,7 @@
   // 超過上限就跳過預查直接上傳 —— 伺服器 savePhoto 本來就依內容雜湊去重。
   var DEDUP_MAX_BYTES = 64 * 1024 * 1024;
 
-  function handleFiles(fileList) {
+  function handleFiles(fileList, albumId) {
     var files = Array.isArray(fileList) ? fileList : Array.from(fileList);
     beacon('files-selected', {
       count: files.length,
@@ -985,6 +1019,7 @@
     if (files.length === 0) return;
     // 這批檔案要不要上鎖,在加入的這一刻就定案(見 stampUploadPassword)。
     stampUploadPassword(files);
+    stampUploadAlbum(files, albumId);
     // 大批次(尤其 iOS Safari)在裝置端把每個檔讀進記憶體算 SHA-256 會爆記憶體/卡死,
     // 導致整批都不進佇列(「按加入沒東西」)。檔案多時就跳過裝置端預查重,直接上傳 ——
     // 伺服器 savePhoto 本來就會依內容雜湊去重,不會存到重複檔,只是多傳一點點。
@@ -1464,6 +1499,8 @@
           }
           if (currentAlbumId && !$gallerySection.hidden) {
             openAlbum(currentAlbumId, currentAlbumName);
+          } else if (uploadAlbumFor(file) && !$albumsSection.hidden) {
+            refreshAlbumsSoon(); // 拖到卡片上的:更新那張卡片的張數與封面
           }
         } else if (data) {
           showResult(data);
@@ -1525,7 +1562,7 @@
       if (cpw) completeBody.password = cpw; // secrets go with the final request only, never into session meta
       var cexp = $expirySelect.value;
       if (cexp && cexp !== 'forever') meta.expiresIn = cexp;
-      if (currentAlbumId) meta.album_id = currentAlbumId;
+      if (uploadAlbumFor(file)) meta.album_id = uploadAlbumFor(file);
       pct.textContent = file.__chunkUploadId ? 'resume' : pct.textContent;
       window.ChunkedUpload.uploadChunked(file, {
         endpoint: CHUNKED_ENDPOINT,
@@ -1569,7 +1606,7 @@
     if (pw) fd.append('password', pw);
     var exp = $expirySelect.value;
     if (exp && exp !== 'forever') fd.append('expiresIn', exp);
-    if (currentAlbumId) fd.append('album_id', currentAlbumId);
+    if (uploadAlbumFor(file)) fd.append('album_id', uploadAlbumFor(file));
     fd.append('file', file);
 
     // 進度停滯偵測:到 CF 的 HTTP/2 連線約每 140MB 會無聲卡死(不報錯、位元組
@@ -2177,6 +2214,7 @@
     if ($projectsSection) $projectsSection.hidden = true;
     currentAlbumId = null;
     currentAlbumName = '';
+    syncDropTarget();
     if (tabName === 'albums') loadAlbums();
     if (tabName === 'photos') loadAllPhotos();
     if (tabName === 'videos') loadVideos();
@@ -2309,6 +2347,7 @@
     } else {
       switchTab(route === 'folders' ? 'albums' : route);
     }
+    syncDropTarget();
   }
 
   // Intercept all [data-route] links (side nav, logos, Home) for client-side routing
@@ -2628,6 +2667,15 @@
     });
   });
 
+  // 一批檔案陸續傳完時只重抓一次相簿列表
+  var albumsRefreshTimer = null;
+  function refreshAlbumsSoon() {
+    clearTimeout(albumsRefreshTimer);
+    albumsRefreshTimer = setTimeout(function () {
+      if (!$albumsSection.hidden) loadAlbums();
+    }, 600);
+  }
+
   function loadAlbums() {
     apiRequest('GET', '/api/albums', null, function (albums) {
       renderAlbums(albums);
@@ -2733,6 +2781,7 @@
     card.addEventListener('click', function () {
       openAlbum(album.id, album.name);
     });
+    makeAlbumDropTarget(card, album);
 
     (container || $albumGrid).appendChild(card);
   }
@@ -2774,6 +2823,7 @@
         if (currentAlbumId === id) {
           currentAlbumName = newName.trim();
           $galleryTitle.textContent = currentAlbumName;
+          syncDropTarget();
         }
         loadAlbums();
       });
@@ -2790,6 +2840,7 @@
         currentAlbumName = '';
         $gallerySection.hidden = true;
         $albumsSection.hidden = false;
+        syncDropTarget();
       }
       loadAlbums();
     });
@@ -2820,6 +2871,7 @@
     $gallerySection.hidden = false;
     $galleryTitle.textContent = albumName;
     $galleryCount.textContent = '';
+    syncDropTarget();
     $photoGrid.innerHTML = '';
     fillGridSkeletons($photoGrid);
     renderSubAlbums([]);
@@ -2908,6 +2960,7 @@
     $albumsSection.hidden = false;
     currentAlbumId = null;
     currentAlbumName = '';
+    syncDropTarget();
     loadAlbums();
   });
 
