@@ -3,6 +3,17 @@
 
   var MAX_CONCURRENT = 10;
   var MAX_UPLOAD_RETRIES = 3; // auto-retry transient failures (network / 5xx) before giving up
+  // 卡住偵測的兩個門檻:全部檔案都沒動這麼久 = 連線死了;單一檔案沒動這麼久 = 這一路死了。
+  var STALL_ALL_MS = 10000;
+  var STALL_ONE_MS = 60000;
+  var lastAnyProgressAt = 0; // 任何一個上傳最近一次有位元組送出的時間
+
+  // 慢網路上多檔同時傳,輪不到的那幾路會很久沒進度 — 只要別人還在動就不是斷線,
+  // 砍掉重傳只會從 0 開始、更塞 (2026-11-11 實案:9 張只進 2 張)。
+  function uploadStalled(now, ownAt, anyAt) {
+    if (now - ownAt > STALL_ONE_MS) return true;
+    return now - ownAt > STALL_ALL_MS && now - anyAt > STALL_ALL_MS;
+  }
   // Files above this go through the chunked route (chunked-upload-kit) so no single
   // request exceeds Cloudflare's 100MB body cap. Smaller files keep the one-shot /upload.
   var CHUNK_THRESHOLD = 64 * 1024 * 1024;
@@ -1611,11 +1622,12 @@
 
     // 進度停滯偵測:到 CF 的 HTTP/2 連線約每 140MB 會無聲卡死(不報錯、位元組
     // 不動),10 個槽全被佔住乾等 — 實測佇列每 ~57 張停整整 120 秒(= 舊逾時)。
-    // 位元組 20 秒沒動就主動 abort → autoRetry 秒接手。比砍短 xhr.timeout 聰明:
-    // 慢網路傳大檔只要有在動就不會被誤殺。
+    // 沒動就主動 abort → autoRetry 秒接手 (判斷見 uploadStalled)。比砍短 xhr.timeout 聰明:
+    // 慢網路只要有在動就不會被誤殺。
     var lastProgressAt = Date.now();
+    if (lastAnyProgressAt < lastProgressAt - STALL_ALL_MS) lastAnyProgressAt = lastProgressAt;
     var stallTimer = setInterval(function () {
-      if (Date.now() - lastProgressAt > 10000) {
+      if (uploadStalled(Date.now(), lastProgressAt, lastAnyProgressAt)) {
         clearInterval(stallTimer);
         stallTimer = null;
         xhr.abort();
@@ -1633,7 +1645,7 @@
     }
 
     xhr.upload.addEventListener('progress', function (e) {
-      lastProgressAt = Date.now();
+      lastAnyProgressAt = lastProgressAt = Date.now();
       inflightBytes += e.loaded - sentBytes;
       sentBytes = e.loaded;
       if (e.lengthComputable) {
@@ -1647,6 +1659,10 @@
         updateQueueSummary();
       }
     });
+
+    // 檔案本體送完後只剩等伺服器回應,這段不會再有進度事件 — 交給 xhr.timeout 管,
+    // 不然伺服器忙個十幾秒就把已經傳完的檔案砍掉重傳。
+    xhr.upload.addEventListener('load', clearStallTimer);
 
     xhr.addEventListener('abort', function () {
       clearStallTimer();
