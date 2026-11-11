@@ -13,6 +13,7 @@ import type { PokkitConfig } from '../config.js'
 import { requireAuth, canAccessEntry } from '../auth.js'
 import { sharePreviewTags } from '../share-meta.js'
 import { renderMissingPage } from '../share-notice.js'
+import { MEDIA_ROUTE } from '../rate-limits.js'
 
 // 🔒 Types safe to render inline on our own origin. Everything else (HTML, SVG,
 // scripts, unknown) is served as an attachment so uploads can't run scripts in
@@ -417,6 +418,7 @@ export function filesRoute(
   // GET /files/:id/:filename — direct file download (no auth, for streaming/embedding)
   app.get<{ Params: { id: string; filename: string } }>(
     '/files/:id/:filename',
+    MEDIA_ROUTE,
     async (request, reply) => {
       const { id } = request.params
       const entry = storage.find(id)
@@ -451,6 +453,7 @@ export function filesRoute(
   // GET /f/:id — smart routing: download page (browser) or raw file (API)
   app.get<{ Params: { id: string }; Querystring: { raw?: string; dl?: string } }>(
     '/f/:id',
+    MEDIA_ROUTE,
     async (request, reply) => {
       const acceptHeader = request.headers.accept || ''
       const isRaw = request.query.raw === '1'

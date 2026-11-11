@@ -451,8 +451,9 @@
     if (nav) nav.hidden = true;
     loadFiles();          // re-renders the "Login to manage files" empty state
     // 本來就沒登入的訪客不用換頁:開機檢查也會走到這裡,換頁就是畫面亂跳的元兇,
-    // 而且會把正在看方案頁的人踢回首頁。
-    if (!wasSignedIn) return;
+    // 而且會把正在看方案頁的人踢回首頁。例外是他人正在只有登入才能看的分頁上
+    // (token 過期或無效,/api/me 回 401):那一頁不能留。
+    if (!wasSignedIn && !isPrivateRoute(routeFromPath())) return;
     setMode(false);       // leave dashboard mode → show the landing front door
     setActiveSide(null);
     toggleUploadZone(true); // 後台的帳號頁會藏上傳區,回首頁一定要放回來
@@ -506,6 +507,71 @@
     document.getElementById('confirmCancel').addEventListener('click', function () { settle(false); });
     modal.addEventListener('click', function (e) { if (e.target === modal) settle(false); });
     document.addEventListener('keydown', function (e) { if (!modal.hidden && e.key === 'Escape') settle(false); });
+  })();
+
+  // ── Custom prompt / choose (取代原生 prompt) ──
+  // 原生視窗在手機上又小又突兀,按鈕文字也沒辦法翻譯。promptDialog 問一行字,
+  // chooseDialog 從清單挑一個;取消都回 null。
+  var _promptSettle = null;
+  function openPrompt(title, setup) {
+    var modal = document.getElementById('promptModal');
+    if (_promptSettle) _promptSettle(null); // 一次只開一個
+    document.getElementById('promptTitle').textContent = title;
+    var input = document.getElementById('promptInput');
+    var choices = document.getElementById('promptChoices');
+    var ok = document.getElementById('promptOk');
+    choices.innerHTML = '';
+    setup(input, choices, ok);
+    modal.hidden = false;
+    return new Promise(function (resolve) {
+      _promptSettle = function (value) {
+        _promptSettle = null;
+        modal.hidden = true;
+        resolve(value);
+      };
+    });
+  }
+  function promptDialog(title, opts) {
+    opts = opts || {};
+    if (!document.getElementById('promptModal')) return Promise.resolve(window.prompt(title, opts.value || '')); // 極端保底
+    return openPrompt(title, function (input, choices, ok) {
+      choices.hidden = true;
+      input.hidden = false;
+      input.value = opts.value || '';
+      input.readOnly = !!opts.readOnly;
+      ok.hidden = false;
+      ok.textContent = opts.okLabel || (window.t ? window.t('OK') : 'OK');
+      setTimeout(function () { input.focus(); input.select(); }, 0);
+    });
+  }
+  function chooseDialog(title, labels) {
+    if (!document.getElementById('promptModal')) return Promise.resolve(null);
+    return openPrompt(title, function (input, choices, ok) {
+      input.hidden = true;
+      ok.hidden = true;
+      choices.hidden = false;
+      labels.forEach(function (label, index) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'prompt-choice';
+        b.textContent = label;
+        b.addEventListener('click', function () { if (_promptSettle) _promptSettle(index); });
+        choices.appendChild(b);
+      });
+      setTimeout(function () { if (choices.firstChild) choices.firstChild.focus(); }, 0);
+    });
+  }
+  (function bindPromptModal() {
+    var modal = document.getElementById('promptModal');
+    if (!modal) return;
+    function cancel() { if (_promptSettle) _promptSettle(null); }
+    document.getElementById('promptForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (_promptSettle) _promptSettle(document.getElementById('promptInput').value);
+    });
+    document.getElementById('promptCancel').addEventListener('click', cancel);
+    modal.addEventListener('click', function (e) { if (e.target === modal) cancel(); });
+    document.addEventListener('keydown', function (e) { if (!modal.hidden && e.key === 'Escape') cancel(); });
   })();
 
   // ── Helpers ─────────────────────────────────────────────
@@ -1931,16 +1997,17 @@
     rnBtn.className = 'btn';
     rnBtn.textContent = window.t ? window.t('Rename') : 'Rename';
     rnBtn.addEventListener('click', function () {
-      var next = window.prompt(window.t ? window.t('New filename') : 'New filename', link.textContent);
-      if (next === null) return;
-      next = next.trim();
-      if (!next || next === link.textContent) return;
-      apiRequest('PATCH', '/files/' + entry.id, { filename: next }, function (r) {
-        if (r && r.ok) {
-          link.textContent = r.filename;
-          dlBtn.setAttribute('download', r.filename);
-          toast(window.t ? window.t('Renamed') : 'Renamed');
-        }
+      promptDialog(window.t ? window.t('New filename') : 'New filename', { value: link.textContent, okLabel: window.t ? window.t('Rename') : 'Rename' }).then(function (next) {
+        if (next === null) return;
+        next = next.trim();
+        if (!next || next === link.textContent) return;
+        apiRequest('PATCH', '/files/' + entry.id, { filename: next }, function (r) {
+          if (r && r.ok) {
+            link.textContent = r.filename;
+            dlBtn.setAttribute('download', r.filename);
+            toast(window.t ? window.t('Renamed') : 'Renamed');
+          }
+        });
       });
     });
 
@@ -2073,7 +2140,8 @@
       navigator.clipboard.writeText(data.url).then(function () {
         toast(window.t ? window.t('Share link copied — anyone with it can view this album') : 'Share link copied');
       }).catch(function () {
-        window.prompt('Share link:', data.url);
+        // 剪貼簿寫不進去 (舊瀏覽器、非 https):把連結秀出來讓人自己複製
+        promptDialog(window.t ? window.t('Share link') : 'Share link', { value: data.url, readOnly: true, okLabel: window.t ? window.t('Close') : 'Close' });
       });
     });
   });
@@ -2123,6 +2191,19 @@
   var $sideLinks = document.querySelectorAll('.side-link');
   var DASH_ROUTES = ['folders', 'photos', 'videos', 'files', 'account', 'projects', 'pricing', 'trash'];
 
+  // 沒登入的人能看的後台分頁只有方案頁。資料夾、照片、影片、檔案、垃圾桶、帳戶
+  // 都是「你自己的東西」:沒登入就沒有東西可看,以前卻照樣讓人進去,
+  // 還能按「新增相簿」這類按鈕 (按了才被伺服器擋)。
+  var PUBLIC_DASH_ROUTES = ['pricing'];
+  function isPrivateRoute(route) {
+    return DASH_ROUTES.indexOf(route) >= 0 && PUBLIC_DASH_ROUTES.indexOf(route) < 0;
+  }
+  // 「確定是訪客」:沒有登入資料、沒有 token、登入服務也不是正在換新 token。
+  // 有 token 但還沒驗完的人先放行,/api/me 回 401 時 applyLoggedOut 會把他送回首頁。
+  function isGuest() {
+    return !currentUser && !getToken() && !sdkBusy();
+  }
+
   function routeFromPath() {
     var seg = (location.pathname.split('/')[1] || '').toLowerCase();
     return DASH_ROUTES.indexOf(seg) >= 0 ? seg : 'home';
@@ -2166,6 +2247,15 @@
 
     // Dashboard pages
     if (DASH_ROUTES.indexOf(route) < 0) route = 'folders';
+    if (isPrivateRoute(route) && isGuest()) {
+      // 直接打網址或按上一頁進來的 (push === false) 網址列還停在那一頁,要改回首頁
+      if (push === false && location.pathname !== '/') history.replaceState({}, '', '/');
+      navigate('home', push);
+      toast(window.t ? window.t('Please sign in first') : 'Please sign in first', true);
+      // 自己點進來的人直接給登入視窗;開機時登入服務可能還沒載完,就只提示
+      if (push !== false && typeof letmeuse !== 'undefined') letmeuse.login();
+      return;
+    }
     setMode(true);
     if (push !== false && location.pathname !== '/' + route) {
       history.pushState({ route: route }, '', '/' + route);
@@ -2373,12 +2463,13 @@
   }
 
   function newProject() {
-    var name = window.prompt(window.t ? window.t('Project name') : 'Project name');
-    if (!name || !name.trim()) return;
-    apiRequest('POST', '/api/admin/accounts', { name: name.trim() }, function (data) {
-      if (!data || !data.key) return;
-      showKeyModal(data.account ? data.account.name : name.trim(), data.key);
-      loadProjects();
+    promptDialog(window.t ? window.t('Project name') : 'Project name', { okLabel: window.t ? window.t('Create') : 'Create' }).then(function (name) {
+      if (!name || !name.trim()) return;
+      apiRequest('POST', '/api/admin/accounts', { name: name.trim() }, function (data) {
+        if (!data || !data.key) return;
+        showKeyModal(data.account ? data.account.name : name.trim(), data.key);
+        loadProjects();
+      });
     });
   }
 
@@ -2529,10 +2620,11 @@
 
   // ── Albums ─────────────────────────────────────────────
   $newAlbumBtn.addEventListener('click', function () {
-    var albumName = prompt('Album name:');
-    if (!albumName || !albumName.trim()) return;
-    apiRequest('POST', '/api/albums', { name: albumName.trim() }, function () {
-      loadAlbums();
+    promptDialog(window.t ? window.t('Album name') : 'Album name', { okLabel: window.t ? window.t('Create') : 'Create' }).then(function (albumName) {
+      if (!albumName || !albumName.trim()) return;
+      apiRequest('POST', '/api/albums', { name: albumName.trim() }, function () {
+        loadAlbums();
+      });
     });
   });
 
@@ -2645,24 +2737,23 @@
     (container || $albumGrid).appendChild(card);
   }
 
-  // 收進資料夾:列出可以當資料夾的最上層相簿,輸入編號
+  // 收進資料夾:列出可以當資料夾的最上層相簿,點一個
   function moveAlbumToFolder(album) {
     if (album.child_count) {
       toast(window.t ? window.t('This album already holds other albums') : 'This album already holds other albums', true);
       return;
     }
     var options = allAlbums.filter(function (a) { return !a.parent_id && a.id !== album.id; });
-    var lines = ['0. ' + (window.t ? window.t('Top level') : 'Top level')];
-    for (var i = 0; i < options.length; i++) lines.push((i + 1) + '. ' + options[i].name);
-    var pick = prompt((window.t ? window.t('Move to folder') : 'Move to folder') + '\n' + lines.join('\n'), '');
-    if (pick === null || pick.trim() === '') return;
-    var n = parseInt(pick, 10);
-    if (isNaN(n) || n < 0 || n > options.length) return;
-    var parentId = n === 0 ? null : options[n - 1].id;
-    apiRequest('PUT', '/api/albums/' + album.id, { parent_id: parentId }, function () {
-      toast(window.t ? window.t('Moved') : 'Moved');
-      if (currentAlbumId) openAlbum(currentAlbumId, currentAlbumName);
-      else loadAlbums();
+    var labels = [window.t ? window.t('Top level') : 'Top level'];
+    for (var i = 0; i < options.length; i++) labels.push(options[i].name);
+    chooseDialog(window.t ? window.t('Move to folder') : 'Move to folder', labels).then(function (n) {
+      if (n === null) return;
+      var parentId = n === 0 ? null : options[n - 1].id;
+      apiRequest('PUT', '/api/albums/' + album.id, { parent_id: parentId }, function () {
+        toast(window.t ? window.t('Moved') : 'Moved');
+        if (currentAlbumId) openAlbum(currentAlbumId, currentAlbumName);
+        else loadAlbums();
+      });
     });
   }
 
@@ -2676,15 +2767,16 @@
   document.addEventListener('click', closeAllDropdowns);
 
   function renameAlbum(id, currentName) {
-    var newName = prompt('Rename album:', currentName);
-    if (!newName || !newName.trim() || newName.trim() === currentName) return;
-    apiRequest('PUT', '/api/albums/' + id, { name: newName.trim() }, function () {
-      toast('Renamed');
-      if (currentAlbumId === id) {
-        currentAlbumName = newName.trim();
-        $galleryTitle.textContent = currentAlbumName;
-      }
-      loadAlbums();
+    promptDialog(window.t ? window.t('Rename album') : 'Rename album', { value: currentName, okLabel: window.t ? window.t('Rename') : 'Rename' }).then(function (newName) {
+      if (!newName || !newName.trim() || newName.trim() === currentName) return;
+      apiRequest('PUT', '/api/albums/' + id, { name: newName.trim() }, function () {
+        toast(window.t ? window.t('Renamed') : 'Renamed');
+        if (currentAlbumId === id) {
+          currentAlbumName = newName.trim();
+          $galleryTitle.textContent = currentAlbumName;
+        }
+        loadAlbums();
+      });
     });
   }
 
@@ -3625,10 +3717,11 @@
   $selectionMove.addEventListener('click', openAlbumPicker);
   $albumPickerOverlay.addEventListener('click', closeAlbumPicker);
   $albumPickerNew.addEventListener('click', function () {
-    var name = prompt('New album name:');
-    if (!name || !name.trim()) return;
-    apiRequest('POST', '/api/albums', { name: name.trim() }, function (album) {
-      bulkMovePhotos(album.id);
+    promptDialog(window.t ? window.t('Album name') : 'Album name', { okLabel: window.t ? window.t('Create') : 'Create' }).then(function (name) {
+      if (!name || !name.trim()) return;
+      apiRequest('POST', '/api/albums', { name: name.trim() }, function (album) {
+        bulkMovePhotos(album.id);
+      });
     });
   });
 

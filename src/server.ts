@@ -1,4 +1,5 @@
 import { clientAddress } from './guest-limit.js'
+import { API_LIMIT, isAppShellOrAsset } from './rate-limits.js'
 import { join } from 'node:path'
 import { getJwksStats } from './jwks-cache.js'
 import { readFileSync, statSync } from 'node:fs'
@@ -51,7 +52,13 @@ export async function createServer(config: PokkitConfig) {
   await app.register(cookie)
   await app.register(formbody)
   // 沒有 keyGenerator 的話,所有人都從 tunnel 進來,會共用同一個額度
-  await app.register(rateLimit, { max: 600, timeWindow: '1 minute', keyGenerator: (request) => clientAddress(request) })
+  // 三種額度的分法見 rate-limits.ts。這裡是 API 的;頁面殼與靜態檔不計入,
+  // 媒體路由在各自的宣告上帶 MEDIA_ROUTE。
+  await app.register(rateLimit, {
+    ...API_LIMIT,
+    keyGenerator: (request) => clientAddress(request),
+    allowList: (request) => isAppShellOrAsset(request),
+  })
 
   const storage = new Storage(config.dataDir)
   await storage.init()

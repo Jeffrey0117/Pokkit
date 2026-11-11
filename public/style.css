@@ -3088,6 +3088,38 @@ body.mode-dashboard .landing-only {
 .confirm-msg { white-space: pre-line; line-height: 1.6; margin-bottom: 18px; }
 .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
+/* 輸入／選擇對話框 (取代瀏覽器原生的 prompt 視窗),外框沿用 confirm 的樣子 */
+.prompt-title { display: block; margin-bottom: 12px; font-weight: 600; }
+.prompt-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 18px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 1rem; /* 16px 以上,iOS 才不會在聚焦時把畫面放大 */
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+}
+.prompt-input:focus { outline: none; border-color: var(--border-focus); }
+.prompt-choices { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; max-height: 50vh; overflow-y: auto; }
+.prompt-choice {
+  text-align: left;
+  padding: 10px 12px;
+  font: inherit;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.prompt-choice:hover, .prompt-choice:focus-visible { border-color: var(--border-focus); outline: none; }
+
+/* 沒登入的人在側欄只看得到方案頁,其他分頁是登入後才有的東西 */
+body.is-guest .side-link:not([data-route="pricing"]) { display: none; }
+
 /* 訪客沒有檔案庫:只留上傳區,不秀要登入才能用的分頁 */
 body.is-guest #viewTabs,
 body.is-guest #filesSection {

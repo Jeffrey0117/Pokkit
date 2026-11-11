@@ -39,8 +39,12 @@
       try {
         signedIn = !!localStorage.getItem('pokkit_user') && !!localStorage.getItem('lmu_app_5qXx5Wtv_refresh_token');
       } catch (_) { /* 讀不到就當訪客 */ }
+      // 用 API 金鑰或區網票證登入的人沒有上面那兩筆,但有 token
+      var mayBeSignedIn = signedIn;
+      try { mayBeSignedIn = signedIn || !!localStorage.getItem('pokkit_token'); } catch (_) { /* 同上 */ }
       var seg = (location.pathname.split('/')[1] || '').toLowerCase();
-      var deepLink = DASH_ROUTES.indexOf(seg) >= 0;
+      // 沒登入的人能直接打開的後台分頁只有方案頁;其他的 app.js 會送回首頁
+      var deepLink = DASH_ROUTES.indexOf(seg) >= 0 && (mayBeSignedIn || seg === 'pricing');
       var dashboard = deepLink || (signedIn && matchMedia('(min-width: 761px)').matches);
       var cl = document.body.classList;
       cl.toggle('mode-dashboard', dashboard);
@@ -554,6 +558,18 @@
           <button class="btn btn-danger" id="confirmOk">OK</button>
         </div>
       </div>
+    </div>
+
+    <div class="confirm-modal" id="promptModal" hidden>
+      <form class="confirm-card" role="dialog" aria-modal="true" aria-labelledby="promptTitle" id="promptForm">
+        <label class="confirm-msg prompt-title" id="promptTitle" for="promptInput"></label>
+        <input class="prompt-input" id="promptInput" type="text" autocomplete="off" maxlength="200">
+        <div class="prompt-choices" id="promptChoices" hidden></div>
+        <div class="confirm-actions">
+          <button type="button" class="btn" id="promptCancel" data-i18n="Cancel">Cancel</button>
+          <button type="submit" class="btn btn-upgrade" id="promptOk">OK</button>
+        </div>
+      </form>
     </div>
 
     <div class="key-modal" id="keyModal" hidden>

@@ -7,6 +7,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { Storage } from '../storage.js'
 import type { PokkitConfig } from '../config.js'
 import { requireAuth, canAccessAlbum, canAccessEntry } from '../auth.js'
+import { MEDIA_ROUTE } from '../rate-limits.js'
 
 function escapeHtml(text: string): string {
   const map: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }
@@ -221,7 +222,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   const notServable = (entry: { password_hash?: string | null } & object) =>
     !!entry.password_hash || storage.isExpired(entry as never)
 
-  app.get<{ Params: { id: string } }>('/photos/:id/photo.webp', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/photos/:id/photo.webp', MEDIA_ROUTE, async (request, reply) => {
     if (isHotlinked(request, config)) return reply.status(403).header('Cache-Control', 'no-store').send({ error: 'Hotlinking is not allowed' })
     const entry = storage.find(request.params.id)
     if (!entry || notServable(entry)) {
@@ -241,7 +242,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   })
 
   // GET /photos/:id/thumb.webp — serve thumbnail (highest-frequency response)
-  app.get<{ Params: { id: string } }>('/photos/:id/thumb.webp', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/photos/:id/thumb.webp', MEDIA_ROUTE, async (request, reply) => {
     if (isHotlinked(request, config)) return reply.status(403).header('Cache-Control', 'no-store').send({ error: 'Hotlinking is not allowed' })
     const thumbEntry = storage.find(request.params.id)
     const thumbPath = thumbEntry && !notServable(thumbEntry) ? storage.getThumbPath(request.params.id) : null
@@ -257,7 +258,7 @@ export function photosRoute(app: FastifyInstance, storage: Storage, config: Pokk
   })
 
   // GET /photos/:id/video.mp4 — serve video with Range support
-  app.get<{ Params: { id: string } }>('/photos/:id/video.mp4', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/photos/:id/video.mp4', MEDIA_ROUTE, async (request, reply) => {
     if (isHotlinked(request, config)) return reply.status(403).header('Cache-Control', 'no-store').send({ error: 'Hotlinking is not allowed' })
     const entry = storage.find(request.params.id)
     if (!entry || entry.media_type !== 'video' || notServable(entry)) {
