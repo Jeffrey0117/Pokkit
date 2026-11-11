@@ -65,6 +65,7 @@ function atomicMoveSync(srcPath, destPath) {
 const db = require('./db');
 const { hashBuffer, hashFile } = require('./hash');
 const { createAtomicWriteStream } = require('./streams');
+const { diskSafeName, diskSafeExt } = require('./disk-name');
 
 /**
  * @typedef {object} BucketConfig
@@ -793,7 +794,8 @@ class PokkitStore {
     // 🔒 Never let a caller-supplied filename influence the directory: strip any
     // path separators/traversal so `../../public/app.js` can't escape the bucket.
     // The original (display) name is stored separately in entry.filename.
-    const safe = path.basename(String(filename || '')).replace(/^\.+/, '') || 'file';
+    // It also has to be a name the disk accepts (see disk-name.js).
+    const safe = diskSafeName(filename);
     const mode = this.buckets[bucket].mode;
     if (mode === 'flat') {
       return safe;
@@ -871,7 +873,7 @@ class PokkitStore {
     }
 
     const id = shortId();
-    const ext = path.extname(filename) || '.jpg';
+    const ext = diskSafeExt(filename, '.jpg');
     const rawName = `_raw${ext}`;
     const storedName = `${this._entryPrefix(id, opts.user_id)}/${rawName}`;
     const destPath = this._resolveFilePath(bucket, storedName);
@@ -932,7 +934,7 @@ class PokkitStore {
     }
 
     const id = shortId();
-    const ext = path.extname(filename) || '.jpg';
+    const ext = diskSafeExt(filename, '.jpg');
     const rawName = `_raw${ext}`;
     const storedName = `${this._entryPrefix(id, opts.user_id)}/${rawName}`;
     const destPath = this._resolveFilePath(bucket, storedName);
