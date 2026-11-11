@@ -11,6 +11,8 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import type { Storage, FileEntry } from '../storage.js'
 import type { PokkitConfig } from '../config.js'
 import { requireAuth, canAccessEntry } from '../auth.js'
+import { sharePreviewTags } from '../share-meta.js'
+import { renderMissingPage } from '../share-notice.js'
 
 // 🔒 Types safe to render inline on our own origin. Everything else (HTML, SVG,
 // scripts, unknown) is served as an attachment so uploads can't run scripts in
@@ -149,11 +151,8 @@ function renderDownloadPage(entry: FileEntry, baseUrl: string, error?: string): 
   <title>Pokkit | 隨手一丟就分享</title>
   <meta property="og:title" content="Pokkit | 隨手一丟就分享">
   <meta property="og:description" content="${formatBytes(entry.size)} · ${escapeHtml(entry.mime)}${entry.expires_at && !isExpired ? ' · Limited time' : ''}">
-  <meta property="og:type" content="${isImage ? 'image' : isVideo ? 'video.other' : 'website'}">
   <meta property="og:site_name" content="Pokkit">
-  ${isImage ? `<meta property="og:image" content="${baseUrl}${previewUrl}">` : ''}
-  ${isVideo ? `<meta property="og:video" content="${baseUrl}${previewUrl}">\n  <meta property="og:video:type" content="${escapeHtml(entry.mime)}">` : ''}
-  <meta name="twitter:card" content="${isImage ? 'summary_large_image' : 'summary'}">
+  ${sharePreviewTags(entry, baseUrl)}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800;900&display=swap" rel="stylesheet">
@@ -453,15 +452,23 @@ export function filesRoute(
   app.get<{ Params: { id: string }; Querystring: { raw?: string; dl?: string } }>(
     '/f/:id',
     async (request, reply) => {
-      const entry = storage.find(request.params.id)
-      if (!entry) {
-        return reply.status(404).send({ error: 'File not found' })
-      }
-
       const acceptHeader = request.headers.accept || ''
       const isRaw = request.query.raw === '1'
       const forceDownload = request.query.dl === '1'
       const isBrowser = acceptHeader.includes('text/html')
+
+      const entry = storage.find(request.params.id)
+      if (!entry) {
+        // 人打開的是頁面,程式拿的是 JSON;狀態碼兩邊都是 404
+        if (isBrowser && !isRaw && !forceDownload) {
+          return reply
+            .status(404)
+            .header('Content-Type', 'text/html; charset=utf-8')
+            .header('Cache-Control', 'no-store')
+            .send(renderMissingPage(cssHash))
+        }
+        return reply.status(404).send({ error: 'File not found' })
+      }
 
       // Raw file serving (API clients, curl, ?raw=1, ?dl=1)
       if (isRaw || forceDownload || !isBrowser) {
@@ -491,7 +498,9 @@ export function filesRoute(
       // HTML download page (browsers)
       const baseUrl = publicBaseUrl(request, config)
 
+      // 過期的連結照樣給頁面(上面有說明),但狀態碼要跟 API 一致是 410
       return reply
+        .status(storage.isExpired(entry) ? 410 : 200)
         .header('Content-Type', 'text/html; charset=utf-8')
         .send(renderDownloadPage(entry, baseUrl))
     },

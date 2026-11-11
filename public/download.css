@@ -197,6 +197,15 @@ body {
   font-weight: 600;
 }
 
+/* 「連結不存在」頁:標題下面的說明,跟下面的按鈕拉開一點 */
+.notice-detail {
+  text-align: center;
+  margin: -12px 0 20px;
+  color: #999;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 /* ── Countdown Bar ────────────────────────────────────── */
 
 .countdown-bar {
