@@ -3042,7 +3042,7 @@
     var T = function (k) { return window.t ? window.t(k) : k; };
     return [
       { title: T('Welcome to Pokkit 👋'), body: T('30 seconds to meet your personal cloud.') },
-      { sel: '[data-tour="upload"]', title: T('Drop anything here'), body: T('Photos and videos land in your library in original quality; every file gets a share link.') },
+      { sel: '[data-tour="upload"]', title: T('Drop anything here'), body: T('Photos and videos land in your library; every file gets a share link.') },
       { sel: '[data-tour="photos"]', title: T('Your photo library'), body: T('Browse everything by month — the timeline reads the photo\u2019s real capture date.') },
       { sel: '[data-tour="folders"]', title: T('Albums'), body: T('Organize into albums, then hit Share — one link anyone can open, no app needed.') },
       { sel: '[data-tour="trash"]', title: T('Deleted \u2260 gone'), body: T('Anything you delete waits in Trash for 30 days before it\u2019s really gone.') },

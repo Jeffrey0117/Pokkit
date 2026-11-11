@@ -3005,6 +3005,7 @@ body.mode-dashboard .landing-only {
 .price-card-main { border-color: var(--border-focus); }
 .price-name { font-size: 0.8125rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
 .price-amount { font-size: 1.6rem; font-weight: 700; }
+.price-capacity { margin: -6px 0 2px; color: var(--text-secondary); font-size: 0.875rem; }
 .price-features { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; flex: 1; }
 .price-features li { color: var(--text-secondary); font-size: 0.875rem; padding-left: 18px; position: relative; }
 .price-features li::before { content: '✓'; position: absolute; left: 0; color: var(--text-primary); }
