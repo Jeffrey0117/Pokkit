@@ -1532,6 +1532,25 @@ body.mode-dashboard .landing-only {
   flex-wrap: wrap;
 }
 
+/* ── Pinned section header ───────────────────
+   照片牆一滑就是幾百張,「選取」「分享」這排按鈕跟著捲走的話,得回到最上面才按得到。
+   相簿、全部照片、影片三個頁面的標題列釘在頂端。
+   底色用 box-shadow 往左右多蓋 24px (= .container 最寬時的左右留白;clip-path
+   只留左右、裁掉上下),照片才不會從標題列兩側露出來。不能蓋到整個畫面寬:
+   桌面版左邊是側欄,蓋過去會把側欄頂端的 logo 遮掉。手機上留白較窄,多出來的
+   部分在畫面外,看不到。 */
+.section-header.section-header--pinned {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  padding: 10px 0;
+  margin-top: -10px;
+  margin-bottom: 6px;
+  background: var(--bg-primary);
+  box-shadow: 0 0 0 24px var(--bg-primary);
+  clip-path: inset(0 -24px);
+}
+
 .gallery-count {
   font-size: 0.75rem;
   color: var(--text-tertiary);
