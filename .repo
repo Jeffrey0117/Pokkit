@@ -1,0 +1,480 @@
+{
+  "repo": 1,
+  "name": "pokkit",
+  "what": "Self-hosted cloud drive & file API — share links with password/expiry, chunked big-file uploads, per-project keys",
+  "kind": "service",
+  "work": {
+    "guide": "CLAUDE.md",
+    "run": "npm run dev",
+    "test": "npm test",
+    "deploy": "git push"
+  },
+  "offers": [
+    {
+      "id": "upload_file",
+      "what": "Upload a file to Pokkit storage. Returns download URL and file ID.",
+      "how": "http",
+      "http": {
+        "method": "POST",
+        "path": "/upload",
+        "auth": "bearer",
+        "params": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string",
+              "description": "File to upload (multipart form data)"
+            }
+          },
+          "required": [
+            "file"
+          ]
+        }
+      }
+    },
+    {
+      "id": "list_files",
+      "what": "List all stored files with metadata",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/files",
+        "auth": "bearer",
+        "params": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "number",
+              "description": "Max results per page (default 50, max 200)"
+            },
+            "offset": {
+              "type": "number",
+              "description": "Number of results to skip (default 0)"
+            },
+            "order": {
+              "type": "string",
+              "description": "Sort direction by upload time (default: desc)",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "q": {
+              "type": "string",
+              "description": "Search text to filter files by name (max 100 chars)"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "delete_file",
+      "what": "Delete a file by its ID",
+      "how": "http",
+      "http": {
+        "method": "DELETE",
+        "path": "/files/{id}",
+        "auth": "bearer",
+        "params": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "File ID to delete"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      }
+    },
+    {
+      "id": "get_status",
+      "what": "Get storage statistics (total files, disk usage, etc.)",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/status",
+        "auth": "bearer"
+      }
+    },
+    {
+      "id": "get_me",
+      "what": "Return the identity the current credential resolves to (userId, email, isAdmin, isProject). Call it to confirm the gateway credential is accepted and whether it acts as the global admin key or a per-project account.",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/me",
+        "auth": "bearer"
+      }
+    },
+    {
+      "id": "rename_file",
+      "what": "Change a file's display filename (the storage path and share link stay the same). Use after an upload landed with an unhelpful name.",
+      "how": "http",
+      "http": {
+        "method": "PATCH",
+        "path": "/files/{id}",
+        "auth": "bearer",
+        "params": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "File ID"
+            },
+            "filename": {
+              "type": "string",
+              "description": "New display filename (max 200 chars; slashes are replaced with hyphens)"
+            }
+          },
+          "required": [
+            "id",
+            "filename"
+          ]
+        }
+      }
+    },
+    {
+      "id": "list_photos",
+      "what": "List photos and videos in the media library across all albums, with pagination. Use it to browse or find library media; use list_files for the general file list.",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/photos",
+        "auth": "bearer",
+        "params": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "number",
+              "description": "Max results per page (default 200, max 1000)"
+            },
+            "offset": {
+              "type": "number",
+              "description": "Number of results to skip (default 0)"
+            },
+            "type": {
+              "type": "string",
+              "description": "Only return this media type (default: both)",
+              "enum": [
+                "photo",
+                "video"
+              ]
+            },
+            "order": {
+              "type": "string",
+              "description": "Sort direction (default: desc)",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "sort": {
+              "type": "string",
+              "description": "Sort by capture time or upload time (default: taken)",
+              "enum": [
+                "taken",
+                "uploaded"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "get_photo_status",
+      "what": "Get the background processing status of one uploaded photo or video (e.g. processing, done, failed). Poll it after an upload before using the thumbnail or transcoded video.",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/photos/{id}/status",
+        "auth": "bearer",
+        "params": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Photo/video file ID"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      }
+    },
+    {
+      "id": "get_photos_status",
+      "what": "Get processing status, duration and media type for many photos/videos in one call. Prefer this over get_photo_status when tracking several in-flight uploads.",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/photos/status",
+        "auth": "bearer",
+        "params": {
+          "type": "object",
+          "properties": {
+            "ids": {
+              "type": "string",
+              "description": "Comma-separated file IDs (max 500)"
+            }
+          },
+          "required": [
+            "ids"
+          ]
+        }
+      }
+    },
+    {
+      "id": "update_photo_notes",
+      "what": "Set or clear the notes text attached to a photo or video. Send an empty string to clear.",
+      "how": "http",
+      "http": {
+        "method": "PUT",
+        "path": "/api/photos/{id}",
+        "auth": "bearer",
+        "params": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Photo/video file ID"
+            },
+            "notes": {
+              "type": "string",
+              "description": "Notes text; empty string clears the notes"
+            }
+          },
+          "required": [
+            "id",
+            "notes"
+          ]
+        }
+      }
+    },
+    {
+      "id": "move_photo_to_album",
+      "what": "Move one photo or video into an album, or take it out of its album by passing a null album_id.",
+      "how": "http",
+      "http": {
+        "method": "PUT",
+        "path": "/api/photos/{id}/album",
+        "auth": "bearer",
+        "params": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Photo/video file ID"
+            },
+            "album_id": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Target album ID, or null to remove the photo from its album"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      }
+    },
+    {
+      "id": "move_photos_to_album",
+      "what": "Move several photos/videos into one album in a single call. Returns how many were moved.",
+      "how": "http",
+      "http": {
+        "method": "PUT",
+        "path": "/api/photos/bulk-move",
+        "auth": "bearer",
+        "params": {
+          "type": "object",
+          "properties": {
+            "photo_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "IDs of the photos/videos to move (non-empty)"
+            },
+            "album_id": {
+              "type": "string",
+              "description": "Target album ID"
+            }
+          },
+          "required": [
+            "photo_ids",
+            "album_id"
+          ]
+        }
+      }
+    },
+    {
+      "id": "list_albums",
+      "what": "List albums (folders of photos/videos). With the global key this returns every album on the server; a project key sees only its own.",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/albums",
+        "auth": "bearer"
+      }
+    },
+    {
+      "id": "get_album",
+      "what": "Get one album's details together with its photos (paginated) and its child albums. Use it to read the contents of an album found via list_albums.",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/albums/{id}",
+        "auth": "bearer",
+        "params": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Album ID"
+            },
+            "limit": {
+              "type": "number",
+              "description": "Max photos to return (default 200, max 1000)"
+            },
+            "offset": {
+              "type": "number",
+              "description": "Number of photos to skip (default 0)"
+            },
+            "order": {
+              "type": "string",
+              "description": "Sort direction (default: desc)",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "sort": {
+              "type": "string",
+              "description": "Sort by capture time or upload time (default: taken)",
+              "enum": [
+                "taken",
+                "uploaded"
+              ]
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      }
+    },
+    {
+      "id": "create_album",
+      "what": "Create a new album, optionally nested inside a top-level album (folders go only one level deep). Returns the created album.",
+      "how": "http",
+      "http": {
+        "method": "POST",
+        "path": "/api/albums",
+        "auth": "bearer",
+        "params": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Album name"
+            },
+            "parent_id": {
+              "type": "string",
+              "description": "Optional ID of a top-level album to nest this one under"
+            }
+          },
+          "required": [
+            "name"
+          ]
+        }
+      }
+    },
+    {
+      "id": "update_album",
+      "what": "Rename an album, set its cover photo, or move it under / out of a parent album. Send only the fields to change.",
+      "how": "http",
+      "http": {
+        "method": "PUT",
+        "path": "/api/albums/{id}",
+        "auth": "bearer",
+        "params": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Album ID"
+            },
+            "name": {
+              "type": "string",
+              "description": "New album name"
+            },
+            "cover_file_id": {
+              "type": "string",
+              "description": "File ID of the photo to use as the album cover"
+            },
+            "parent_id": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "ID of a top-level album to nest under, or null to move the album back to the top level"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      }
+    },
+    {
+      "id": "check_hashes",
+      "what": "Given SHA-256 content hashes, return which ones the calling account already has stored (hash -> file id). Call before uploading to skip exact duplicates.",
+      "how": "http",
+      "http": {
+        "method": "POST",
+        "path": "/api/check-hashes",
+        "auth": "bearer",
+        "params": {
+          "type": "object",
+          "properties": {
+            "hashes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "SHA-256 hex hashes of the files to check (max 2000)"
+            }
+          },
+          "required": [
+            "hashes"
+          ]
+        }
+      }
+    },
+    {
+      "id": "list_trash",
+      "what": "List soft-deleted files still in the trash (recoverable for 30 days). Use it to check whether a missing file was trashed by a user; files deleted with the service key are removed permanently and never appear here.",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/trash",
+        "auth": "bearer"
+      }
+    },
+    {
+      "id": "get_tiers",
+      "what": "Get the storage tier table Pokkit enforces: guest limits (max file size, expiry hours, daily uploads), free and Pro capacity, Pro price and whether Pro checkout is available. Public read for answering quota or pricing questions.",
+      "how": "http",
+      "http": {
+        "method": "GET",
+        "path": "/api/tiers"
+      }
+    }
+  ]
+}
