@@ -922,7 +922,7 @@
   // 瀏覽器不給用相機 (舊瀏覽器、非 https、使用者拒絕) 就改用系統相機:
   // 一樣拍完就傳,只是一次一張。
   var cameraStream = null;
-  var cameraFacing = 'environment';
+  var cameraDeviceId = null;
   var cameraShots = 0;
   var cameraBlocked = false;
   var $cameraModal = document.getElementById('cameraModal');
@@ -950,17 +950,85 @@
     document.getElementById('cameraCount').textContent = cameraShots > 0 ? text.replace('{n}', cameraShots) : '';
   }
 
-  function startCameraStream() {
+  // 選鏡頭時不帶解析度。帶了的話瀏覽器會挑「規格最接近」的那顆,在多鏡頭的手機、
+  // 有紅外線或虛擬鏡頭的電腦上,挑到的可能是一顆沒有畫面的 (2026-11-13:打得開但全黑)。
+  function cameraConstraints(deviceId) {
+    return {
+      audio: false,
+      video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: { ideal: 'environment' } }
+    };
+  }
+
+  // 換鏡頭:裝置上每一顆輪過一遍。只有一顆就沒得換。
+  function nextCameraId(devices, currentId) {
+    var ids = devices
+      .filter(function (d) { return d.kind === 'videoinput' && d.deviceId; })
+      .map(function (d) { return d.deviceId; });
+    if (ids.length < 2) return null;
+    return ids[(ids.indexOf(currentId) + 1) % ids.length];
+  }
+
+  // RGBA 像素幾乎全黑 (感光雜訊也算) = 這顆鏡頭沒在給畫面
+  function isBlackFrame(pixels) {
+    var sum = 0;
+    var n = 0;
+    for (var i = 0; i + 2 < pixels.length; i += 4) {
+      sum += pixels[i] + pixels[i + 1] + pixels[i + 2];
+      n += 3;
+    }
+    return n === 0 || sum / n < 4;
+  }
+
+  function cameraLooksBlack() {
+    if (!$cameraVideo.videoWidth) return true;
+    try {
+      var canvas = document.createElement('canvas');
+      canvas.width = 32;
+      canvas.height = 18;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage($cameraVideo, 0, 0, 32, 18);
+      return isBlackFrame(ctx.getImageData(0, 0, 32, 18).data);
+    } catch (_) {
+      return false; // 讀不到像素就不亂下結論
+    }
+  }
+
+  function setCameraHint(msg) {
+    document.getElementById('cameraHint').textContent = msg ? (window.t ? window.t(msg) : msg) : '';
+  }
+
+  // 開了兩秒還是黑的:先把解析度降回一般的再看一次 (有的鏡頭給不出高解析度的畫面),
+  // 還是黑就請使用者換一顆。
+  function watchForBlackCamera(stream, track, retried) {
+    setTimeout(function () {
+      if (cameraStream !== stream || $cameraModal.hidden) return;
+      if (!cameraLooksBlack()) { setCameraHint(''); return; }
+      if (!retried && track.applyConstraints) {
+        track.applyConstraints({ width: { ideal: 1280 }, height: { ideal: 720 } }).catch(function () { /* 降不了就算了 */ });
+        watchForBlackCamera(stream, track, true);
+        return;
+      }
+      setCameraHint('No picture from this camera. Try Flip.');
+    }, 2000);
+  }
+
+  function startCameraStream(deviceId) {
     stopCameraStream(cameraStream);
     cameraStream = null;
-    return navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: { facingMode: { ideal: cameraFacing }, width: { ideal: 3840 }, height: { ideal: 2160 } }
-    }).then(function (stream) {
+    setCameraHint('');
+    return navigator.mediaDevices.getUserMedia(cameraConstraints(deviceId)).then(function (stream) {
       // 等使用者按「允許」的期間視窗可能已經被關掉
       if ($cameraModal.hidden) { stopCameraStream(stream); return; }
       cameraStream = stream;
+      var track = stream.getVideoTracks()[0];
+      var settings = track.getSettings ? track.getSettings() : {};
+      cameraDeviceId = settings.deviceId || deviceId || null;
+      // 鏡頭選定之後才跟它要高解析度;要不到就維持原樣
+      if (track.applyConstraints) {
+        track.applyConstraints({ width: { ideal: 3840 }, height: { ideal: 2160 } }).catch(function () { /* 維持原樣 */ });
+      }
       $cameraVideo.srcObject = stream;
+      watchForBlackCamera(stream, track, false);
       return $cameraVideo.play().catch(function () { /* autoplay 屬性會接手 */ });
     });
   }
@@ -1003,8 +1071,11 @@
   }
 
   function flipCamera() {
-    cameraFacing = cameraFacing === 'environment' ? 'user' : 'environment';
-    startCameraStream().catch(function () { toast('Could not switch camera', true); });
+    navigator.mediaDevices.enumerateDevices().then(function (devices) {
+      var next = nextCameraId(devices, cameraDeviceId);
+      if (!next) { toast('No other camera on this device', true); return; }
+      return startCameraStream(next);
+    }).catch(function () { toast('Could not switch camera', true); });
   }
 
   document.getElementById('cameraBtn').addEventListener('click', function (e) {

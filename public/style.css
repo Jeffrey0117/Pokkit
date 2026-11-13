@@ -1439,6 +1439,13 @@ body.mode-dashboard .landing-only {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
   pointer-events: none;
 }
+.camera-hint {
+  position: absolute; top: 45%; left: 16px; right: 16px;
+  text-align: center;
+  color: #fff; font-size: 1rem; font-weight: 600;
+  pointer-events: none;
+}
+.camera-hint:empty { display: none; }
 .camera-bar {
   display: flex; align-items: center; justify-content: space-around;
   padding: 16px 16px calc(16px + env(safe-area-inset-bottom));

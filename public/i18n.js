@@ -172,6 +172,8 @@
     'Camera unavailable here. Tap again to use the phone camera.': '這裡開不了相機,再按一次改用手機相機。',
     'Could not take the photo': '這張沒拍成功',
     'Could not switch camera': '換不了鏡頭',
+    'No other camera on this device': '這台只有一顆鏡頭',
+    'No picture from this camera. Try Flip.': '這顆鏡頭沒有畫面,按「換鏡頭」試試。',
     'Please sign in first': '請先登入',
     'Top level': '移到最上層',
     'Moved': '已移動',

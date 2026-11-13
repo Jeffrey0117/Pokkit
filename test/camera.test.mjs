@@ -73,3 +73,39 @@ test('拍照按鈕在上傳區裡面,按它不會同時跳出選檔案', () => {
   // 鍵盤 Enter 也一樣:只有焦點在上傳區本身才開選檔案
   assert.match(appJs, /\$dropzone\.addEventListener\('keydown', function \(e\) \{\s*if \(e\.target !== \$dropzone\) return;/)
 })
+
+// 2026-11-13:相機打得開但畫面全黑。選鏡頭時帶了 4K 的要求,瀏覽器會挑「規格最接近」
+// 的那顆 —— 多鏡頭的手機、有紅外線或虛擬鏡頭的電腦上,那顆可能根本沒畫面。
+test('選鏡頭時不帶解析度,交給瀏覽器用預設的那顆', () => {
+  const { cameraConstraints } = load(['cameraConstraints'])
+  const first = cameraConstraints(null)
+  assert.equal(first.audio, false)
+  assert.deepEqual(Object.keys(first.video), ['facingMode'])
+  assert.deepEqual(Object.keys(cameraConstraints('cam-2').video), ['deviceId'])
+  assert.equal(cameraConstraints('cam-2').video.deviceId.exact, 'cam-2')
+  // 高解析度是選定之後才跟那顆鏡頭要的
+  assert.match(extract('startCameraStream'), /applyConstraints\(/)
+})
+
+test('換鏡頭是把裝置上每一顆輪過一遍,不是只有前後兩顆', () => {
+  const { nextCameraId } = load(['nextCameraId'])
+  const devices = [
+    { kind: 'audioinput', deviceId: 'mic' },
+    { kind: 'videoinput', deviceId: 'a' },
+    { kind: 'videoinput', deviceId: 'b' },
+    { kind: 'videoinput', deviceId: 'c' },
+  ]
+  assert.equal(nextCameraId(devices, 'a'), 'b')
+  assert.equal(nextCameraId(devices, 'c'), 'a')
+  assert.equal(nextCameraId(devices, 'unknown'), 'a')
+  assert.equal(nextCameraId(devices.slice(0, 2), 'a'), null, '只有一顆就沒得換')
+})
+
+test('看得出畫面是全黑的,會提示換鏡頭', () => {
+  const { isBlackFrame } = load(['isBlackFrame'])
+  assert.equal(isBlackFrame(new Uint8ClampedArray(4 * 16)), true)
+  assert.equal(isBlackFrame(Uint8ClampedArray.from({ length: 4 * 16 }, (_, i) => (i % 4 === 3 ? 255 : 1))), true, '感光雜訊也算黑')
+  assert.equal(isBlackFrame(Uint8ClampedArray.from({ length: 4 * 16 }, () => 90)), false)
+  assert.equal(isBlackFrame(new Uint8ClampedArray(0)), true)
+  assert.match(html, /id="cameraHint"/)
+})
