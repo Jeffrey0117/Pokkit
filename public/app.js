@@ -928,6 +928,8 @@
   var $cameraModal = document.getElementById('cameraModal');
   var $cameraVideo = document.getElementById('cameraVideo');
   var $cameraInput = document.getElementById('cameraInput');
+  var $cameraSave = document.getElementById('cameraSave');
+  var cameraSaveUrl = null;
 
   function canUseInPageCamera(nav) {
     return !!(nav && nav.mediaDevices && typeof nav.mediaDevices.getUserMedia === 'function');
@@ -943,6 +945,22 @@
   function stopCameraStream(stream) {
     if (!stream) return;
     stream.getTracks().forEach(function (track) { track.stop(); });
+  }
+
+  // 剛拍的那張除了傳上去,也能存回自己的裝置。只留最新一張,上一張佔的記憶體還回去。
+  function offerCameraDownload(file) {
+    if (cameraSaveUrl) URL.revokeObjectURL(cameraSaveUrl);
+    cameraSaveUrl = URL.createObjectURL(file);
+    $cameraSave.href = cameraSaveUrl;
+    $cameraSave.download = file.name;
+    $cameraSave.hidden = false;
+  }
+
+  function clearCameraDownload() {
+    if (cameraSaveUrl) URL.revokeObjectURL(cameraSaveUrl);
+    cameraSaveUrl = null;
+    $cameraSave.hidden = true;
+    $cameraSave.removeAttribute('href');
   }
 
   function renderCameraCount() {
@@ -1038,6 +1056,7 @@
     cameraStream = null;
     $cameraVideo.srcObject = null;
     $cameraModal.hidden = true;
+    clearCameraDownload();
   }
 
   function openCamera() {
@@ -1064,6 +1083,7 @@
       cameraShots += 1;
       var file = new File([blob], cameraFileName(new Date(), cameraShots), { type: 'image/jpeg', lastModified: Date.now() });
       handleFiles([file]);
+      offerCameraDownload(file);
       renderCameraCount();
     }, 'image/jpeg', 0.92);
     $cameraVideo.classList.add('shot');

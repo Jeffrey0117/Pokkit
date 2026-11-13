@@ -109,3 +109,31 @@ test('看得出畫面是全黑的,會提示換鏡頭', () => {
   assert.equal(isBlackFrame(new Uint8ClampedArray(0)), true)
   assert.match(html, /id="cameraHint"/)
 })
+
+// 拍完除了傳上去,也能把剛拍的那張存回自己的裝置
+test('拍完會出現下載鈕,指向剛拍的那張;再拍一張就換成新的那張', () => {
+  assert.match(html, /<a[^>]*id="cameraSave"[^>]*hidden/)
+  assert.match(extract('shootCamera'), /offerCameraDownload\(file\)/)
+
+  const revoked = []
+  let made = 0
+  const sandbox = vm.createContext({
+    URL: { createObjectURL: () => `blob:shot-${++made}`, revokeObjectURL: (u) => revoked.push(u) },
+    $cameraSave: { hidden: true, href: '', download: '', removeAttribute(name) { this[name] = '' } },
+  })
+  vm.runInContext(`var cameraSaveUrl = null;\n${extract('offerCameraDownload')}\n${extract('clearCameraDownload')}`, sandbox)
+
+  sandbox.offerCameraDownload({ name: 'photo-1.jpg' })
+  assert.equal(sandbox.$cameraSave.hidden, false)
+  assert.equal(sandbox.$cameraSave.href, 'blob:shot-1')
+  assert.equal(sandbox.$cameraSave.download, 'photo-1.jpg')
+
+  sandbox.offerCameraDownload({ name: 'photo-2.jpg' })
+  assert.equal(sandbox.$cameraSave.download, 'photo-2.jpg')
+  assert.deepEqual(revoked, ['blob:shot-1'], '上一張佔的記憶體要還回去')
+
+  sandbox.clearCameraDownload()
+  assert.equal(sandbox.$cameraSave.hidden, true)
+  assert.deepEqual(revoked, ['blob:shot-1', 'blob:shot-2'])
+  assert.match(extract('closeCamera'), /clearCameraDownload\(\)/)
+})

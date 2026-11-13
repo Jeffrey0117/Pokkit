@@ -1447,10 +1447,12 @@ body.mode-dashboard .landing-only {
 }
 .camera-hint:empty { display: none; }
 .camera-bar {
-  display: flex; align-items: center; justify-content: space-around;
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px;
   padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
   background: #000;
 }
+.camera-side { display: flex; align-items: center; gap: 8px; justify-content: center; }
+.camera-side .btn { text-decoration: none; }
 .camera-shutter {
   width: 68px; height: 68px;
   border-radius: 50%;

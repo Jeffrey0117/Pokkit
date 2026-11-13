@@ -606,9 +606,14 @@
         <p class="camera-count" id="cameraCount"></p>
         <p class="camera-hint" id="cameraHint"></p>
         <div class="camera-bar">
-          <button type="button" class="btn" id="cameraClose" data-i18n="Close">Close</button>
+          <div class="camera-side">
+            <button type="button" class="btn" id="cameraClose" data-i18n="Close">Close</button>
+          </div>
           <button type="button" class="camera-shutter" id="cameraShutter" aria-label="Take photo"></button>
-          <button type="button" class="btn" id="cameraFlip" data-i18n="Flip">Flip</button>
+          <div class="camera-side camera-side-end">
+            <a class="btn" id="cameraSave" download hidden data-i18n="Download">Download</a>
+            <button type="button" class="btn" id="cameraFlip" data-i18n="Flip">Flip</button>
+          </div>
         </div>
       </div>
     </div>
