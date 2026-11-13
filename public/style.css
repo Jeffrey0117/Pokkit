@@ -1416,6 +1416,44 @@ body.mode-dashboard .landing-only {
   display: none;
 }
 
+/* ── Camera ── */
+.camera-btn { margin-top: 12px; }
+.confirm-modal.camera-modal { padding: 0; background: #000; }
+.camera-card {
+  position: relative;
+  display: flex; flex-direction: column;
+  width: 100%; height: 100%;
+  background: #000;
+}
+.camera-video {
+  flex: 1; min-height: 0; width: 100%;
+  object-fit: contain;
+  background: #000;
+  transition: opacity 0.12s;
+}
+.camera-video.shot { opacity: 0.35; }
+.camera-count {
+  position: absolute; top: 12px; left: 0; right: 0;
+  text-align: center;
+  color: #fff; font-size: 0.875rem; font-weight: 600;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+.camera-bar {
+  display: flex; align-items: center; justify-content: space-around;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  background: #000;
+}
+.camera-shutter {
+  width: 68px; height: 68px;
+  border-radius: 50%;
+  border: 4px solid #fff;
+  background: #fff;
+  box-shadow: inset 0 0 0 3px #000;
+  cursor: pointer;
+}
+.camera-shutter:active { transform: scale(0.94); }
+
 .album-card:hover {
   background: var(--bg-tertiary);
 }

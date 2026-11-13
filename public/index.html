@@ -189,9 +189,11 @@
         <p class="drop-text" data-i18n="Drop files here to upload">Drop files here to upload</p>
         <p class="drop-hint" data-i18n="or click to browse · supports folders">or click to browse &middot; supports folders</p>
         <p class="drop-target" id="dropTarget" hidden></p>
+        <button type="button" class="btn camera-btn" id="cameraBtn" data-i18n="Take photo">Take photo</button>
         <p class="drop-hint guest-notice" id="guestNotice" hidden data-i18n="No login. 5 a day, kept up to 24 hours.">No login. 5 a day, kept up to 24 hours.</p>
       </div>
       <input type="file" id="fileInput" multiple hidden>
+      <input type="file" id="cameraInput" accept="image/*" capture="environment" hidden>
     </section>
 
     <section class="upload-options" id="uploadOptions">
@@ -594,6 +596,18 @@
         <div class="confirm-actions">
           <button class="btn" id="confirmCancel" data-i18n="Cancel">Cancel</button>
           <button class="btn btn-danger" id="confirmOk">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="confirm-modal camera-modal" id="cameraModal" hidden>
+      <div class="camera-card" role="dialog" aria-modal="true" aria-labelledby="cameraCount">
+        <video class="camera-video" id="cameraVideo" autoplay playsinline muted></video>
+        <p class="camera-count" id="cameraCount"></p>
+        <div class="camera-bar">
+          <button type="button" class="btn" id="cameraClose" data-i18n="Close">Close</button>
+          <button type="button" class="camera-shutter" id="cameraShutter" aria-label="Take photo"></button>
+          <button type="button" class="btn" id="cameraFlip" data-i18n="Flip">Flip</button>
         </div>
       </div>
     </div>

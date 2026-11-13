@@ -903,6 +903,7 @@
   });
 
   $dropzone.addEventListener('keydown', function (e) {
+    if (e.target !== $dropzone) return; // 上傳區裡的按鈕 (拍照) 自己處理 Enter
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       $fileInput.click();
@@ -913,6 +914,116 @@
     if ($fileInput.files.length > 0) {
       handleFiles($fileInput.files);
       $fileInput.value = '';
+    }
+  });
+
+  // ── Camera ─────────────────────────────────────────────
+  // 在網頁裡開相機,拍一張就傳一張 (跟拖檔案進來一樣,傳到目前所在的資料夾)。
+  // 瀏覽器不給用相機 (舊瀏覽器、非 https、使用者拒絕) 就改用系統相機:
+  // 一樣拍完就傳,只是一次一張。
+  var cameraStream = null;
+  var cameraFacing = 'environment';
+  var cameraShots = 0;
+  var cameraBlocked = false;
+  var $cameraModal = document.getElementById('cameraModal');
+  var $cameraVideo = document.getElementById('cameraVideo');
+  var $cameraInput = document.getElementById('cameraInput');
+
+  function canUseInPageCamera(nav) {
+    return !!(nav && nav.mediaDevices && typeof nav.mediaDevices.getUserMedia === 'function');
+  }
+
+  // 帶序號:同一秒連拍的兩張不能同名
+  function cameraFileName(date, n) {
+    var two = function (v) { return (v < 10 ? '0' : '') + v; };
+    return 'photo-' + date.getFullYear() + two(date.getMonth() + 1) + two(date.getDate()) +
+      '-' + two(date.getHours()) + two(date.getMinutes()) + two(date.getSeconds()) + '-' + n + '.jpg';
+  }
+
+  function stopCameraStream(stream) {
+    if (!stream) return;
+    stream.getTracks().forEach(function (track) { track.stop(); });
+  }
+
+  function renderCameraCount() {
+    var text = window.t ? window.t('Taken: {n}') : 'Taken: {n}';
+    document.getElementById('cameraCount').textContent = cameraShots > 0 ? text.replace('{n}', cameraShots) : '';
+  }
+
+  function startCameraStream() {
+    stopCameraStream(cameraStream);
+    cameraStream = null;
+    return navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: { ideal: cameraFacing }, width: { ideal: 3840 }, height: { ideal: 2160 } }
+    }).then(function (stream) {
+      // 等使用者按「允許」的期間視窗可能已經被關掉
+      if ($cameraModal.hidden) { stopCameraStream(stream); return; }
+      cameraStream = stream;
+      $cameraVideo.srcObject = stream;
+      return $cameraVideo.play().catch(function () { /* autoplay 屬性會接手 */ });
+    });
+  }
+
+  function closeCamera() {
+    stopCameraStream(cameraStream);
+    cameraStream = null;
+    $cameraVideo.srcObject = null;
+    $cameraModal.hidden = true;
+  }
+
+  function openCamera() {
+    if (cameraBlocked || !canUseInPageCamera(navigator)) { $cameraInput.click(); return; }
+    cameraShots = 0;
+    renderCameraCount();
+    $cameraModal.hidden = false;
+    startCameraStream().catch(function () {
+      // 被拒絕或沒有鏡頭:之後按拍照就直接用系統相機
+      cameraBlocked = true;
+      closeCamera();
+      toast('Camera unavailable here. Tap again to use the phone camera.', true);
+    });
+  }
+
+  function shootCamera() {
+    if (!cameraStream || !$cameraVideo.videoWidth) return;
+    var canvas = document.createElement('canvas');
+    canvas.width = $cameraVideo.videoWidth;
+    canvas.height = $cameraVideo.videoHeight;
+    canvas.getContext('2d').drawImage($cameraVideo, 0, 0);
+    canvas.toBlob(function (blob) {
+      if (!blob) { toast('Could not take the photo', true); return; }
+      cameraShots += 1;
+      var file = new File([blob], cameraFileName(new Date(), cameraShots), { type: 'image/jpeg', lastModified: Date.now() });
+      handleFiles([file]);
+      renderCameraCount();
+    }, 'image/jpeg', 0.92);
+    $cameraVideo.classList.add('shot');
+    setTimeout(function () { $cameraVideo.classList.remove('shot'); }, 120);
+  }
+
+  function flipCamera() {
+    cameraFacing = cameraFacing === 'environment' ? 'user' : 'environment';
+    startCameraStream().catch(function () { toast('Could not switch camera', true); });
+  }
+
+  document.getElementById('cameraBtn').addEventListener('click', function (e) {
+    e.stopPropagation();
+    openCamera();
+  });
+  document.getElementById('cameraShutter').addEventListener('click', shootCamera);
+  document.getElementById('cameraFlip').addEventListener('click', flipCamera);
+  document.getElementById('cameraClose').addEventListener('click', closeCamera);
+  $cameraModal.addEventListener('click', function (e) { if (e.target === $cameraModal) closeCamera(); });
+  document.addEventListener('keydown', function (e) {
+    if (!$cameraModal.hidden && e.key === 'Escape') closeCamera();
+  });
+  window.addEventListener('pagehide', closeCamera);
+  $cameraInput.addEventListener('click', function (e) { e.stopPropagation(); });
+  $cameraInput.addEventListener('change', function () {
+    if ($cameraInput.files.length > 0) {
+      handleFiles($cameraInput.files);
+      $cameraInput.value = '';
     }
   });
 
