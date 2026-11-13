@@ -2085,6 +2085,9 @@
         // 呼 bump,如此遞迴直到哨兵離開視口或資料載完(旗標為 false 才真的發)。
         setTimeout(function () {
           if (!sentinel.parentNode) return;
+          // 清單被藏起來 (人在別的頁面) 時,量出來的位置全是 0,會被當成「還在畫面裡」
+          // 而一頁接一頁載到完。藏著就不補量;之後清單出現,上面的 IO 會自己觸發。
+          if (!sentinel.getClientRects().length) return;
           var r = sentinel.getBoundingClientRect();
           if (r.top < window.innerHeight + 200) loadMore();
         }, 80);
