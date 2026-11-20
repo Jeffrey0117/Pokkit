@@ -164,6 +164,12 @@ export async function checkQuota(
     }
   }
 
+  // 專案帳號 (pk_ key) = 生態系自己的內部服務 (CheckCut、reelo-relay…),不是零售
+  // 客戶,不該被「免費 2GB / Pro 20GB」這種賣給真人的方案額度管 —— 它們只受上面
+  // 的磁碟與全站容量保險絲限制。2026-11-20:CheckCut 幫各店存課程影片存過 2GB,
+  // Pokkit 回 413,害整個 classroo 的影片上傳全被這條零售方案牆擋死。
+  if (user.isProject) return null
+
   if (user.userId === GUEST_USER_ID) {
     if (incomingBytes > GUEST_MAX_FILE_BYTES) {
       return {
