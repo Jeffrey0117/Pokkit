@@ -1820,6 +1820,10 @@
         meta: meta,
         completeBody: completeBody,
         uploadId: file.__chunkUploadId || undefined,
+        // 「卡在某個百分比」只有這幾個事件看得出卡在哪 (回應掉了 / 重送 / 補救成功)
+        onEvent: function (e) {
+          beacon('chunked-' + e.type, { name: file.name, size: file.size, index: e.index, readyState: e.readyState, waitedMs: e.waitedMs, code: e.code, status: e.status, attempt: e.attempt });
+        },
         onProgress: function (p) {
           bar.style.width = p.percent + '%';
           pct.textContent = p.percent + '%';

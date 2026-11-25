@@ -77,21 +77,49 @@ async function postJson(fetchImpl, url, payload, { headers, signal, uploadId, re
   }
 }
 
-function putWithXhr(url, blob, { headers, signal, onProgress, uploadId, timeoutMs }) {
+// Resolves with the response JSON, or with { ackLost: true } when the body went
+// out, no response came back, and `probe()` says the server has the chunk.
+// (Browsers do lose responses: an iPhone on plain-http LAN delivered none of the
+// chunk 200s, 2026-11-25. Without the probe the only way out is the timeout,
+// followed by re-sending bytes the server already holds.)
+function putWithXhr(url, blob, { headers, signal, onProgress, uploadId, timeoutMs, ackProbeMs, probe }) {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) { reject(abortError()); return; }
     const xhr = new XMLHttpRequest();
+    let settled = false;
+    let probeTimer = null;
+    let probing = false;
+    const settle = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      if (probeTimer) clearInterval(probeTimer);
+      fn(value);
+    };
     xhr.open('PUT', url);
     if (timeoutMs > 0) xhr.timeout = timeoutMs;
     for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
     xhr.upload.addEventListener('progress', (e) => { if (e.lengthComputable) onProgress(e.loaded); });
-    xhr.addEventListener('load', () => {
-      if (xhr.status >= 200 && xhr.status < 300) resolve(parseBody(xhr.responseText));
-      else reject(errorFromResponse(xhr.status, xhr.responseText, uploadId));
+    xhr.upload.addEventListener('load', () => {
+      if (settled || !(ackProbeMs > 0) || typeof probe !== 'function') return;
+      const sentAt = Date.now();
+      probeTimer = setInterval(async () => {
+        if (probing || settled) return;
+        probing = true;
+        const has = await probe().catch(() => false);
+        probing = false;
+        if (!has || settled) return;
+        const readyState = xhr.readyState;
+        settle(resolve, { ackLost: true, readyState, waitedMs: Date.now() - sentAt });
+        xhr.abort();
+      }, ackProbeMs);
     });
-    xhr.addEventListener('error', () => reject(new UploadError('Network error', { status: 0, code: 'network', uploadId })));
-    xhr.addEventListener('timeout', () => reject(new UploadError('Timed out', { status: 0, code: 'timeout', uploadId })));
-    xhr.addEventListener('abort', () => reject(abortError()));
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) settle(resolve, parseBody(xhr.responseText));
+      else settle(reject, errorFromResponse(xhr.status, xhr.responseText, uploadId));
+    });
+    xhr.addEventListener('error', () => settle(reject, new UploadError('Network error', { status: 0, code: 'network', uploadId })));
+    xhr.addEventListener('timeout', () => settle(reject, new UploadError('Timed out', { status: 0, code: 'timeout', uploadId })));
+    xhr.addEventListener('abort', () => settle(reject, abortError()));
     signal?.addEventListener('abort', () => xhr.abort(), { once: true });
     xhr.send(blob);
   });
@@ -110,7 +138,9 @@ export async function uploadChunked(file, opts = {}) {
     retries = 3,
     retryDelayMs = 500,
     chunkTimeoutMs = 120_000,
+    ackProbeMs = 5_000,
     onProgress,
+    onEvent,
     signal,
     meta,
     completeBody,
@@ -176,6 +206,18 @@ export async function uploadChunked(file, opts = {}) {
   }
   emit();
 
+  // Diagnostics for the host app (beacon them); a throwing listener never breaks the upload.
+  const event = (type, data) => {
+    if (typeof onEvent !== 'function') return;
+    try { onEvent({ type, uploadId, ...data }); } catch (_) { /* listener's problem */ }
+  };
+
+  // The server's own word on whether chunk i landed.
+  const serverHas = async (i) => {
+    const s = await request(fetchImpl, 'GET', `${base}/${encodeURIComponent(uploadId)}`, { headers: await hdrs(), signal, uploadId });
+    return Array.isArray(s?.received) && s.received.includes(i);
+  };
+
   // ── 3. chunk workers ──
   const queue = [];
   for (let i = 0; i < totalChunks; i++) if (!done.has(i)) queue.push(i);
@@ -189,15 +231,35 @@ export async function uploadChunked(file, opts = {}) {
       const h = { ...(await hdrs()), 'content-type': 'application/octet-stream' };
       try {
         const onChunkProgress = (n) => { loadedByChunk.set(i, n); emit(); };
-        if (useXhr) await putWithXhr(url, blob, { headers: h, signal, onProgress: onChunkProgress, uploadId, timeoutMs: chunkTimeoutMs });
-        else await request(fetchImpl, 'PUT', url, { headers: h, body: blob, signal, uploadId });
+        if (useXhr) {
+          const res = await putWithXhr(url, blob, {
+            headers: h, signal, onProgress: onChunkProgress, uploadId, timeoutMs: chunkTimeoutMs,
+            ackProbeMs, probe: () => serverHas(i),
+          });
+          if (res && res.ackLost) event('ack-lost', { index: i, readyState: res.readyState, waitedMs: res.waitedMs });
+        } else {
+          await request(fetchImpl, 'PUT', url, { headers: h, body: blob, signal, uploadId });
+        }
         loadedByChunk.set(i, blob.size);
         emit();
         return;
       } catch (err) {
+        if (err.code === 'aborted' || !isRetryable(err)) {
+          loadedByChunk.set(i, 0);
+          emit();
+          throw withId(err);
+        }
+        // The request failed from here, but the bytes may have landed: ask before re-sending.
+        if (await serverHas(i).catch(() => false)) {
+          loadedByChunk.set(i, blob.size);
+          emit();
+          event('chunk-recovered', { index: i, code: err.code, status: err.status });
+          return;
+        }
         loadedByChunk.set(i, 0);
         emit();
-        if (err.code === 'aborted' || !isRetryable(err) || attempt >= retries) throw withId(err);
+        event('chunk-retry', { index: i, attempt, code: err.code, status: err.status });
+        if (attempt >= retries) throw withId(err);
         await sleep(retryDelayMs * 2 ** attempt, signal);
       }
     }
