@@ -12,6 +12,11 @@
 // `uploadId` when `resumable` is true to continue later.
 // ============================================================================
 
+// 在家高速上傳: see lan-probe.js. Side-effect import so it works as native ESM, bundled, or in Node.
+import './lan-probe.js';
+export const probeLan = (...a) => globalThis.LanProbe.probeLan(...a);
+export const lanBaseFor = (...a) => globalThis.LanProbe.lanBaseFor(...a);
+
 export class UploadError extends Error {
   constructor(message, { status = 0, code = 'upload_failed', body = null, uploadId = null, resumable = false, cause } = {}) {
     super(message);
@@ -150,6 +155,7 @@ export async function uploadChunked(file, opts = {}) {
     uploadId: resumeId,
     fetch: fetchImpl = globalThis.fetch,
     useXhr = typeof XMLHttpRequest !== 'undefined',
+    lan,            // 'https://app.lan.example.com' | true (derive from location) — send bytes over the home network when it answers
   } = opts;
 
   if (!endpoint) throw new UploadError('`endpoint` is required', { code: 'bad_options' });
@@ -159,7 +165,10 @@ export async function uploadChunked(file, opts = {}) {
   if (typeof fetchImpl !== 'function') throw new UploadError('fetch is not available; pass opts.fetch', { code: 'bad_options' });
   if (signal?.aborted) throw abortError();
 
-  const base = endpoint.replace(/\/$/, '');
+  const lanBase = lan === true ? lanBaseFor(globalThis.location?.hostname) : (typeof lan === 'string' ? lan : null);
+  const lanHit = lanBase && endpoint.startsWith('/') ? await probeLan(lanBase, { fetch: fetchImpl }) : null;
+  if (lanHit && typeof onEvent === 'function') { try { onEvent({ type: 'lan', base: lanHit }); } catch (_) { /* */ } }
+  const base = (lanHit || '') + endpoint.replace(/\/$/, '');
   const hdrs = async () => ({ ...(typeof getHeaders === 'function' ? await getHeaders() : headers) });
   const name = filename || file.name || 'upload.bin';
 

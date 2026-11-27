@@ -19,6 +19,26 @@
   var CHUNK_THRESHOLD = 64 * 1024 * 1024;
   var CHUNKED_ENDPOINT = '/api/upload/chunked';
 
+  // 在家高速上傳 (2026-11-27): 在家就把檔案走家裡網路送 (CloudPipe 家用入口 https://pokkit.lan.<網域>),
+  // 不在家或問不到就照舊走公開網址。取代原本「在家?LAN 高速直傳」的跳頁按鈕。
+  // 問法在 /vendor/lan-probe.js (chunked-upload-kit), 結果記在 sessionStorage 5 分鐘。
+  var lanBasePromise = null;
+  function upBase() {
+    if (!window.LanProbe || /^(localhost|127\.|192\.168\.|10\.|172\.)/.test(location.hostname)) return Promise.resolve('');
+    if (!lanBasePromise) {
+      lanBasePromise = window.LanProbe.probeLan(window.LanProbe.lanBaseFor(location.hostname))
+        .then(function (b) { return b || ''; }, function () { return ''; });
+    }
+    return lanBasePromise;
+  }
+  // 家裡那條出錯 → 這頁接下來都走公開網址 (分片上傳也會讀到這個「不在家」)
+  function dropLan() {
+    lanBasePromise = Promise.resolve('');
+    var b = window.LanProbe && window.LanProbe.lanBaseFor(location.hostname);
+    if (!b) return;
+    try { sessionStorage.setItem('lan-probe:' + b, JSON.stringify({ ok: false, until: Date.now() + 300000 })); } catch (_) { /* */ }
+  }
+
   // ── 客戶端黑盒子 ────────────────────────────────────────
   // 手機上「上傳完全沒反應」這種純前端死亡在伺服器 log 完全隱形(2026-09-10
   // 影片實案),把關鍵步驟與 JS 錯誤打回 /api/client-log 讓它可遠端定位。
@@ -1329,28 +1349,6 @@
   }
   setTimeout(initLanUx, 2500);
 
-  // 公網頁的「在家? LAN 高速直傳」:站長自己在家用的捷徑。
-  // 只有確認是管理員之後才去問主機的內網位址、才掛按鈕 —— 一般會員按了也連不上,
-  // 主機的內網位址也不該給他們。
-  var lanSwitchOffered = false;
-  function offerLanSwitch() {
-    if (lanSwitchOffered || SELF_HOST || LAN_MODE) return;
-    lanSwitchOffered = true;
-    apiRequest('GET', '/api/lan-info', null, function (info) {
-      if (!info || !info.ip) return;
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'lan-badge lan-switch';
-      btn.textContent = '⚡ 在家?LAN 高速直傳';
-      btn.addEventListener('click', function () {
-        var t = getToken();
-        if (!t) { toast('請先登入再切換 LAN 模式', true); return; }
-        location.href = 'http://' + info.ip + ':' + info.port + '/#lanauth=' + encodeURIComponent(t);
-      });
-      document.body.appendChild(btn);
-    });
-  }
-
   function queueFiles(files) {
     $queueSection.hidden = false;
     acquireWakeLock();
@@ -1689,6 +1687,7 @@
     // Returns true if a retry was scheduled (caller should NOT count a failure yet).
     function autoRetry() {
       settleInflight();
+      dropLan();
       if (attempt >= MAX_UPLOAD_RETRIES) return false;
       var delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
       uploading--;
@@ -1813,6 +1812,7 @@
       pct.textContent = file.__chunkUploadId ? 'resume' : pct.textContent;
       window.ChunkedUpload.uploadChunked(file, {
         endpoint: CHUNKED_ENDPOINT,
+        lan: true,   // 在家就走家裡網路 (見 upBase)
         getHeaders: function () {
           var token = getToken();
           return token ? { Authorization: 'Bearer ' + token } : {};
@@ -1836,6 +1836,7 @@
         // server dropped it, so forget the id or Retry would 404 forever.
         beacon('chunked-fail', { name: file.name, size: file.size, msg: String((err && err.message) || err), code: err && err.code, status: err && err.status });
         file.__chunkUploadId = (err && err.resumable && err.uploadId) ? err.uploadId : null;
+        if (err && err.resumable) dropLan();   // 家裡那條斷了 → 重試走公開網址 (同一台伺服器, 已傳的分片不掉)
         if (err && err.status === 401) {
           authExpired();
           failPermanently(null);
@@ -1992,14 +1993,16 @@
       failPermanently('Timed out');
     });
 
-    xhr.open('POST', '/upload');
-    var uploadAsMember = !!currentUser;
-    // 必設:預設 timeout=0=無限等。被斬斷的連線在 iOS 上常不觸發 error 事件,
-    // 殭屍請求永久佔用併發槽,累積 10 個就把整個佇列鎖死
-    // (2026-10-26 實案:百張批次兩度「卡在 59」)。逾時走 ontimeout → autoRetry。
-    xhr.timeout = 120000;
-    if (uploadAsMember) setAuthHeader(xhr);
-    xhr.send(fd);
+    upBase().then(function (base) {
+      xhr.open('POST', base + '/upload');
+      var uploadAsMember = !!currentUser;
+      // 必設:預設 timeout=0=無限等。被斬斷的連線在 iOS 上常不觸發 error 事件,
+      // 殭屍請求永久佔用併發槽,累積 10 個就把整個佇列鎖死
+      // (2026-10-26 實案:百張批次兩度「卡在 59」)。逾時走 ontimeout → autoRetry。
+      xhr.timeout = 120000;
+      if (uploadAsMember) setAuthHeader(xhr);
+      xhr.send(fd);
+    });
   }
 
   // ── Result Block ────────────────────────────────────────
@@ -2908,7 +2911,6 @@
     if (nav) nav.hidden = !isAdmin;
     var adminNav = document.getElementById('adminNav');
     if (adminNav) adminNav.hidden = !(isAdmin && !SELF_HOST); // 會員管理:自架沒有會員
-    if (isAdmin) offerLanSwitch();
   }
 
   function checkAdmin() {
