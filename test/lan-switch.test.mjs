@@ -55,11 +55,12 @@ function extract(name) {
   throw new Error(`${name}() 沒有結尾`)
 }
 
-test('前端:確認是管理員之後才去問、才掛按鈕;一般會員連問都不問', () => {
-  const offer = extract('offerLanSwitch')
-  assert.match(offer, /'\/api\/lan-info'/)
-  assert.match(extract('showAdminLinks'), /if \(isAdmin\) offerLanSwitch\(\)/)
-  // 開機時不分身分就去問的那段要拿掉 (訪客問了還會拿到 401)
-  assert.ok(!extract('initLanUx').includes('/api/lan-info'))
-  assert.equal((appJs.match(/'\/api\/lan-info'/g) || []).length, 1)
+// 2026-11-27 起跳頁按鈕拿掉了:在家改由 CloudPipe 家用入口自動判斷 (upBase / lan-probe),
+// 前端再也不需要主機的內網 IP —— 不能有任何地方去問 /api/lan-info。
+test('前端:不再問主機內網 IP,上傳在家自動走家用入口', () => {
+  assert.equal((appJs.match(/\/api\/lan-info/g) || []).length, 0)
+  assert.ok(!appJs.includes('offerLanSwitch'))
+  assert.match(extract('upBase'), /LanProbe\.probeLan/)
+  assert.match(appJs, /base \+ '\/upload'/, '小檔上傳要走 upBase 給的網址')
+  assert.match(appJs, /lan: true/, '大檔分片也要開 lan')
 })
